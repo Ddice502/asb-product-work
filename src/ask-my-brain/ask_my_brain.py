@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import fnmatch
 import hashlib
+import importlib.util
 import json
 import math
 import os
@@ -15,6 +16,79 @@ import urllib.error
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
+
+
+def _load_sibling_module(
+    module_name: str,
+):
+    """Load a module that sits beside this file, by path.
+
+    This directory's name contains hyphens, so the merged helper
+    modules cannot be reached with a normal package import.
+    """
+
+    module_path = (
+        Path(__file__)
+        .resolve()
+        .parent
+        / (module_name + ".py")
+    )
+
+    spec = (
+        importlib.util
+        .spec_from_file_location(
+            "ask_my_brain_" + module_name,
+            module_path,
+        )
+    )
+
+    module = (
+        importlib.util
+        .module_from_spec(spec)
+    )
+
+    spec.loader.exec_module(module)
+
+    return module
+
+
+_source_references = (
+    _load_sibling_module(
+        "source_references"
+    )
+)
+
+_weak_evidence = (
+    _load_sibling_module(
+        "weak_evidence"
+    )
+)
+
+_search_row_adapter = (
+    _load_sibling_module(
+        "search_row_adapter"
+    )
+)
+
+render_source_references = (
+    _source_references
+    .render_source_references
+)
+
+format_source_references = (
+    _source_references
+    .format_source_references
+)
+
+evidence_verdict = (
+    _weak_evidence
+    .evidence_verdict
+)
+
+adapt_search_rows = (
+    _search_row_adapter
+    .adapt_search_rows
+)
 
 
 CONFIG_PATH = Path(
@@ -2165,6 +2239,235 @@ def normalize_evidence_strength(
 
 
 
+def _evidence_part(
+    row: dict,
+    label: int,
+) -> str:
+    """One `[Sn]` evidence block, exactly the accepted format."""
+
+    return (
+        f"[S{label}]\n"
+        f"Path: {row['path']}\n"
+        f"Lines: "
+        f"{row['start_line']}-"
+        f"{row['end_line']}\n"
+        f"Title: {row['title']}\n"
+        f"Heading: "
+        f"{row['heading'] or '(none)'}\n"
+        f"Content:\n"
+        f"{row['body']}\n"
+    )
+
+
+def evidence_labels(
+    source_rows: list[dict],
+) -> list[int]:
+    """One citation number per row: the number its NOTE carries in the
+    printed reference block.
+
+    The reference block is de-duplicated per note, so several chunks
+    drawn from one note share that note's number. Numbering the
+    evidence the same way is what makes a citation the model emits
+    resolve to the reference the reader is shown. A row carrying no
+    path has nothing to cite, so it is numbered past the end of the
+    reference list rather than colliding with a real note.
+    """
+
+    rows = source_rows or []
+
+    references = (
+        render_source_references(
+            adapt_search_rows(rows)
+        )
+    )
+
+    number_for_path = {
+        reference["path"]: reference["n"]
+        for reference in references
+    }
+
+    labels = []
+    uncitable = len(number_for_path)
+
+    for row in rows:
+        number = number_for_path.get(
+            row.get("path")
+        )
+
+        if number is None:
+            uncitable += 1
+            number = uncitable
+
+        labels.append(number)
+
+    return labels
+
+
+NO_EVIDENCE_ANSWER = (
+    "I could not find enough "
+    "evidence in the indexed "
+    "Second Brain notes to answer "
+    "that question."
+)
+
+
+def _reference_lines(
+    references: list[dict],
+    rows_for_path: dict,
+) -> list[str]:
+
+    lines = []
+
+    for reference in references:
+        lines.append(
+            format_source_references(
+                [reference]
+            )
+        )
+
+        # A note keeps the provenance of every chunk selected from
+        # it, not just the first, de-duplicated so identical
+        # provenance is not repeated per chunk.
+        seen = set()
+
+        for row in rows_for_path.get(
+            reference.get("path"),
+            [],
+        ):
+            provenance = provenance_json(
+                row
+            )
+
+            if (
+                provenance
+                and provenance not in seen
+            ):
+                seen.add(provenance)
+
+                lines.append(
+                    "  Provenance: "
+                    + provenance
+                )
+
+    return lines
+
+
+def render_ask_output(
+    source_rows: list[dict],
+    answer_text: str,
+    model: str,
+) -> str:
+    """Compose the whole `ask` response for one set of evidence rows.
+
+    Pure composition: no retrieval, no model call, no I/O. The rows are
+    the ones `search` already selected and ranked; they are adapted to
+    the merged renderer's shape here, so note de-duplication and the
+    citation format are owned by source_references.py, and the
+    answer/suppress decision by weak_evidence.py.
+    """
+
+    rows = source_rows or []
+
+    adapted = adapt_search_rows(rows)
+
+    strength = (
+        deterministic_evidence_strength(
+            rows
+        )
+    )
+
+    verdict = evidence_verdict(
+        rows,
+        strength,
+    )
+
+    references = (
+        render_source_references(
+            adapted
+        )
+    )
+
+    rows_for_path = {}
+
+    for row in adapted:
+        path = row.get("path")
+
+        if path:
+            rows_for_path.setdefault(
+                path,
+                [],
+            ).append(row)
+
+    lines = ["ANSWER:"]
+
+    if not verdict["sufficient"]:
+        no_evidence = (
+            verdict["reason"]
+            == "no_evidence"
+        )
+
+        lines.append(
+            NO_EVIDENCE_ANSWER
+            if no_evidence
+            else verdict["message"]
+        )
+
+        if references:
+            lines.append("")
+            lines.append("Related notes:")
+            lines.extend(
+                _reference_lines(
+                    references,
+                    rows_for_path,
+                )
+            )
+
+        lines.append("")
+
+        if not no_evidence:
+            lines.append(
+                "ANSWER_SUPPRESSED=1"
+            )
+
+        lines.append(
+            "EVIDENCE_STATUS="
+            + (
+                "NONE"
+                if no_evidence
+                else "WEAK"
+            )
+        )
+
+        return "\n".join(lines)
+
+    lines.append(
+        normalize_evidence_strength(
+            answer_text,
+            rows,
+        )
+    )
+
+    lines.append("")
+    lines.append("SOURCES:")
+    lines.extend(
+        _reference_lines(
+            references,
+            rows_for_path,
+        )
+    )
+
+    lines.append("")
+    lines.append(
+        f"MODEL={model}"
+    )
+    lines.append(
+        f"EVIDENCE_CHUNKS="
+        f"{len(rows)}"
+    )
+
+    return "\n".join(lines)
+
+
 def ask(
     config: dict,
     question: str,
@@ -2179,20 +2482,11 @@ def ask(
 
     if not results:
         print(
-            "ANSWER:"
-        )
-
-        print(
-            "I could not find enough "
-            "evidence in the indexed "
-            "Second Brain notes to answer "
-            "that question."
-        )
-
-        print()
-
-        print(
-            "EVIDENCE_STATUS=NONE"
+            render_ask_output(
+                [],
+                "",
+                config.get("model", ""),
+            )
         )
 
         return
@@ -2214,17 +2508,9 @@ def ask(
         results,
         start=1,
     ):
-        source = (
-            f"[S{index}]\n"
-            f"Path: {row['path']}\n"
-            f"Lines: "
-            f"{row['start_line']}-"
-            f"{row['end_line']}\n"
-            f"Title: {row['title']}\n"
-            f"Heading: "
-            f"{row['heading'] or '(none)'}\n"
-            f"Content:\n"
-            f"{row['body']}\n"
+        source = _evidence_part(
+            row,
+            index,
         )
 
         if (
@@ -2243,9 +2529,35 @@ def ask(
 
         used += len(source)
 
+    # The per-chunk index above only sized the context budget; a note
+    # label is never longer, so the budget still holds.
     evidence = "\n---\n".join(
-        evidence_parts
+        _evidence_part(row, label)
+        for row, label in zip(
+            source_rows,
+            evidence_labels(
+                source_rows
+            ),
+        )
     )
+
+    verdict = evidence_verdict(
+        source_rows,
+        deterministic_evidence_strength(
+            source_rows
+        ),
+    )
+
+    if not verdict["sufficient"]:
+        print(
+            render_ask_output(
+                source_rows,
+                "",
+                config.get("model", ""),
+            )
+        )
+
+        return
 
     system_prompt = """
 You are Ask My Brain, a source-grounded assistant.
@@ -2278,50 +2590,12 @@ Rules:
         user_prompt,
     )
 
-    answer_text = (
-        normalize_evidence_strength(
-            answer_text,
+    print(
+        render_ask_output(
             source_rows,
+            answer_text,
+            config["model"],
         )
-    )
-
-    print("ANSWER:")
-    print(answer_text)
-
-    print()
-    print("SOURCES:")
-
-    for index, row in enumerate(
-        source_rows,
-        start=1,
-    ):
-        print(
-            f"[S{index}] "
-            f"{row['path']} "
-            f"(lines "
-            f"{row['start_line']}-"
-            f"{row['end_line']})"
-        )
-
-        provenance = provenance_json(
-            row
-        )
-
-        if provenance:
-            print(
-                "  Provenance: "
-                + provenance
-            )
-
-    print()
-
-    print(
-        f"MODEL={config['model']}"
-    )
-
-    print(
-        f"EVIDENCE_CHUNKS="
-        f"{len(source_rows)}"
     )
 
 
