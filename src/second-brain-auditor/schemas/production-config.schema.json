@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.second-brain/schemas/production-config.schema.json",
+  "title": "Production Second-Brain Auditor Configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "auditor_version", "mode", "timezone", "schedule_cron", "schedule_mode", "paths", "collection", "thresholds", "queues", "backup_evidence_files", "retention_policy", "resource_guard", "local_ai", "notifications", "publication", "limits"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "auditor_version": {"const": "1.0.0"},
+    "mode": {"const": "production_advisory"},
+    "timezone": {"const": "America/Kentucky/Louisville"},
+    "schedule_cron": {"const": "0 4 * * *"},
+    "schedule_mode": {"enum": ["daily_4am", "weekly_friday_7am"]},
+    "paths": {"type": "object"},
+    "collection": {"type": "object"},
+    "thresholds": {"type": "object"},
+    "queues": {"type": "object"},
+    "backup_evidence_files": {"type": "object"},
+    "retention_policy": {"type": "object"},
+    "resource_guard": {"type": "object"},
+    "local_ai": {"type": "object"},
+    "notifications": {"type": "object"},
+    "publication": {
+      "type": "object",
+      "required": ["automatic_source_fixes", "automatic_deletion"],
+      "properties": {
+        "automatic_source_fixes": {"const": false},
+        "automatic_deletion": {"const": false}
+      }
+    },
+    "limits": {"type": "object"}
+  }
+}

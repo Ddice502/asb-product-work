@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.second-brain/schemas/snapshot.phase1.schema.json",
+  "title": "Second-Brain Auditor Phase 1 Snapshot",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "phase",
+    "mode",
+    "run",
+    "privacy",
+    "configuration",
+    "runtime",
+    "active_workflows",
+    "execution_metadata",
+    "filesystem",
+    "collection_errors",
+    "evidence_hash"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "phase": {"const": 1},
+    "mode": {"const": "collection_only"},
+    "run": {"type": "object"},
+    "privacy": {
+      "type": "object",
+      "required": ["ordinary_note_bodies_collected", "credential_values_collected", "execution_payloads_collected", "external_network_calls_performed", "findings_written"],
+      "properties": {
+        "ordinary_note_bodies_collected": {"const": false},
+        "credential_values_collected": {"const": false},
+        "execution_payloads_collected": {"const": false},
+        "external_network_calls_performed": {"const": false},
+        "findings_written": {"const": false}
+      }
+    },
+    "configuration": {"type": "object"},
+    "runtime": {"type": "object"},
+    "active_workflows": {"type": "array"},
+    "execution_metadata": {"type": "object"},
+    "filesystem": {"type": "object"},
+    "collection_errors": {"type": "array"},
+    "evidence_hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+  }
+}
