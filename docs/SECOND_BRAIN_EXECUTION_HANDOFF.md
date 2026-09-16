@@ -518,3 +518,23 @@ Final Rule
 If a proposed next action does not directly make the Local AI Second Brain
 more usable, safer to promote, or verifiably closer to a product release, do
 not do it now.
+
+## GitHub Copilot Policy
+
+GitHub Copilot is not an owner-operated delivery step.
+
+The owner must not be asked to manually prompt Copilot, copy Copilot findings
+into another tool, apply Copilot suggestions, or act as a relay between Copilot
+and Claude Code.
+
+Copilot is excluded from the active product-delivery path unless a future,
+noninteractive integration can automatically:
+1. operate only in the sanitized isolated product target;
+2. produce a durable review artifact;
+3. require no owner prompt, copy/paste, or routine approval;
+4. remain advisory and have no merge, deployment, task-routing, or authority;
+5. be tested and reversed during an idle window.
+
+Until those conditions are demonstrated, Claude Code remains the sole primary
+package executor. Copilot may remain installed in VS Code but must not be used
+as a parallel executor or manual review gate.
