@@ -41,8 +41,15 @@ def check(cond: bool, label: str) -> None:
 
 
 def row(path, title, chunk, snippet, match_mode, start=1, end=9, provenance=None):
-    r = {"path": path, "title": title, "chunk_index": chunk, "snippet": snippet,
-         "match_mode": match_mode, "start_line": start, "end_line": end}
+    """A faithful search result row.
+
+    `search()` returns `chunks` table rows, so the fixture must carry every column the existing
+    evidence block in `ask()` reads — id, path, title, heading, body, start_line, end_line — as well
+    as the keys the merged renderer reads (chunk_index, snippet). A fixture that omits any of them
+    makes the gate unsatisfiable for an implementation that correctly preserves the existing code."""
+    r = {"id": 1000 + chunk, "path": path, "title": title, "heading": title, "body": snippet,
+         "chunk_index": chunk, "snippet": snippet, "match_mode": match_mode,
+         "start_line": start, "end_line": end}
     if provenance:
         r.update(provenance)
     return r
