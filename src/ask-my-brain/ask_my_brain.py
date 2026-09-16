@@ -2239,6 +2239,70 @@ def normalize_evidence_strength(
 
 
 
+def _evidence_part(
+    row: dict,
+    label: int,
+) -> str:
+    """One `[Sn]` evidence block, exactly the accepted format."""
+
+    return (
+        f"[S{label}]\n"
+        f"Path: {row['path']}\n"
+        f"Lines: "
+        f"{row['start_line']}-"
+        f"{row['end_line']}\n"
+        f"Title: {row['title']}\n"
+        f"Heading: "
+        f"{row['heading'] or '(none)'}\n"
+        f"Content:\n"
+        f"{row['body']}\n"
+    )
+
+
+def evidence_labels(
+    source_rows: list[dict],
+) -> list[int]:
+    """One citation number per row: the number its NOTE carries in the
+    printed reference block.
+
+    The reference block is de-duplicated per note, so several chunks
+    drawn from one note share that note's number. Numbering the
+    evidence the same way is what makes a citation the model emits
+    resolve to the reference the reader is shown. A row carrying no
+    path has nothing to cite, so it is numbered past the end of the
+    reference list rather than colliding with a real note.
+    """
+
+    rows = source_rows or []
+
+    references = (
+        render_source_references(
+            adapt_search_rows(rows)
+        )
+    )
+
+    number_for_path = {
+        reference["path"]: reference["n"]
+        for reference in references
+    }
+
+    labels = []
+    uncitable = len(number_for_path)
+
+    for row in rows:
+        number = number_for_path.get(
+            row.get("path")
+        )
+
+        if number is None:
+            uncitable += 1
+            number = uncitable
+
+        labels.append(number)
+
+    return labels
+
+
 NO_EVIDENCE_ANSWER = (
     "I could not find enough "
     "evidence in the indexed "
@@ -2249,7 +2313,7 @@ NO_EVIDENCE_ANSWER = (
 
 def _reference_lines(
     references: list[dict],
-    rows_by_path: dict,
+    rows_for_path: dict,
 ) -> list[str]:
 
     lines = []
@@ -2261,18 +2325,29 @@ def _reference_lines(
             )
         )
 
-        provenance = provenance_json(
-            rows_by_path.get(
-                reference.get("path"),
-                {},
-            )
-        )
+        # A note keeps the provenance of every chunk selected from
+        # it, not just the first, de-duplicated so identical
+        # provenance is not repeated per chunk.
+        seen = set()
 
-        if provenance:
-            lines.append(
-                "  Provenance: "
-                + provenance
+        for row in rows_for_path.get(
+            reference.get("path"),
+            [],
+        ):
+            provenance = provenance_json(
+                row
             )
+
+            if (
+                provenance
+                and provenance not in seen
+            ):
+                seen.add(provenance)
+
+                lines.append(
+                    "  Provenance: "
+                    + provenance
+                )
 
     return lines
 
@@ -2312,13 +2387,16 @@ def render_ask_output(
         )
     )
 
-    rows_by_path = {}
+    rows_for_path = {}
 
     for row in adapted:
         path = row.get("path")
 
-        if path and path not in rows_by_path:
-            rows_by_path[path] = row
+        if path:
+            rows_for_path.setdefault(
+                path,
+                [],
+            ).append(row)
 
     lines = ["ANSWER:"]
 
@@ -2340,7 +2418,7 @@ def render_ask_output(
             lines.extend(
                 _reference_lines(
                     references,
-                    rows_by_path,
+                    rows_for_path,
                 )
             )
 
@@ -2374,7 +2452,7 @@ def render_ask_output(
     lines.extend(
         _reference_lines(
             references,
-            rows_by_path,
+            rows_for_path,
         )
     )
 
@@ -2430,17 +2508,9 @@ def ask(
         results,
         start=1,
     ):
-        source = (
-            f"[S{index}]\n"
-            f"Path: {row['path']}\n"
-            f"Lines: "
-            f"{row['start_line']}-"
-            f"{row['end_line']}\n"
-            f"Title: {row['title']}\n"
-            f"Heading: "
-            f"{row['heading'] or '(none)'}\n"
-            f"Content:\n"
-            f"{row['body']}\n"
+        source = _evidence_part(
+            row,
+            index,
         )
 
         if (
@@ -2459,8 +2529,16 @@ def ask(
 
         used += len(source)
 
+    # The per-chunk index above only sized the context budget; a note
+    # label is never longer, so the budget still holds.
     evidence = "\n---\n".join(
-        evidence_parts
+        _evidence_part(row, label)
+        for row, label in zip(
+            source_rows,
+            evidence_labels(
+                source_rows
+            ),
+        )
     )
 
     verdict = evidence_verdict(
