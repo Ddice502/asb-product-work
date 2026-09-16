@@ -813,6 +813,147 @@ def provenance_json(
     )
 
 
+_FENCE_LINE_RE = re.compile(
+    r"^[ \t]*```[^`]*$"
+)
+
+_RULE_LINE_RE = re.compile(
+    r"^[ \t]*[-=_*]{3,}[ \t]*$"
+)
+
+_INLINE_COMMENT_RE = re.compile(
+    r"<!--.*?-->"
+)
+
+
+def classify_markup(
+    lines: list[str],
+    fm_end: int,
+) -> list[dict]:
+    """Classify every line of a note once, before anything is chunked.
+
+    Three earlier attempts at this repair were each destructive, and each in
+    the same way: a regex written to remove a marker LINE was allowed to span
+    lines and swallowed the content between two markers. The structural answer
+    is that no markup transformation may ever see more than one line. Every
+    decision here is line-local, so no pattern CAN span lines, whatever it is
+    written as.
+
+    It is also what the chunker needs. Chunk boundaries used to be chosen
+    before anything knew where the fences were, so a '# ...' line inside a
+    shell or YAML fence split the chunk, and the rest of that fence lost its
+    protection. Classifying first means the boundary decisions can see markup.
+
+    Returns one dict per line, aligned with `lines`, carrying:
+        number   1-based line number
+        kind     'keep' or 'drop'
+        text     the line's content after markup removal ('' when dropped)
+        fenced   True if the line sits inside a fenced block
+    """
+
+    classified: list[dict] = []
+    inside_fence = False
+    inside_comment = False
+
+    for number, raw_line in enumerate(
+        lines,
+        start=1,
+    ):
+        if number <= fm_end:
+            classified.append(
+                {
+                    "number": number,
+                    "kind": "drop",
+                    "text": "",
+                    "fenced": False,
+                }
+            )
+            continue
+
+        line = raw_line.rstrip()
+
+        # A fence delimiter is dropped, and it toggles the fence. Inside a
+        # fence nothing is stripped: a note documenting markup legitimately
+        # contains comments and rules there.
+        if _FENCE_LINE_RE.match(line):
+            inside_fence = not inside_fence
+            classified.append(
+                {
+                    "number": number,
+                    "kind": "drop",
+                    "text": "",
+                    "fenced": True,
+                }
+            )
+            continue
+
+        if inside_fence:
+            classified.append(
+                {
+                    "number": number,
+                    "kind": "keep",
+                    "text": line,
+                    "fenced": True,
+                }
+            )
+            continue
+
+        # Outside a fence, an HTML comment is pipeline metadata rather than
+        # evidence. A comment that opened on an earlier line keeps consuming
+        # lines until it closes, but each line is handled on its own.
+        if inside_comment:
+            closing = line.find("-->")
+
+            if closing == -1:
+                classified.append(
+                    {
+                        "number": number,
+                        "kind": "drop",
+                        "text": "",
+                        "fenced": False,
+                    }
+                )
+                continue
+
+            inside_comment = False
+            line = line[closing + 3:]
+
+        line = _INLINE_COMMENT_RE.sub(
+            " ",
+            line,
+        )
+
+        opening = line.find("<!--")
+
+        if opening != -1:
+            inside_comment = True
+            line = line[:opening]
+
+        line = line.rstrip()
+
+        if _RULE_LINE_RE.match(line):
+            classified.append(
+                {
+                    "number": number,
+                    "kind": "drop",
+                    "text": "",
+                    "fenced": False,
+                }
+            )
+            continue
+
+        classified.append(
+            {
+                "number": number,
+                "kind": "keep",
+                "text": line,
+                "fenced": False,
+            }
+        )
+
+    return classified
+
+
 def chunk_note(
     text: str,
     relative_path: str,
@@ -845,31 +986,14 @@ def chunk_note(
         nonlocal end_line
         nonlocal current_chars
 
+        # Comments, rules and fence markers were already removed line by line
+        # by classify_markup, so nothing here can span lines. What is left is
+        # whitespace tidying. Both patterns were previously written with
+        # doubled backslashes, which made them match a literal backslash and
+        # never fire (defect D1).
         body = "\n".join(
             buffer
         ).strip()
-
-        # HTML comments are pipeline metadata / structural markers,
-        # not useful retrieval evidence.
-        body = re.sub(
-            r"<!--[\\s\\S]*?-->",
-            " ",
-            body,
-        )
-
-        # Remove standalone Markdown separators and fence markers
-        # while retaining actual fenced content.
-        body = re.sub(
-            r"(?m)^\\s*```[^`]*$",
-            " ",
-            body,
-        )
-
-        body = re.sub(
-            r"(?m)^\\s*[-=_*]{3,}\\s*$",
-            " ",
-            body,
-        )
 
         body = re.sub(
             r"[ \t]+",
@@ -878,8 +1002,8 @@ def chunk_note(
         )
 
         body = re.sub(
-            r"\\n{3,}",
-            "\\n\\n",
+            r"\n{3,}",
+            "\n\n",
             body,
         ).strip()
 
@@ -914,16 +1038,27 @@ def chunk_note(
         end_line = None
         current_chars = 0
 
-    for line_number, raw_line in enumerate(
+    for entry in classify_markup(
         lines,
-        start=1,
+        fm_end,
     ):
-        if line_number <= fm_end:
+        line_number = entry["number"]
+
+        if entry["kind"] == "drop":
             continue
 
-        heading_match = re.match(
-            r"^(#{1,6})\s+(.+?)\s*$",
-            raw_line,
+        line = entry["text"]
+
+        # A '#' line inside a fenced block is a shell, YAML or Python comment,
+        # not a heading. Splitting the chunk there used to strand the rest of
+        # the fence outside its own fence state.
+        heading_match = (
+            None
+            if entry["fenced"]
+            else re.match(
+                r"^(#{1,6})\s+(.+?)\s*$",
+                line,
+            )
         )
 
         if heading_match:
@@ -936,8 +1071,6 @@ def chunk_note(
             )
 
             continue
-
-        line = raw_line.rstrip()
 
         if len(line) > max_chars:
             flush()

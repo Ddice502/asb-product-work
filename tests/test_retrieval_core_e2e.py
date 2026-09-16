@@ -33,18 +33,17 @@ unpinned defect can be fixed or worsened silently. When a defect is repaired, it
 failure is the signal to delete the pin, not to revert the fix. Every other checkpoint in this file
 asserts behaviour that is correct and must stay correct.
 
-One of those four is now repaired, by SB-ASK-005, and its pin has been replaced by assertions of
-the CORRECT behaviour:
+Two of those four are now repaired and their pins replaced by assertions of the CORRECT behaviour:
 
-    D4  a chunk span covers its text, not the blank lines around it  -> [chunking]
+    D4  a chunk span covers its text, not the blank lines around it   -> [chunking]  (SB-ASK-005)
+    D1  markup is stripped outside fenced blocks and only there       -> [chunking]  (SB-ASK-006)
 
-D1 (HTML comments are never stripped from indexed evidence), D2 (accented content is indexed but
-unreachable through search) and D3 (a question made only of stopwords is answered at HIGH) all
-remain OPEN and remain pinned. Two packages have now tried and been withdrawn: D1 needs fence-aware
-chunking, D2 needs the reranker to stop re-deriving matched terms by string comparison, and D3
-cannot be fixed by editing query_terms at all, because deterministic_evidence_strength returns HIGH
-for any all_terms match however few or generic the terms are, so every change to the term set moves
-strength as a side effect. Do not read those three pins as requirements.
+D2 (accented content is indexed but unreachable through search) and D3 (a question made only of
+stopwords is answered at HIGH) remain OPEN and remain pinned. D2 needs the reranker to stop
+re-deriving matched terms by string comparison; D3 cannot be fixed by editing query_terms at all,
+because deterministic_evidence_strength returns HIGH for any all_terms match however few or generic
+the terms are, so every change to the term set moves strength as a side effect. Do not read those
+two pins as requirements.
 """
 from __future__ import annotations
 
@@ -148,7 +147,7 @@ def main() -> int:
     # ------------------------------------------------------------------ [fixture-vault]
     check(VAULT.is_dir(), "[fixture-vault] fixtures/vault exists")
     notes = sorted(p.relative_to(VAULT).as_posix() for p in VAULT.rglob("*.md"))
-    check(len(notes) == 13, f"[fixture-vault] the vault holds its 13 notes (got {len(notes)})")
+    check(len(notes) == 14, f"[fixture-vault] the vault holds its 14 notes (got {len(notes)})")
     check(OUTSIDE_NOTE.is_file(),
           "[fixture-vault] the deliberate out-of-vault note is present and scanned below too")
     corpus = "\n".join(p.read_text(encoding="utf-8") for p in
@@ -171,8 +170,8 @@ def main() -> int:
         # -------------------------------------------------------------- [index-build]
         receipt = build(config)
         check("BUILD_STATUS=PASS" in receipt, f"[index-build] the build reports PASS\n{receipt}")
-        check("NOTES_INDEXED=11" in receipt, f"[index-build] 11 notes indexed\n{receipt}")
-        check("CHUNKS_INDEXED=21" in receipt, f"[index-build] 21 chunks indexed\n{receipt}")
+        check("NOTES_INDEXED=12" in receipt, f"[index-build] 12 notes indexed\n{receipt}")
+        check("CHUNKS_INDEXED=22" in receipt, f"[index-build] 22 chunks indexed\n{receipt}")
         check("FILES_SKIPPED=2" in receipt, f"[index-build] 2 files skipped\n{receipt}")
         check(database.is_file(), "[index-build] the database file exists at the configured path")
         check(oct(database.stat().st_mode & 0o777) == "0o640",
@@ -184,7 +183,7 @@ def main() -> int:
         check(metadata["schema_version"] == "1.0.0", "[index-build] the schema version is recorded")
         check(metadata["retrieval"] == "sqlite_fts5_bm25", "[index-build] the retrieval mode is recorded")
         check(metadata["vault_root"] == str(VAULT), "[index-build] the indexed vault root is recorded")
-        check(metadata["notes_indexed"] == "11" and metadata["chunks_indexed"] == "21",
+        check(metadata["notes_indexed"] == "12" and metadata["chunks_indexed"] == "22",
               "[index-build] the receipt and the metadata table agree")
         integrity = rows_of(database, "PRAGMA integrity_check")
         check(list(integrity[0].values())[0] == "ok", "[index-build] SQLite reports the index sound")
@@ -212,7 +211,7 @@ def main() -> int:
               "[exclusion] an excluded prefix contributes no chunk")
         check(not any(".obsidian" in p for p in paths),
               "[exclusion] an excluded path part contributes no chunk")
-        check(len(paths) == 11, f"[exclusion] exactly the 11 permitted notes are indexed (got {len(paths)})")
+        check(len(paths) == 12, f"[exclusion] exactly the 12 permitted notes are indexed (got {len(paths)})")
 
         # -------------------------------------------------------------- [chunking]
         greenhouse = rows_of(
@@ -276,6 +275,67 @@ def main() -> int:
         maximum = int(config.get("max_chunk_chars", 3500))
         check(all(len(c["body"]) <= maximum for c in long_line),
               f"[chunking] no chunk exceeds the configured maximum of {maximum}")
+
+        # D1, repaired by SB-ASK-006. Outside a fenced block, comments and rules are stripped.
+        comment_body = rows_of(database, "SELECT body FROM chunks WHERE path = ?",
+                               "10 Areas/Comment Marker Note.md")[0]["body"]
+        check("<!--" not in comment_body and "pipeline marker" not in comment_body,
+              f"[chunking] an HTML comment is stripped from indexed evidence (got {comment_body!r})")
+        check("The first real sentence" in comment_body and "The second real sentence" in comment_body,
+              "[chunking] while the sentences either side of it are kept")
+        # Two comments on ONE line: a greedy stripper matches from the first '<!--' to the last
+        # '-->' and eats the text between them.
+        check("BRIDGE_TEXT" in comment_body,
+              f"[chunking] text between two comments on one line is kept: the stripper is not "
+              f"greedy (got {comment_body!r})")
+        check("Alpha BRIDGE_TEXT omega" in comment_body,
+              "[chunking] and the text either side of them on that line is kept too")
+        # A comment that opens on one line and closes several lines later.
+        check("runs across several lines" not in comment_body,
+              "[chunking] a comment spanning several lines is removed in full")
+        check("The third real sentence" in comment_body,
+              "[chunking] and the sentence after it survives")
+        check("\n\n\n" not in comment_body,
+              f"[chunking] a run of blank lines is collapsed to one (got {comment_body!r})")
+        check("The fourth real sentence" in comment_body,
+              "[chunking] and the sentence after that run survives")
+
+        # Inside a fenced block nothing is stripped: a note documenting markup legitimately
+        # contains a comment or a rule there. Three earlier attempts at D1 deleted exactly this.
+        fenced = rows_of(database, "SELECT * FROM chunks WHERE path = ? ORDER BY start_line",
+                         "10 Areas/Fenced Markup Note.md")
+        check(len(fenced) == 1,
+              f"[chunking] the fenced-markup note is ONE chunk: a '#' line inside a fence is a shell "
+              f"comment, not a heading, and must not split it (got {len(fenced)})")
+        check(fenced[0]["heading"] == "Fenced Markup Note",
+              f"[chunking] and the chunk keeps the note's real heading (got {fenced[0]['heading']!r})")
+        fenced_body = fenced[0]["body"]
+        check("# rotate the credential before the deploy" in fenced_body,
+              f"[chunking] a heading-like line inside a fence survives verbatim (got {fenced_body!r})")
+        check("<!-- the rule above is part of the printed banner -->" in fenced_body,
+              "[chunking] an HTML comment inside a fence survives verbatim")
+        check("\n---\n" in fenced_body,
+              "[chunking] a rule inside a fence survives verbatim")
+        check(fenced_body.count("---") == 1,
+              f"[chunking] while the rule OUTSIDE the fence is stripped (got {fenced_body!r})")
+        check("a pipeline marker outside the fence" not in fenced_body,
+              "[chunking] and so is the comment outside the fence")
+        check("```" not in fenced_body,
+              "[chunking] the fence delimiters themselves are dropped")
+        for phrase in ("Prose before the fence", "Prose between the fence", "Prose after the rule"):
+            check(phrase in fenced_body, f"[chunking] {phrase!r} survives")
+
+        # D1 and D4 are coupled: once markup is really stripped, a span must not end on a line
+        # that is no longer in the body. The rule and the comment are the last two markup lines
+        # before the closing prose, so a span that ignored them would end on one of them.
+        source = (VAULT / "10 Areas/Fenced Markup Note.md").read_text(encoding="utf-8").splitlines()
+        span_end = source[fenced[0]["end_line"] - 1]
+        check(span_end.strip() and span_end.strip() in fenced_body,
+              f"[chunking] the span ends on a line that is still IN the body after stripping "
+              f"(line {fenced[0]['end_line']}: {span_end!r})")
+        span_start = source[fenced[0]["start_line"] - 1]
+        check(span_start.strip() and span_start.strip() in fenced_body,
+              f"[chunking] and starts on one too (line {fenced[0]['start_line']}: {span_start!r})")
 
         empty = rows_of(database, "SELECT * FROM chunks WHERE path = ?", "10 Areas/Empty Signal Note.md")
         check(len(empty) == 1 and empty[0]["body"] == "Empty Signal Note",
@@ -530,18 +590,6 @@ def main() -> int:
         # -------------------------------------------------------------- [defect-pins]
         # Everything in this block asserts DEFECTIVE behaviour. See the module docstring.
         # Repairing any of these defects will fail its pin; delete the pin, keep the repair.
-
-        # D1 (HIGH): chunk_note's cleanup patterns are written with doubled backslashes, so
-        # r"<!--[\\s\\S]*?-->" is a class of {backslash, s, S} rather than "any character".
-        # HTML comments therefore survive into indexed evidence and are shown to the model.
-        comment_body = rows_of(database, "SELECT body FROM chunks WHERE path = ?",
-                               "10 Areas/Comment Marker Note.md")[0]["body"]
-        check("<!--" in comment_body,
-              "[defect-pins] DEFECT D1 PINNED (not a requirement): an HTML comment is still indexed "
-              "as retrievable evidence; when the stripper is fixed this check must fail and be deleted")
-        check("pipeline marker" in comment_body,
-              "[defect-pins] DEFECT D1 PINNED (not a requirement): the comment's text, which is "
-              "pipeline metadata and not human evidence, reaches the model")
 
         # D2 (HIGH): FTS5 indexes accented content correctly, but query_terms (r"[A-Za-z0-9]+")
         # and the coverage reranker (r"[^a-z0-9]+") both strip non-ASCII, so the term never
