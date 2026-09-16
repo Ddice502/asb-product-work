@@ -35,6 +35,7 @@ asserts behaviour that is correct and must stay correct.
 """
 from __future__ import annotations
 
+import atexit
 import contextlib
 import importlib.util
 import io
@@ -47,6 +48,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 AMB = ROOT / "src/ask-my-brain/ask_my_brain.py"
 VAULT = ROOT / "fixtures/vault"
+# Deliberately OUTSIDE the vault: the escape target the containment checks need.
+OUTSIDE_NOTE = ROOT / "fixtures" / "outside-the-vault.md"
 
 spec = importlib.util.spec_from_file_location("amb_retrieval_under_test", AMB)
 amb = importlib.util.module_from_spec(spec)
@@ -78,6 +81,10 @@ def config_for(database: Path) -> dict:
 
 CONNECTED: list = []
 
+# Captured before any spy is installed. Comparing amb.sqlite3.connect against sqlite3.connect
+# would be a tautology: amb.sqlite3 IS the sqlite3 module, so both sides move together.
+REAL_SQLITE_CONNECT = sqlite3.connect
+
 
 def build(config: dict) -> str:
     """Run the real build, returning its stdout receipt."""
@@ -92,7 +99,7 @@ def watch_sqlite():
     than assumed. Asserting on a path this test itself constructed would prove nothing.
 
     Returns a restore callable."""
-    real_connect = amb.sqlite3.connect
+    real_connect = REAL_SQLITE_CONNECT
 
     def spy(target, *args, **kwargs):
         CONNECTED.append(str(target))
@@ -129,7 +136,10 @@ def main() -> int:
     check(VAULT.is_dir(), "[fixture-vault] fixtures/vault exists")
     notes = sorted(p.relative_to(VAULT).as_posix() for p in VAULT.rglob("*.md"))
     check(len(notes) == 13, f"[fixture-vault] the vault holds its 13 notes (got {len(notes)})")
-    corpus = "\n".join(p.read_text(encoding="utf-8") for p in VAULT.rglob("*.md"))
+    check(OUTSIDE_NOTE.is_file(),
+          "[fixture-vault] the deliberate out-of-vault note is present and scanned below too")
+    corpus = "\n".join(p.read_text(encoding="utf-8") for p in
+                       list(VAULT.rglob("*.md")) + [OUTSIDE_NOTE])
     for forbidden in ("/AI/", "192.168.", "theadmin@", "/home/jro", "Obsidian/"):
         check(forbidden not in corpus,
               f"[fixture-vault] no fixture names {forbidden!r}: the vault is synthetic")
@@ -143,6 +153,7 @@ def main() -> int:
         database = Path(work) / "index" / "fixture.db"
         config = config_for(database)
         restore_sqlite = watch_sqlite()
+        atexit.register(restore_sqlite)  # check() exits on first failure; never leak the spy
 
         # -------------------------------------------------------------- [index-build]
         receipt = build(config)
@@ -166,10 +177,16 @@ def main() -> int:
         check(list(integrity[0].values())[0] == "ok", "[index-build] SQLite reports the index sound")
         fts = rows_of(database, "SELECT count(*) AS n FROM chunks_fts WHERE chunks_fts MATCH 'glazing'")
         check(fts[0]["n"] >= 1, "[index-build] the FTS5 table answers a term query")
+        accented = rows_of(database,
+                           "SELECT count(*) AS n FROM chunks_fts WHERE chunks_fts MATCH 'café'")
+        check(accented[0]["n"] >= 1,
+              "[index-build] the index matches an accented term directly (the retrieval half that "
+              "works; reaching it through search() is defect D2)")
         folded = rows_of(database, "SELECT count(*) AS n FROM chunks_fts WHERE chunks_fts MATCH 'cafe'")
         check(folded[0]["n"] >= 1,
               "[index-build] the tokenizer folds diacritics: the unaccented 'cafe' finds the "
-              "accented text, which is what tokenize='unicode61 remove_diacritics 2' buys")
+              "accented text. Note this is what unicode61 does by default (remove_diacritics 1); "
+              "the configured '2' is not what earns it for these characters")
 
         first = rows_of(database, "SELECT path, start_line, body FROM chunks ORDER BY id")
         build(config)
@@ -257,9 +274,8 @@ def main() -> int:
         # The escape target below EXISTS and carries exactly the frontmatter the core reads, so
         # these two checks can only pass because containment works, not because there was nothing
         # to find. Without it they would pass against a core with no containment at all.
-        outside_note = ROOT / "fixtures" / "outside-the-vault.md"
-        check(outside_note.is_file(), "[provenance-authority] the escape target exists")
-        outside_text = outside_note.read_text(encoding="utf-8")
+        check(OUTSIDE_NOTE.is_file(), "[provenance-authority] the escape target exists")
+        outside_text = OUTSIDE_NOTE.read_text(encoding="utf-8")
         check("current_project_status" in outside_text and "source_url" in outside_text,
               "[provenance-authority] and it carries readable authority and provenance frontmatter")
         check(amb.provenance_for_path(config, "../outside-the-vault.md") == {},
@@ -354,6 +370,17 @@ def main() -> int:
         check(gated_rows == [],
               f"[search] and every one of them is then rejected for insufficient term coverage, "
               f"so the gate - not an empty index - is what returns nothing")
+
+        # The 0.35 top-candidate gate, isolated. This question's best candidate scores ~0.33 -
+        # above the 0.30 row floor, below the 0.35 top gate - so it is the top gate alone that
+        # returns nothing. Both its terms are in the index and retrieve on their own.
+        check(len(amb.search(config, "inventory", 5)) >= 1,
+              "[search] 'inventory' on its own retrieves")
+        check(amb.search(config, "inventory dirigible", 20) == [],
+              "[search] a question whose best candidate scores between the 0.30 floor and the "
+              "0.35 top gate is refused by the top gate alone")
+        check(amb.search(config, "workshop dirigible", 20) == [],
+              "[search] and so is a second question in that same band")
 
         # Exact counts at the coverage boundary. Loosen the coverage arithmetic or the row filter
         # and these counts change, which is the only way this vault can observe those gates: no
@@ -480,10 +507,6 @@ def main() -> int:
         # D2 (HIGH): FTS5 indexes accented content correctly, but query_terms (r"[A-Za-z0-9]+")
         # and the coverage reranker (r"[^a-z0-9]+") both strip non-ASCII, so the term never
         # matches the body token and the chunk is discarded after retrieval.
-        fts_accented = rows_of(database,
-                               "SELECT count(*) AS n FROM chunks_fts WHERE chunks_fts MATCH 'café'")
-        check(fts_accented[0]["n"] >= 1,
-              "[defect-pins] the index itself CAN match an accented term - this half is correct")
         check(amb.query_terms("café résumé piñata") == ["caf", "sum", "pi", "ata"],
               "[defect-pins] DEFECT D2 PINNED (not a requirement): an accented question is shredded "
               "into fragments by query_terms")
@@ -493,6 +516,18 @@ def main() -> int:
         check(amb.search(config, "cafe resume pinata", 5) == [],
               "[defect-pins] DEFECT D2 PINNED (not a requirement): the unaccented spelling cannot "
               "reach it either")
+
+        # D4 (LOW): a chunk's recorded span opens on the blank line before its text and, except
+        # at end of file, closes on the blank line after it. Exact spans are pinned here, which
+        # also means an off-by-one anywhere in start_line or end_line fails this checkpoint.
+        spans = [(c["start_line"], c["end_line"]) for c in greenhouse]
+        check(spans == [(9, 11), (13, 16), (18, 21), (23, 24)],
+              f"[defect-pins] DEFECT D4 PINNED (not a requirement): chunk spans include the blank "
+              f"lines around their text (got {spans})")
+        for start, end in spans[:3]:
+            check(source_lines[start - 1].strip() == "" and source_lines[end - 1].strip() == "",
+                  f"[defect-pins] DEFECT D4 PINNED (not a requirement): span {start}-{end} both "
+                  f"opens and closes on a blank line")
 
         # D3 (MEDIUM): a question of pure stopwords falls through query_terms' deliberate
         # no-useful-terms fallback and is answered at full confidence.
@@ -522,8 +557,9 @@ def main() -> int:
         strays = [str(p) for p in ROOT.rglob("*.db")] + [str(p) for p in ROOT.rglob("*.sqlite*")]
         check(strays == [], f"[containment] no database file was left in the repository (got {strays})")
         restore_sqlite()
-        check(amb.sqlite3.connect is sqlite3.connect,
-              "[containment] the suite leaves sqlite3.connect as it found it")
+        check(amb.sqlite3.connect is REAL_SQLITE_CONNECT,
+              "[containment] the suite leaves sqlite3.connect as it found it, compared against a "
+              "reference captured before the spy existed")
 
     check(snapshot_fixtures() == before,
           "[containment] every fixture file is byte-for-byte and mtime unchanged")

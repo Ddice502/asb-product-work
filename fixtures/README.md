@@ -34,5 +34,18 @@ Indexing this vault yields 11 notes and 21 chunks, with 2 files skipped.
 `tests/test_retrieval_core_e2e.py` asserts those numbers, so adding or editing a note here means
 updating them: a fixture change cannot pass unnoticed.
 
-Building an index from this vault writes only to a temporary directory. Nothing under `fixtures/`
-is ever written to by a test.
+## `outside-the-vault.md` — deliberately not in the vault
+
+`fixtures/outside-the-vault.md` sits one level ABOVE `fixtures/vault/`, so the indexer's `rglob`
+cannot reach it. It carries exactly the `authority` and provenance frontmatter the retrieval core
+knows how to read. It exists so the vault-containment checks can only pass because containment
+works — before it, those checks passed merely because the escape target had nothing to read. It is
+covered by the same synthetic-content scan as the vault notes, and the suite asserts it never
+reaches the index.
+
+## What the tests do and do not touch
+
+Building an index from this vault writes only to a temporary directory, and the suite asserts that
+every database handle the code opened was inside it. The suite also snapshots the size and mtime of
+every file under `fixtures/vault/` and asserts they are unchanged at the end; that snapshot covers
+the vault only, not the whole of `fixtures/`.
