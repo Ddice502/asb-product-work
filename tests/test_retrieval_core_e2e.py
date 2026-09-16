@@ -147,7 +147,7 @@ def main() -> int:
     # ------------------------------------------------------------------ [fixture-vault]
     check(VAULT.is_dir(), "[fixture-vault] fixtures/vault exists")
     notes = sorted(p.relative_to(VAULT).as_posix() for p in VAULT.rglob("*.md"))
-    check(len(notes) == 15, f"[fixture-vault] the vault holds its 15 notes (got {len(notes)})")
+    check(len(notes) == 16, f"[fixture-vault] the vault holds its 16 notes (got {len(notes)})")
     check(OUTSIDE_NOTE.is_file(),
           "[fixture-vault] the deliberate out-of-vault note is present and scanned below too")
     corpus = "\n".join(p.read_text(encoding="utf-8") for p in
@@ -170,8 +170,8 @@ def main() -> int:
         # -------------------------------------------------------------- [index-build]
         receipt = build(config)
         check("BUILD_STATUS=PASS" in receipt, f"[index-build] the build reports PASS\n{receipt}")
-        check("NOTES_INDEXED=13" in receipt, f"[index-build] 13 notes indexed\n{receipt}")
-        check("CHUNKS_INDEXED=23" in receipt, f"[index-build] 23 chunks indexed\n{receipt}")
+        check("NOTES_INDEXED=14" in receipt, f"[index-build] 14 notes indexed\n{receipt}")
+        check("CHUNKS_INDEXED=24" in receipt, f"[index-build] 24 chunks indexed\n{receipt}")
         check("FILES_SKIPPED=2" in receipt, f"[index-build] 2 files skipped\n{receipt}")
         check(database.is_file(), "[index-build] the database file exists at the configured path")
         check(oct(database.stat().st_mode & 0o777) == "0o640",
@@ -183,7 +183,7 @@ def main() -> int:
         check(metadata["schema_version"] == "1.0.0", "[index-build] the schema version is recorded")
         check(metadata["retrieval"] == "sqlite_fts5_bm25", "[index-build] the retrieval mode is recorded")
         check(metadata["vault_root"] == str(VAULT), "[index-build] the indexed vault root is recorded")
-        check(metadata["notes_indexed"] == "13" and metadata["chunks_indexed"] == "23",
+        check(metadata["notes_indexed"] == "14" and metadata["chunks_indexed"] == "24",
               "[index-build] the receipt and the metadata table agree")
         integrity = rows_of(database, "PRAGMA integrity_check")
         check(list(integrity[0].values())[0] == "ok", "[index-build] SQLite reports the index sound")
@@ -211,7 +211,7 @@ def main() -> int:
               "[exclusion] an excluded prefix contributes no chunk")
         check(not any(".obsidian" in p for p in paths),
               "[exclusion] an excluded path part contributes no chunk")
-        check(len(paths) == 13, f"[exclusion] exactly the 13 permitted notes are indexed (got {len(paths)})")
+        check(len(paths) == 14, f"[exclusion] exactly the 14 permitted notes are indexed (got {len(paths)})")
 
         # -------------------------------------------------------------- [chunking]
         greenhouse = rows_of(
@@ -327,8 +327,43 @@ def main() -> int:
         check("ORPHAN_TAIL" in fc_body,
               f"[chunking] an unterminated marker does not swallow the rest of the note "
               f"(got {fc_body!r})")
-        check("type <!-- and the rest must still survive" in fc_body,
-              "[chunking] and its line is kept whole, the marker treated as the literal text it is")
+        check("an opener <!-- that never closes" in fc_body,
+              "[chunking] and its line is kept, the marker treated as the literal text it is")
+        # The give-back must restore the line as it was AFTER complete comments were removed.
+        # Restoring the raw line resurrects a comment that genuinely closed, so one line reading
+        # '<!--metadata--> <!--' would put the metadata back into the evidence.
+        check("ENCLOSEDSECRET" not in fc_body,
+              f"[chunking] a COMPLETE comment sharing a line with a surviving opener stays removed "
+              f"(got {fc_body!r})")
+        check("ENCLOSEDLINE" in fc_body,
+              "[chunking] while that line's own prose is kept")
+        # An opener whose line begins with a rule must still be given back, not destroyed. It
+        # needs its own note: the rule branch returns early, so this path is only reached when no
+        # other comment is already open.
+        rule_opener = rows_of(database, "SELECT body FROM chunks WHERE path = ?",
+                              "10 Areas/Rule Opener Note.md")[0]["body"]
+        check("RULEOPENER" in rule_opener,
+              f"[chunking] an unterminated opener on a rule line is given back too "
+              f"(got {rule_opener!r})")
+        check("Closing prose" in rule_opener,
+              "[chunking] and the prose after it survives")
+        # An odd number of fence delimiters inside a comment must not leave the fence latched on,
+        # or everything after it stops being stripped.
+        check("LATCHSECRET" not in fc_body,
+              f"[chunking] an odd fence delimiter inside a comment does not latch the fence on, so "
+              f"later comments are still stripped (got {fc_body!r})")
+        check("LATCHPROSE" in fc_body,
+              "[chunking] and the prose around that later comment is kept")
+        # Two openers on one line: the leftmost opens, so everything from it is enclosed.
+        check("FIRSTSECRET" not in fc_body and "SECONDSECRET" not in fc_body,
+              f"[chunking] with two openers on one line the leftmost opens the comment, so neither "
+              f"is left behind (got {fc_body!r})")
+        check("KEEPTWO" in fc_body,
+              "[chunking] while the text before them is kept")
+        check("TAILTEXT" in fc_body,
+              "[chunking] and the text after the closing marker is kept")
+        check("-->" not in fc_body,
+              f"[chunking] no closing marker is left anywhere in the body (got {fc_body!r})")
 
         # Inside a fenced block nothing is stripped: a note documenting markup legitimately
         # contains a comment or a rule there. Three earlier attempts at D1 deleted exactly this.
@@ -350,10 +385,20 @@ def main() -> int:
               f"[chunking] while the rule OUTSIDE the fence is stripped (got {fenced_body!r})")
         check("a pipeline marker outside the fence" not in fenced_body,
               "[chunking] and so is the comment outside the fence")
-        check("```" not in fenced_body,
-              "[chunking] the fence delimiters themselves are dropped")
+        body_lines = fenced_body.split("\n")
+        check("```" not in body_lines and "```bash" not in body_lines,
+              f"[chunking] no line of the body is a fence delimiter: they are dropped "
+              f"(got {body_lines!r})")
         for phrase in ("Prose before the fence", "Prose between the fence", "Prose after the rule"):
             check(phrase in fenced_body, f"[chunking] {phrase!r} survives")
+        # Four or more backticks are NOT recognised as a fence. That is a declared limitation, so
+        # it is pinned in both directions: the line is plain text, and a comment on it is stripped
+        # exactly as it would be anywhere else outside a fence.
+        check("QUADSECRET" in fenced_body,
+              f"[chunking] a four-backtick line is not a fence, so its content is ordinary text "
+              f"(got {fenced_body!r})")
+        check("QUADMARKER" not in fenced_body,
+              "[chunking] and a comment on that line is stripped, not protected")
 
         # D1 and D4 are coupled: once markup is really stripped, a span must not end on a line
         # that is no longer in the body. The rule and the comment are the last two markup lines

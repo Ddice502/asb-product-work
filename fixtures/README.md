@@ -12,7 +12,7 @@ database, no model, and no vault of the owner's anywhere in the picture. Every n
 place and date in it was made up for this fixture.
 
 Each note exists to exercise one named retrieval behaviour, and the tests name the note they depend
-on. Notes are deliberately small so a failure points at one behaviour. The vault holds 15 notes:
+on. Notes are deliberately small so a failure points at one behaviour. The vault holds 16 notes:
 
 | note | exercises |
 | --- | --- |
@@ -25,6 +25,7 @@ on. Notes are deliberately small so a failure points at one behaviour. The vault
 | `10 Areas/Long Line Note.md` | a single line longer than `max_chunk_chars`, for the long-line split |
 | `10 Areas/Comment Marker Note.md` | comment shapes outside a fence: one between sentences, two on one line with text between and either side, one between two words with no spaces (the replacement is a space, not nothing), one spanning several lines and closing mid-line with text after it; plus a two-dash line that is NOT a rule, and a run of blank lines. All markers must go and every sentence kept (was defect D1, repaired by SB-ASK-006) |
 | `10 Areas/Comment Fence Note.md` | a terminated comment containing a fence delimiter, which must still be removed in full, and an unterminated marker in prose, which must remove nothing at all. Resolving the fence before the comment state makes the first leak and the second swallow the note |
+| `10 Areas/Rule Opener Note.md` | an unterminated comment opener on a line that is otherwise a horizontal rule, with nothing else open. The rule branch returns early, so this is the only way to reach that give-back path |
 | `10 Areas/Fenced Markup Note.md` | a fenced block containing a heading-like line, an HTML comment and a rule, all of which must survive verbatim, beside a comment and a rule OUTSIDE the fence which must be stripped. The heading-like line must not split the chunk |
 | `10 Areas/Diacritics Note.md` | accented characters. FTS5 indexes them correctly but `search()` cannot reach them (finding D2); this note pins that defect |
 | `10 Areas/Bare Note.md` | no headings and no frontmatter: title falls back to the filename stem |
@@ -32,7 +33,7 @@ on. Notes are deliberately small so a failure points at one behaviour. The vault
 | `90 Archive/Old Greenhouse Notes.md` | lives under an excluded prefix and must never be indexed |
 | `.obsidian/workspace.md` | lives under an excluded path part and must never be indexed |
 
-Indexing this vault yields 12 notes and 22 chunks, with 2 files skipped.
+Indexing this vault yields 14 notes and 24 chunks, with 2 files skipped.
 `tests/test_retrieval_core_e2e.py` asserts those numbers, so adding or editing a note here means
 updating them: a fixture change cannot pass unnoticed.
 

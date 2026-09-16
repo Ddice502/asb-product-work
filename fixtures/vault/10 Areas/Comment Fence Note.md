@@ -10,6 +10,15 @@ and the comment ends here -->
 
 Prose after the comment, which must survive intact and be indexed.
 
-An unterminated marker in prose: type <!-- and the rest must still survive.
+<!-- an odd number of fence delimiters inside a comment
+```
+closes here -->
+
+LATCHPROSE <!--LATCHSECRET--> after the odd-fence comment.
+
+Two openers on one line: KEEPTWO <!--FIRSTSECRET <!--SECONDSECRET
+and that comment closes here --> TAILTEXT remains on the line.
+
+ENCLOSEDLINE <!-- ENCLOSEDSECRET --> and then an opener <!-- that never closes.
 
 ORPHAN_TAIL is the last sentence and it must not be swallowed.

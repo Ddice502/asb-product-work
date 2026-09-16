@@ -940,6 +940,13 @@ def classify_markup(
             line,
         )
 
+        # What this line becomes if the comment it opens never closes: its own
+        # text with any COMPLETE comment already removed. Giving back the raw
+        # line instead would resurrect a comment that genuinely did close, so
+        # a single line reading '<!--metadata--> <!--' would put the metadata
+        # back into the evidence. Only the surviving opener is literal text.
+        restorable = line
+
         opening = line.find("<!--")
 
         if opening != -1:
@@ -957,6 +964,15 @@ def classify_markup(
                     "fenced": False,
                 }
             )
+
+            # Enrolled here too: the rule branch returns early, and a line
+            # whose pre-comment text is a rule still has an opener to give
+            # back if that comment never closes.
+            if opening != -1:
+                pending.append(
+                    (len(classified) - 1, restorable)
+                )
+
             continue
 
         classified.append(
@@ -970,7 +986,7 @@ def classify_markup(
 
         if opening != -1:
             pending.append(
-                (len(classified) - 1, original)
+                (len(classified) - 1, restorable)
             )
 
     # The comment never closed, so it enclosed nothing. Give every line it
