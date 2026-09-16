@@ -28,10 +28,23 @@ Checkpoints, each independently observable:
 
 READ THIS BEFORE TRUSTING [defect-pins]. Every assertion in that one checkpoint states what the
 retrieval core does TODAY and is WRONG. None of them is a requirement, and none may be cited as
-one. They exist because SB-ASK-002 found three real defects it was not authorised to fix, and an
+one. They exist because SB-ASK-002 found four real defects it was not authorised to fix, and an
 unpinned defect can be fixed or worsened silently. When a defect is repaired, its pin FAILS: that
 failure is the signal to delete the pin, not to revert the fix. Every other checkpoint in this file
 asserts behaviour that is correct and must stay correct.
+
+One of those four is now repaired, by SB-ASK-005, and its pin has been replaced by assertions of
+the CORRECT behaviour:
+
+    D4  a chunk span covers its text, not the blank lines around it  -> [chunking]
+
+D1 (HTML comments are never stripped from indexed evidence), D2 (accented content is indexed but
+unreachable through search) and D3 (a question made only of stopwords is answered at HIGH) all
+remain OPEN and remain pinned. Two packages have now tried and been withdrawn: D1 needs fence-aware
+chunking, D2 needs the reranker to stop re-deriving matched terms by string comparison, and D3
+cannot be fixed by editing query_terms at all, because deterministic_evidence_strength returns HIGH
+for any all_terms match however few or generic the terms are, so every change to the term set moves
+strength as a side effect. Do not read those three pins as requirements.
 """
 from __future__ import annotations
 
@@ -227,6 +240,16 @@ def main() -> int:
         source_lines = (VAULT / "20 Projects/Greenhouse Rebuild.md").read_text(encoding="utf-8").splitlines()
         check(any(c["end_line"] > c["start_line"] for c in greenhouse),
               "[chunking] a multi-line chunk records a span, not a collapsed single line")
+
+        # D4, repaired by SB-ASK-005: a span covers its text and not the blank lines either side.
+        # Pinning the exact spans also catches an off-by-one in start_line or end_line.
+        spans = [(c["start_line"], c["end_line"]) for c in greenhouse]
+        check(spans == [(10, 10), (14, 15), (19, 20), (24, 24)],
+              f"[chunking] chunk spans are exact and exclude the blank lines around the text "
+              f"(got {spans})")
+        for start, end in spans:
+            check(source_lines[start - 1].strip() != "" and source_lines[end - 1].strip() != "",
+                  f"[chunking] span {start}-{end} both opens and closes on a line carrying text")
         for chunk in greenhouse:
             span = "\n".join(source_lines[chunk["start_line"] - 1:chunk["end_line"]])
             body_first = chunk["body"].splitlines()[0].strip()
@@ -235,9 +258,6 @@ def main() -> int:
                   f"the chunk's own first line of text")
             check(chunk["end_line"] <= len(source_lines),
                   "[chunking] end_line stays inside the file")
-            # Observed while writing this, not asserted as desirable: a span may open AND close on
-            # the blank lines around its text, so a printed range can be a line wide at each end.
-            # That is finding D4; the contract asserted here is only that the span contains the text.
 
         bare = rows_of(database, "SELECT * FROM chunks WHERE path = ?", "10 Areas/Bare Note.md")
         check(len(bare) == 1 and bare[0]["heading"] == "",
@@ -250,6 +270,9 @@ def main() -> int:
         check(len(long_line) >= 2, f"[chunking] an over-long line is split (got {len(long_line)})")
         check({c["start_line"] for c in long_line} == {3},
               "[chunking] every piece of a split line keeps that line's number")
+        check({c["end_line"] for c in long_line} == {3},
+              f"[chunking] and ends on it too, so a split line reports a single-line span "
+              f"(got {[(c['start_line'], c['end_line']) for c in long_line]})")
         maximum = int(config.get("max_chunk_chars", 3500))
         check(all(len(c["body"]) <= maximum for c in long_line),
               f"[chunking] no chunk exceeds the configured maximum of {maximum}")
@@ -257,6 +280,22 @@ def main() -> int:
         empty = rows_of(database, "SELECT * FROM chunks WHERE path = ?", "10 Areas/Empty Signal Note.md")
         check(len(empty) == 1 and empty[0]["body"] == "Empty Signal Note",
               "[chunking] a note with no readable signal falls back to a single title chunk")
+        check((empty[0]["start_line"], empty[0]["end_line"]) == (1, 1),
+              f"[chunking] and that fallback chunk carries a valid 1-based placeholder span "
+              f"(got {(empty[0]['start_line'], empty[0]['end_line'])})")
+
+        # The span guard is a predicate on the line's content, not merely on the line existing.
+        # Called directly so the case does not need a fixture note of its own.
+        _, spaced = amb.chunk_note(
+            "# T\n\n   \nreal sentence one that is long enough here\n   \n"
+            "real sentence two that is long enough here\n   \n",
+            "spaced.md",
+            3500,
+        )
+        check(len(spaced) == 1, f"[chunking] the whitespace-padded note yields one chunk (got {len(spaced)})")
+        check((spaced[0]["start_line"], spaced[0]["end_line"]) == (4, 6),
+              f"[chunking] a whitespace-only line does not extend a span at either end "
+              f"(got {(spaced[0]['start_line'], spaced[0]['end_line'])})")
 
         # -------------------------------------------------------------- [provenance-authority]
         provenance = amb.provenance_for_path(config, "20 Projects/Greenhouse Rebuild.md")
@@ -516,18 +555,6 @@ def main() -> int:
         check(amb.search(config, "cafe resume pinata", 5) == [],
               "[defect-pins] DEFECT D2 PINNED (not a requirement): the unaccented spelling cannot "
               "reach it either")
-
-        # D4 (LOW): a chunk's recorded span opens on the blank line before its text and, except
-        # at end of file, closes on the blank line after it. Exact spans are pinned here, which
-        # also means an off-by-one anywhere in start_line or end_line fails this checkpoint.
-        spans = [(c["start_line"], c["end_line"]) for c in greenhouse]
-        check(spans == [(9, 11), (13, 16), (18, 21), (23, 24)],
-              f"[defect-pins] DEFECT D4 PINNED (not a requirement): chunk spans include the blank "
-              f"lines around their text (got {spans})")
-        for start, end in spans[:3]:
-            check(source_lines[start - 1].strip() == "" and source_lines[end - 1].strip() == "",
-                  f"[defect-pins] DEFECT D4 PINNED (not a requirement): span {start}-{end} both "
-                  f"opens and closes on a blank line")
 
         # D3 (MEDIUM): a question of pure stopwords falls through query_terms' deliberate
         # no-useful-terms fallback and is answered at full confidence.

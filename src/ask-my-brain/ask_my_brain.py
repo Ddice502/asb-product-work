@@ -979,12 +979,17 @@ def chunk_note(
         ):
             flush()
 
-        if start_line is None:
-            start_line = line_number
-
         buffer.append(line)
-        end_line = line_number
         current_chars += len(line) + 1
+
+        # A span must cover the chunk's text, not the blank lines that happen
+        # to sit either side of it, or a printed citation range is a line wide
+        # at each end (defect D4).
+        if line.strip():
+            if start_line is None:
+                start_line = line_number
+
+            end_line = line_number
 
     flush()
 
