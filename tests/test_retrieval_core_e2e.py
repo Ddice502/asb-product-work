@@ -23,7 +23,15 @@ Checkpoints, each independently observable:
     [search]               real retrieval: ranking, term coverage, the per-note cap, top_k
     [scope]                retrieval_context narrowing and its policy errors
     [ask-e2e]              ask() over the real index with only the model stubbed
+    [defect-pins]          today's DEFECTIVE behaviour, pinned so a fix cannot pass unnoticed
     [containment]          no network, no writes to fixtures, database confined to the temp dir
+
+READ THIS BEFORE TRUSTING [defect-pins]. Every assertion in that one checkpoint states what the
+retrieval core does TODAY and is WRONG. None of them is a requirement, and none may be cited as
+one. They exist because SB-ASK-002 found three real defects it was not authorised to fix, and an
+unpinned defect can be fixed or worsened silently. When a defect is repaired, its pin FAILS: that
+failure is the signal to delete the pin, not to revert the fix. Every other checkpoint in this file
+asserts behaviour that is correct and must stay correct.
 """
 from __future__ import annotations
 
@@ -68,12 +76,34 @@ def config_for(database: Path) -> dict:
     }
 
 
+CONNECTED: list = []
+
+
 def build(config: dict) -> str:
     """Run the real build, returning its stdout receipt."""
     buffer = io.StringIO()
     with contextlib.redirect_stdout(buffer):
         amb.build_index(config)
     return buffer.getvalue()
+
+
+def watch_sqlite():
+    """Record every database path the code under test opens, so containment is observed rather
+    than assumed. Asserting on a path this test itself constructed would prove nothing.
+
+    Returns a restore callable."""
+    real_connect = amb.sqlite3.connect
+
+    def spy(target, *args, **kwargs):
+        CONNECTED.append(str(target))
+        return real_connect(target, *args, **kwargs)
+
+    amb.sqlite3.connect = spy
+
+    def restore():
+        amb.sqlite3.connect = real_connect
+
+    return restore
 
 
 def rows_of(database: Path, query: str, *args) -> list:
@@ -103,12 +133,16 @@ def main() -> int:
     for forbidden in ("/AI/", "192.168.", "theadmin@", "/home/jro", "Obsidian/"):
         check(forbidden not in corpus,
               f"[fixture-vault] no fixture names {forbidden!r}: the vault is synthetic")
-    check("example.invalid" in corpus,
-          "[fixture-vault] the one URL in the vault is a reserved-invalid test domain")
+    import re as _re
+    urls = _re.findall(r"https?://[^\s)'\"]+", corpus)
+    check(urls, "[fixture-vault] the vault does contain the URL this check is about")
+    check(all("example.invalid" in u for u in urls),
+          f"[fixture-vault] every URL in the vault is on the reserved-invalid test domain (got {urls})")
 
     with tempfile.TemporaryDirectory(prefix="sb-ask-002-") as work:
         database = Path(work) / "index" / "fixture.db"
         config = config_for(database)
+        restore_sqlite = watch_sqlite()
 
         # -------------------------------------------------------------- [index-build]
         receipt = build(config)
@@ -132,6 +166,10 @@ def main() -> int:
         check(list(integrity[0].values())[0] == "ok", "[index-build] SQLite reports the index sound")
         fts = rows_of(database, "SELECT count(*) AS n FROM chunks_fts WHERE chunks_fts MATCH 'glazing'")
         check(fts[0]["n"] >= 1, "[index-build] the FTS5 table answers a term query")
+        folded = rows_of(database, "SELECT count(*) AS n FROM chunks_fts WHERE chunks_fts MATCH 'cafe'")
+        check(folded[0]["n"] >= 1,
+              "[index-build] the tokenizer folds diacritics: the unaccented 'cafe' finds the "
+              "accented text, which is what tokenize='unicode61 remove_diacritics 2' buys")
 
         first = rows_of(database, "SELECT path, start_line, body FROM chunks ORDER BY id")
         build(config)
@@ -156,14 +194,33 @@ def main() -> int:
         check([c["heading"] for c in greenhouse]
               == ["Greenhouse Rebuild", "Glazing delivery", "Frame repairs", "Budget"],
               "[chunking] each chunk carries the heading it sits under, in document order")
+        saw_care = rows_of(database, "SELECT * FROM chunks WHERE path = ?", "10 Areas/Saw Care.md")
+        check(len(saw_care) == 1, "[chunking] the renamed note yields one chunk")
+        check(saw_care[0]["title"] == "Tool Maintenance",
+              f"[chunking] the title comes from the '# ' heading (got {saw_care[0]['title']!r}), "
+              "and this fixture's heading deliberately differs from its filename stem 'Saw Care'")
         check(all(c["title"] == "Greenhouse Rebuild" for c in greenhouse),
-              "[chunking] the title comes from the '# ' heading, not the filename")
+              "[chunking] every chunk of a note carries that note's title")
         check(all("source_sha256" not in c["body"] for c in greenhouse),
               "[chunking] frontmatter is not indexed as retrievable body text")
         check(greenhouse[0]["start_line"] > 5,
               "[chunking] chunk line numbers start after the frontmatter block")
         check(all(1 <= c["start_line"] <= c["end_line"] for c in greenhouse),
               "[chunking] every chunk has a sane 1-based line span")
+        source_lines = (VAULT / "20 Projects/Greenhouse Rebuild.md").read_text(encoding="utf-8").splitlines()
+        check(any(c["end_line"] > c["start_line"] for c in greenhouse),
+              "[chunking] a multi-line chunk records a span, not a collapsed single line")
+        for chunk in greenhouse:
+            span = "\n".join(source_lines[chunk["start_line"] - 1:chunk["end_line"]])
+            body_first = chunk["body"].splitlines()[0].strip()
+            check(body_first and body_first in span,
+                  f"[chunking] the span {chunk['start_line']}-{chunk['end_line']} actually contains "
+                  f"the chunk's own first line of text")
+            check(chunk["end_line"] <= len(source_lines),
+                  "[chunking] end_line stays inside the file")
+            # Observed while writing this, not asserted as desirable: a span may open AND close on
+            # the blank lines around its text, so a printed range can be a line wide at each end.
+            # That is finding D4; the contract asserted here is only that the span contains the text.
 
         bare = rows_of(database, "SELECT * FROM chunks WHERE path = ?", "10 Areas/Bare Note.md")
         check(len(bare) == 1 and bare[0]["heading"] == "",
@@ -176,8 +233,9 @@ def main() -> int:
         check(len(long_line) >= 2, f"[chunking] an over-long line is split (got {len(long_line)})")
         check({c["start_line"] for c in long_line} == {3},
               "[chunking] every piece of a split line keeps that line's number")
-        check(all(len(c["body"]) <= 3500 for c in long_line),
-              "[chunking] no chunk exceeds the configured maximum")
+        maximum = int(config.get("max_chunk_chars", 3500))
+        check(all(len(c["body"]) <= maximum for c in long_line),
+              f"[chunking] no chunk exceeds the configured maximum of {maximum}")
 
         empty = rows_of(database, "SELECT * FROM chunks WHERE path = ?", "10 Areas/Empty Signal Note.md")
         check(len(empty) == 1 and empty[0]["body"] == "Empty Signal Note",
@@ -193,11 +251,37 @@ def main() -> int:
               "[provenance-authority] a note without frontmatter has no provenance")
         check(amb.provenance_for_path(config, "../../../etc/passwd") == {},
               "[provenance-authority] a path escaping the vault yields nothing")
+        escape = "../" * 12 + "etc/hostname"
+        check(amb.provenance_for_path(config, escape) == {},
+              "[provenance-authority] escaping upward to a real system file yields nothing")
+        # The escape target below EXISTS and carries exactly the frontmatter the core reads, so
+        # these two checks can only pass because containment works, not because there was nothing
+        # to find. Without it they would pass against a core with no containment at all.
+        outside_note = ROOT / "fixtures" / "outside-the-vault.md"
+        check(outside_note.is_file(), "[provenance-authority] the escape target exists")
+        outside_text = outside_note.read_text(encoding="utf-8")
+        check("current_project_status" in outside_text and "source_url" in outside_text,
+              "[provenance-authority] and it carries readable authority and provenance frontmatter")
+        check(amb.provenance_for_path(config, "../outside-the-vault.md") == {},
+              "[provenance-authority] provenance is never read from outside the vault, even when "
+              "the escape target really does carry provenance frontmatter")
+        check(amb.retrieval_authority_for_path(config, "../outside-the-vault.md") == {},
+              "[provenance-authority] authority is never read from outside the vault, even when "
+              "the escape target really does carry authority frontmatter")
+        indexed_paths = {r["path"] for r in rows_of(database, "SELECT DISTINCT path FROM chunks")}
+        check(not any("outside-the-vault" in path for path in indexed_paths),
+              "[provenance-authority] and it never reaches the index")
+        check(amb.retrieval_authority_for_path(config, "10 Areas/Bare Note.md") == {},
+              "[provenance-authority] a note with no frontmatter yields no authority")
+        other_authority = amb.retrieval_authority_for_path(config, "10 Areas/Saw Care.md")
+        check(other_authority == {"authority": "canonical_reference", "status": "current"},
+              f"[provenance-authority] an authority value the scorer does not bonus is still read "
+              f"verbatim (got {other_authority})")
+        check(other_authority["authority"] != "current_project_status",
+              "[provenance-authority] and it is not the one value that earns the bonus")
         authority = amb.retrieval_authority_for_path(config, "10 Areas/Second Brain Current Status.md")
         check(authority == {"authority": "current_project_status", "status": "current"},
               f"[provenance-authority] authority frontmatter is read (got {authority})")
-        check(amb.retrieval_authority_for_path(config, "../outside.md") == {},
-              "[provenance-authority] authority is never read from outside the vault")
 
         # -------------------------------------------------------------- [search]
         hits = amb.search(config, "when does the glazing arrive at the greenhouse?", 5)
@@ -210,10 +294,27 @@ def main() -> int:
               "[search] a fully-matched chunk is reported as all_terms with full coverage")
         check(hits[0]["provenance"]["source_type"] == "webpage_import",
               "[search] the selected row carries its note's provenance")
+        for row in hits:
+            expected = amb.provenance_for_path(config, row["path"])
+            check(row["provenance"] == expected,
+                  f"[search] every selected row carries its own note's provenance, not only the first "
+                  f"({row['path']})")
         check(amb.deterministic_evidence_strength(hits) == "HIGH",
               "[search] real rows drive the existing strength contract")
         check(all(p != "90 Archive/Old Greenhouse Notes.md" for p in (r["path"] for r in hits)),
               "[search] the excluded archive note is unreachable through search")
+
+        partial = amb.search(config, "which saw needs sharpening?", 8)
+        check(partial, "[search] a partially-matched question still retrieves evidence")
+        check(any(r["match_mode"] == "partial_terms" for r in partial),
+              "[search] a chunk matching only some terms is reported as partial_terms")
+        coverages = [r["term_coverage"] for r in partial]
+        check(all(0.0 < c < 1.0 for c in coverages),
+              f"[search] partial matches carry a real fractional coverage (got {coverages})")
+        check(coverages == sorted(coverages, reverse=True),
+              f"[search] rows come back ranked, best coverage first (got {coverages})")
+        check(amb.deterministic_evidence_strength(partial) == "LOW",
+              "[search] dispersed partial matches drive the LOW branch of the strength contract")
 
         inventory = amb.search(config, "what is in the workshop inventory?", 8)
         per_note = {}
@@ -225,6 +326,50 @@ def main() -> int:
               "[search] top_k caps the number of rows returned")
         check(amb.search(config, "zeppelin bandolier quartzite", 5) == [],
               "[search] a question with no matching evidence returns nothing")
+        # Dilution: a real term surrounded by irrelevant ones is refused BEFORE retrieval.
+        check(len(amb.search(config, "chisels", 5)) >= 1,
+              "[search] the term 'chisels' on its own does retrieve")
+        check(amb.search(config, "chisels dirigible parliament sonata quantum", 5) == [],
+              "[search] that same term diluted by four irrelevant ones retrieves nothing")
+
+        # The coverage gate: this question DOES reach reranking - candidates come back from the
+        # index - and is then rejected for insufficient coverage. Counting the candidates is what
+        # makes this different from the check above: remove either coverage gate and rows appear.
+        gated = "frame bench dirigible"
+        candidates = []
+        real_match = amb.execute_match
+
+        def counting_match(*args, **kwargs):
+            found = real_match(*args, **kwargs)
+            candidates.append(len(found))
+            return found
+
+        amb.execute_match = counting_match
+        try:
+            gated_rows = amb.search(config, gated, 5)
+        finally:
+            amb.execute_match = real_match
+        check(max(candidates) >= 1,
+              f"[search] the gated question really does retrieve candidates (got {candidates})")
+        check(gated_rows == [],
+              f"[search] and every one of them is then rejected for insufficient term coverage, "
+              f"so the gate - not an empty index - is what returns nothing")
+
+        # Exact counts at the coverage boundary. Loosen the coverage arithmetic or the row filter
+        # and these counts change, which is the only way this vault can observe those gates: no
+        # question over these fixtures produces a top coverage inside [0.30, 0.35), so the row
+        # filter and the top-candidate gate cannot be told apart here. Recorded as a limitation.
+        for question, expected in (
+            ("bench dirigible", 3),
+            ("saw bench clamps dirigible parliament", 1),
+            ("frame bench dirigible", 0),
+        ):
+            got = amb.search(config, question, 20)
+            check(len(got) == expected,
+                  f"[search] {question!r} yields exactly {expected} row(s) at the coverage "
+                  f"boundary (got {len(got)}: {[round(r['term_coverage'], 3) for r in got]})")
+            check(all(r["term_coverage"] >= 0.30 for r in got),
+                  f"[search] and no row below the 0.30 coverage floor survives for {question!r}")
         check(amb.search(config, "", 5) == [],
               "[search] an empty question returns nothing")
 
@@ -236,14 +381,28 @@ def main() -> int:
         others = [r for r in authoritative if r["path"] != "10 Areas/Second Brain Current Status.md"]
         check(all(r["authority_bonus"] == 0.0 for r in others),
               "[search] a note without authority frontmatter receives no bonus")
+        historical = amb.search(config, "what was the second brain status previously and historically?", 5)
+        penalised = [r for r in historical if r["path"] == "10 Areas/Second Brain Current Status.md"]
+        check(penalised and penalised[0]["authority_bonus"] == -0.35,
+              f"[search] the same note is penalised on a historical question "
+              f"(got {[r['authority_bonus'] for r in penalised]})")
 
         # -------------------------------------------------------------- [scope]
-        inside = amb.search(config, "frame repairs on the project", 5, {"include_paths": ["20 Projects/**"]})
+        spanning = "the panel saw and the greenhouse frame"
+        unscoped = amb.search(config, spanning, 8)
+        folders = {r["path"].split("/")[0] for r in unscoped}
+        check(folders == {"10 Areas", "20 Projects"},
+              f"[scope] unscoped, this question genuinely spans both folders (got {folders})")
+        inside = amb.search(config, spanning, 8, {"include_paths": ["20 Projects/**"]})
         check(inside and all(r["path"].startswith("20 Projects/") for r in inside),
-              "[scope] include_paths narrows retrieval to the named subtree")
-        check(amb.search(config, "frame repairs on the project", 5,
-                         {"exclude_paths": ["20 Projects/**"]}) == [],
-              "[scope] exclude_paths subtracts that subtree")
+              "[scope] include_paths narrows a genuinely-spanning result to the named subtree")
+        check(len(inside) < len(unscoped),
+              f"[scope] narrowing actually removed rows ({len(unscoped)} -> {len(inside)})")
+        outside_scope = amb.search(config, spanning, 8, {"exclude_paths": ["20 Projects/**"]})
+        check(outside_scope and all(not r["path"].startswith("20 Projects/") for r in outside_scope),
+              "[scope] exclude_paths subtracts that subtree and leaves the rest")
+        check({r["path"] for r in inside}.isdisjoint({r["path"] for r in outside_scope}),
+              "[scope] the two halves of the same question are disjoint")
         for bad, why in (
             ({"domain_name": "x"}, "an unsupported field"),
             ({"source_types": ["note"]}, "source_types, which is not yet supported"),
@@ -302,11 +461,69 @@ def main() -> int:
         check("EVIDENCE_STATUS=NONE" in unanswered,
               f"[ask-e2e] it prints the no-evidence response\n{unanswered}")
 
+        # -------------------------------------------------------------- [defect-pins]
+        # Everything in this block asserts DEFECTIVE behaviour. See the module docstring.
+        # Repairing any of these defects will fail its pin; delete the pin, keep the repair.
+
+        # D1 (HIGH): chunk_note's cleanup patterns are written with doubled backslashes, so
+        # r"<!--[\\s\\S]*?-->" is a class of {backslash, s, S} rather than "any character".
+        # HTML comments therefore survive into indexed evidence and are shown to the model.
+        comment_body = rows_of(database, "SELECT body FROM chunks WHERE path = ?",
+                               "10 Areas/Comment Marker Note.md")[0]["body"]
+        check("<!--" in comment_body,
+              "[defect-pins] DEFECT D1 PINNED (not a requirement): an HTML comment is still indexed "
+              "as retrievable evidence; when the stripper is fixed this check must fail and be deleted")
+        check("pipeline marker" in comment_body,
+              "[defect-pins] DEFECT D1 PINNED (not a requirement): the comment's text, which is "
+              "pipeline metadata and not human evidence, reaches the model")
+
+        # D2 (HIGH): FTS5 indexes accented content correctly, but query_terms (r"[A-Za-z0-9]+")
+        # and the coverage reranker (r"[^a-z0-9]+") both strip non-ASCII, so the term never
+        # matches the body token and the chunk is discarded after retrieval.
+        fts_accented = rows_of(database,
+                               "SELECT count(*) AS n FROM chunks_fts WHERE chunks_fts MATCH 'café'")
+        check(fts_accented[0]["n"] >= 1,
+              "[defect-pins] the index itself CAN match an accented term - this half is correct")
+        check(amb.query_terms("café résumé piñata") == ["caf", "sum", "pi", "ata"],
+              "[defect-pins] DEFECT D2 PINNED (not a requirement): an accented question is shredded "
+              "into fragments by query_terms")
+        check(amb.search(config, "café résumé piñata", 5) == [],
+              "[defect-pins] DEFECT D2 PINNED (not a requirement): accented content is indexed but "
+              "unreachable through search")
+        check(amb.search(config, "cafe resume pinata", 5) == [],
+              "[defect-pins] DEFECT D2 PINNED (not a requirement): the unaccented spelling cannot "
+              "reach it either")
+
+        # D3 (MEDIUM): a question of pure stopwords falls through query_terms' deliberate
+        # no-useful-terms fallback and is answered at full confidence.
+        check("the" in amb.STOPWORDS and amb.query_terms("the") == ["the"],
+              "[defect-pins] DEFECT D3 PINNED (not a requirement): a stopword survives as a search "
+              "term through the no-useful-terms fallback")
+        stopword_rows = amb.search(config, "the", 5)
+        check(stopword_rows and amb.deterministic_evidence_strength(stopword_rows) == "HIGH",
+              "[defect-pins] DEFECT D3 PINNED (not a requirement): a contentless question yields "
+              "HIGH-strength evidence and would be answered by the model")
+
         # -------------------------------------------------------------- [containment]
-        check(str(database).startswith(work),
-              "[containment] the index was written only inside the temporary directory")
-        check(not any(p.suffix == ".db" for p in ROOT.rglob("*.db")),
-              "[containment] no database file was left anywhere in the repository")
+        check(len(CONNECTED) >= 2,
+              f"[containment] the code under test opened databases and we observed them (got {CONNECTED})")
+        def bare(target: str) -> str:
+            """open_database connects through a file: URI, so compare the plain path."""
+            return target[5:].split("?", 1)[0] if target.startswith("file:") else target
+
+        outside = [c for c in CONNECTED if not bare(c).startswith(work)]
+        check(outside == [],
+              f"[containment] every database the code opened was inside the temp dir (outside: {outside})")
+        check(any(bare(c) == str(database) for c in CONNECTED),
+              "[containment] the configured database is among the paths actually opened")
+        read_handles = [c for c in CONNECTED if c.startswith("file:")]
+        check(read_handles and all("mode=ro" in c for c in read_handles),
+              f"[containment] every read handle the code opened is read-only (got {set(read_handles)})")
+        strays = [str(p) for p in ROOT.rglob("*.db")] + [str(p) for p in ROOT.rglob("*.sqlite*")]
+        check(strays == [], f"[containment] no database file was left in the repository (got {strays})")
+        restore_sqlite()
+        check(amb.sqlite3.connect is sqlite3.connect,
+              "[containment] the suite leaves sqlite3.connect as it found it")
 
     check(snapshot_fixtures() == before,
           "[containment] every fixture file is byte-for-byte and mtime unchanged")
