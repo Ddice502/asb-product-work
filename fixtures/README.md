@@ -12,7 +12,7 @@ database, no model, and no vault of the owner's anywhere in the picture. Every n
 place and date in it was made up for this fixture.
 
 Each note exists to exercise one named retrieval behaviour, and the tests name the note they depend
-on. Notes are deliberately small so a failure points at one behaviour. The vault holds 14 notes:
+on. Notes are deliberately small so a failure points at one behaviour. The vault holds 15 notes:
 
 | note | exercises |
 | --- | --- |
@@ -23,7 +23,8 @@ on. Notes are deliberately small so a failure points at one behaviour. The vault
 | `10 Areas/Second Brain Current Status.md` | `authority: current_project_status` + `status: current`, the one combination that earns the ±0.35 authority bonus |
 | `10 Areas/Second Brain Older Status.md` | the same subject without authority frontmatter, so the bonus is what decides the ranking |
 | `10 Areas/Long Line Note.md` | a single line longer than `max_chunk_chars`, for the long-line split |
-| `10 Areas/Comment Marker Note.md` | five comment shapes outside a fence: one between sentences, two on a single line with text between them and either side, and one spanning several lines; plus a run of blank lines. All must be removed and every sentence kept (was defect D1, repaired by SB-ASK-006) |
+| `10 Areas/Comment Marker Note.md` | comment shapes outside a fence: one between sentences, two on one line with text between and either side, one between two words with no spaces (the replacement is a space, not nothing), one spanning several lines and closing mid-line with text after it; plus a two-dash line that is NOT a rule, and a run of blank lines. All markers must go and every sentence kept (was defect D1, repaired by SB-ASK-006) |
+| `10 Areas/Comment Fence Note.md` | a terminated comment containing a fence delimiter, which must still be removed in full, and an unterminated marker in prose, which must remove nothing at all. Resolving the fence before the comment state makes the first leak and the second swallow the note |
 | `10 Areas/Fenced Markup Note.md` | a fenced block containing a heading-like line, an HTML comment and a rule, all of which must survive verbatim, beside a comment and a rule OUTSIDE the fence which must be stripped. The heading-like line must not split the chunk |
 | `10 Areas/Diacritics Note.md` | accented characters. FTS5 indexes them correctly but `search()` cannot reach them (finding D2); this note pins that defect |
 | `10 Areas/Bare Note.md` | no headings and no frontmatter: title falls back to the filename stem |

@@ -147,7 +147,7 @@ def main() -> int:
     # ------------------------------------------------------------------ [fixture-vault]
     check(VAULT.is_dir(), "[fixture-vault] fixtures/vault exists")
     notes = sorted(p.relative_to(VAULT).as_posix() for p in VAULT.rglob("*.md"))
-    check(len(notes) == 14, f"[fixture-vault] the vault holds its 14 notes (got {len(notes)})")
+    check(len(notes) == 15, f"[fixture-vault] the vault holds its 15 notes (got {len(notes)})")
     check(OUTSIDE_NOTE.is_file(),
           "[fixture-vault] the deliberate out-of-vault note is present and scanned below too")
     corpus = "\n".join(p.read_text(encoding="utf-8") for p in
@@ -170,8 +170,8 @@ def main() -> int:
         # -------------------------------------------------------------- [index-build]
         receipt = build(config)
         check("BUILD_STATUS=PASS" in receipt, f"[index-build] the build reports PASS\n{receipt}")
-        check("NOTES_INDEXED=12" in receipt, f"[index-build] 12 notes indexed\n{receipt}")
-        check("CHUNKS_INDEXED=22" in receipt, f"[index-build] 22 chunks indexed\n{receipt}")
+        check("NOTES_INDEXED=13" in receipt, f"[index-build] 13 notes indexed\n{receipt}")
+        check("CHUNKS_INDEXED=23" in receipt, f"[index-build] 23 chunks indexed\n{receipt}")
         check("FILES_SKIPPED=2" in receipt, f"[index-build] 2 files skipped\n{receipt}")
         check(database.is_file(), "[index-build] the database file exists at the configured path")
         check(oct(database.stat().st_mode & 0o777) == "0o640",
@@ -183,7 +183,7 @@ def main() -> int:
         check(metadata["schema_version"] == "1.0.0", "[index-build] the schema version is recorded")
         check(metadata["retrieval"] == "sqlite_fts5_bm25", "[index-build] the retrieval mode is recorded")
         check(metadata["vault_root"] == str(VAULT), "[index-build] the indexed vault root is recorded")
-        check(metadata["notes_indexed"] == "12" and metadata["chunks_indexed"] == "22",
+        check(metadata["notes_indexed"] == "13" and metadata["chunks_indexed"] == "23",
               "[index-build] the receipt and the metadata table agree")
         integrity = rows_of(database, "PRAGMA integrity_check")
         check(list(integrity[0].values())[0] == "ok", "[index-build] SQLite reports the index sound")
@@ -211,7 +211,7 @@ def main() -> int:
               "[exclusion] an excluded prefix contributes no chunk")
         check(not any(".obsidian" in p for p in paths),
               "[exclusion] an excluded path part contributes no chunk")
-        check(len(paths) == 12, f"[exclusion] exactly the 12 permitted notes are indexed (got {len(paths)})")
+        check(len(paths) == 13, f"[exclusion] exactly the 13 permitted notes are indexed (got {len(paths)})")
 
         # -------------------------------------------------------------- [chunking]
         greenhouse = rows_of(
@@ -299,6 +299,36 @@ def main() -> int:
               f"[chunking] a run of blank lines is collapsed to one (got {comment_body!r})")
         check("The fourth real sentence" in comment_body,
               "[chunking] and the sentence after that run survives")
+        # A comment is replaced by a SPACE, not by nothing, or the words either side fuse.
+        check("FUSEDLEFT FUSEDRIGHT" in comment_body,
+              f"[chunking] a comment between two words leaves them separated (got {comment_body!r})")
+        # Text after a closing marker on the SAME line is evidence and must be kept.
+        check("TAILAFTERCLOSE" in comment_body,
+              "[chunking] text following a closing marker on its own line is kept")
+        # The rule pattern needs three or more marks; two dashes are ordinary text.
+        check("\n--\n" in comment_body,
+              f"[chunking] a two-character dash line is NOT a rule and survives (got {comment_body!r})")
+
+        # A comment must never consume text it does not enclose. The fence test has to be
+        # resolved AFTER an open comment, or a delimiter inside the comment steals its closing
+        # marker: either the commented-out text leaks into the evidence, or the rest of the note
+        # is swallowed. Both happened in the first candidate of this package.
+        fence_comment = rows_of(database, "SELECT * FROM chunks WHERE path = ? ORDER BY start_line",
+                                "10 Areas/Comment Fence Note.md")
+        check(len(fence_comment) == 1,
+              f"[chunking] the comment-fence note is one chunk (got {len(fence_comment)})")
+        fc_body = fence_comment[0]["body"]
+        check("SECRETMARKER" not in fc_body,
+              f"[chunking] a comment containing a fence delimiter is still removed in full, so its "
+              f"text never reaches the model (got {fc_body!r})")
+        check("Prose after the comment" in fc_body,
+              "[chunking] and the prose after that comment survives")
+        # An UNTERMINATED marker encloses nothing, so it may remove nothing.
+        check("ORPHAN_TAIL" in fc_body,
+              f"[chunking] an unterminated marker does not swallow the rest of the note "
+              f"(got {fc_body!r})")
+        check("type <!-- and the rest must still survive" in fc_body,
+              "[chunking] and its line is kept whole, the marker treated as the literal text it is")
 
         # Inside a fenced block nothing is stripped: a note documenting markup legitimately
         # contains a comment or a rule there. Three earlier attempts at D1 deleted exactly this.

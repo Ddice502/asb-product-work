@@ -855,6 +855,14 @@ def classify_markup(
     inside_fence = False
     inside_comment = False
 
+    # Every line a still-open comment has claimed, with the text it had before
+    # the comment claimed it. A comment may only remove text it actually
+    # encloses, so if the closing marker never arrives these are all given
+    # back. Without this an unterminated '<!--' - in prose, in inline code, in
+    # a tilde or four-backtick fence, in an indented code block - silently
+    # deletes the rest of the note's evidence.
+    pending: list[tuple[int, str]] = []
+
     for number, raw_line in enumerate(
         lines,
         start=1,
@@ -871,11 +879,37 @@ def classify_markup(
             continue
 
         line = raw_line.rstrip()
+        original = line
 
-        # A fence delimiter is dropped, and it toggles the fence. Inside a
-        # fence nothing is stripped: a note documenting markup legitimately
-        # contains comments and rules there.
-        if _FENCE_LINE_RE.match(line):
+        # An open comment is resolved BEFORE the fence test. A fence delimiter
+        # inside a comment is comment text, not a delimiter: toggling the fence
+        # there loses the comment's own closing marker, which either leaks the
+        # commented-out text into the evidence or swallows the rest of the note.
+        if inside_comment:
+            closing = line.find("-->")
+
+            if closing == -1:
+                classified.append(
+                    {
+                        "number": number,
+                        "kind": "drop",
+                        "text": "",
+                        "fenced": False,
+                    }
+                )
+                pending.append(
+                    (len(classified) - 1, original)
+                )
+                continue
+
+            inside_comment = False
+            pending = []
+            line = line[closing + 3:]
+
+        elif _FENCE_LINE_RE.match(line):
+            # A fence delimiter is dropped, and it toggles the fence. Inside a
+            # fence nothing is stripped: a note documenting markup legitimately
+            # contains comments and rules there.
             inside_fence = not inside_fence
             classified.append(
                 {
@@ -899,25 +933,8 @@ def classify_markup(
             continue
 
         # Outside a fence, an HTML comment is pipeline metadata rather than
-        # evidence. A comment that opened on an earlier line keeps consuming
-        # lines until it closes, but each line is handled on its own.
-        if inside_comment:
-            closing = line.find("-->")
-
-            if closing == -1:
-                classified.append(
-                    {
-                        "number": number,
-                        "kind": "drop",
-                        "text": "",
-                        "fenced": False,
-                    }
-                )
-                continue
-
-            inside_comment = False
-            line = line[closing + 3:]
-
+        # evidence. Complete comments on this line go first, so two of them on
+        # one line cannot merge and text between them survives.
         line = _INLINE_COMMENT_RE.sub(
             " ",
             line,
@@ -950,6 +967,17 @@ def classify_markup(
                 "fenced": False,
             }
         )
+
+        if opening != -1:
+            pending.append(
+                (len(classified) - 1, original)
+            )
+
+    # The comment never closed, so it enclosed nothing. Give every line it
+    # claimed back, with the text it had before.
+    for index, original in pending:
+        classified[index]["kind"] = "keep"
+        classified[index]["text"] = original
 
     return classified
 

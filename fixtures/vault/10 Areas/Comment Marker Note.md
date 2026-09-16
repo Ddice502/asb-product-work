@@ -8,9 +8,13 @@ The second real sentence in this note is also ordinary retrievable evidence.
 
 Alpha <!-- one --> BRIDGE_TEXT <!-- two --> omega on a single line here.
 
+FUSEDLEFT<!-- joined -->FUSEDRIGHT must not run together as one word.
+
+--
+
 <!-- a marker that opens here
 and runs across several lines
-before it finally closes here -->
+before it closes here --> TAILAFTERCLOSE continues on that same line.
 
 The third real sentence closes the note after the spanning marker.
 
