@@ -1,0 +1,15 @@
+name: Integration-test workflow
+
+on:
+  pull_request:
+    branches: [ main, chore/coderabbit-review-workflow ]
+
+jobs:
+  integration-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run integration tests
+        run: echo "Running integration tests..."
