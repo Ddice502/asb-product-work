@@ -889,16 +889,17 @@ def fence_delimiter(
 
     return False
 
-# A thematic break is three or more of ONE marker, not any mixture of them.
-# Written as a character class, this deleted lines like '-=_*' that are not
-# breaks at all - a latent error inherited from the base, where the pattern
-# is written with a doubled backslash and deletes no rule line. '=' is kept
-# as a marker so that a setext underline is still removed, which is the
-# behaviour this line has always been declared to have.
+# A Markdown thematic break: at most three spaces of indent, then three or
+# more of ONE marker out of '*', '-' and '_', each of which may be followed
+# by spaces or tabs, and nothing else on the line. A mixture of markers is
+# not a break, and neither is a run indented four spaces or by a tab, which
+# is indented code. A run of three or more '=' under the same indent limit
+# is dropped as well: it is a setext heading underline, and unlike a break
+# it may not contain spaces.
 _RULE_LINE_RE = re.compile(
-    r"^[ \t]*"
-    r"(?:\*{3,}|-{3,}|_{3,}|={3,})"
-    r"[ \t]*$"
+    r"^ {0,3}"
+    r"(?:(?:\*[ \t]*){3,}|(?:-[ \t]*){3,}|(?:_[ \t]*){3,}|={3,}[ \t]*)"
+    r"$"
 )
 
 _INLINE_COMMENT_RE = re.compile(
@@ -1057,6 +1058,8 @@ def _classify_once(
                 + line[last_closer + 3:]
             )
 
+        truncated = False
+
         if number not in literal_openers:
             opening = line.find("<!--")
 
@@ -1072,10 +1075,24 @@ def _classify_once(
             if opening != -1:
                 open_at = number
                 line = line[:opening]
+                truncated = True
+
+        # A break may end only in spaces or tabs, and rstrip() removes a
+        # non-breaking space and the like as well. So the rule pattern is
+        # shown the line as it visibly ends: what is left after comments are
+        # removed, followed by the whitespace the rstrip() at the top of the
+        # loop took off - unless the line was cut at an opener, in which case
+        # that whitespace was inside the comment. Only then is the text tidied.
+        visible = line
+
+        if not truncated:
+            visible += raw_line[len(raw_line.rstrip()):]
+
+        is_rule = _RULE_LINE_RE.match(visible) is not None
 
         line = line.rstrip()
 
-        if _RULE_LINE_RE.match(line):
+        if is_rule:
             classified.append(
                 {
                     "number": number,

@@ -57,7 +57,8 @@ no longer printed.
 
 ## PD-002 — Indented marker runs are deleted as thematic breaks (D6)
 
-**Status:** open, deferred, non-blocking.
+**Status:** closed. Selected by the owner 2026-09-17 and repaired by SB-ASK-013,
+in both directions. The text below is the item as it was raised.
 **Raised:** 2026-09-17, by Codex reviewing SB-ASK-009; provenance corrected by
 Agent C reviewing SB-ASK-012.
 **Blocks:** nothing. Pinned as defect D6 in `tests/test_retrieval_core_e2e.py`.

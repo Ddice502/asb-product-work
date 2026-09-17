@@ -40,3 +40,11 @@ its file at `48752ee`.
 | WL-13 | `package-result-sb-ask-010.json` | `closes[AC3-1].guard_proved_non_vacuous` | Cites `tests:359, 533, 543, 554` as the candidate's. At `16bbf63` those sites are 361, 536, 544, 557; two of the four cited numbers match no commit. |
 | WL-14 | `package-result-sb-ask-011.json` | `closes[O1].what` | Undercounts the unmarked lines carrying "Give Back": says three in the test file, there were five. |
 | WL-15 | `package-result-sb-ask-011.json` | `changed_files` / `product_code_unchanged` | Adjacent fields measured against different bases (`16bbf63` and `2fed7cb`) without saying so. |
+
+## Resolved
+
+| id | how |
+| --- | --- |
+| WL-02 | The comment above `_RULE_LINE_RE` was rewritten by SB-ASK-013 when the pattern changed; the sentence is gone. |
+| WL-03 | The D6 pins and their comment were deleted by SB-ASK-013 when D6 was repaired. |
+

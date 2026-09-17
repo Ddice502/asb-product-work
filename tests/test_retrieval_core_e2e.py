@@ -49,8 +49,9 @@ because deterministic_evidence_strength returns HIGH for any all_terms match how
 the terms are, so every change to the term set moves strength as a side effect. Do not read those
 two pins as requirements.
 
-D6 (thematic breaks are recognised by an approximation that is wrong in both directions) was found
-by Codex reviewing SB-ASK-009, is older than that package, and is pinned OPEN beside them.
+D6 (thematic breaks were recognised by an approximation that was wrong in both directions) was
+found by Codex reviewing SB-ASK-009 and repaired by SB-ASK-013. Its two pins are replaced by
+[chunking] checks of the correct behaviour.
 """
 from __future__ import annotations
 
@@ -392,6 +393,66 @@ def main() -> int:
         for dropped in ("\n---\n", "\n***\n", "\n___\n", "\n===\n"):
             check(dropped not in marks,
                   f"[chunking] {dropped!r} is a run of one marker and is stripped (got {marks!r})")
+
+        # D6, repaired by SB-ASK-013. A break's markers may be separated by spaces or tabs, and a
+        # break may be indented by at most three spaces; a tab or a fourth space makes the line
+        # indented code. A run of '=' is a setext underline and may not contain spaces.
+        for line in ("* * *", "- - -", "_ _ _", "*  *  *", "-\t-\t-", "- - - -", " * * *",
+                     "   ---", "   ===="):
+            kind = amb.classify_markup([line], 0)[0]["kind"]
+            check(kind == "drop", f"[chunking] {line!r} is a thematic break and is dropped (got {kind})")
+        for line in ("    ---", "\t---", " \t---", "    * * *", "    ===", "* - *", "- _ -", "- -",
+                     "* *", "_ _", "==", "= = =", "---x", "- - - x", "-\u00a0-\u00a0-"):
+            entry = amb.classify_markup([line], 0)[0]
+            check(entry["kind"] == "keep" and entry["text"] == line,
+                  f"[chunking] {line!r} is not a thematic break and is kept whole (got {entry})")
+        # A break may end only in spaces or tabs. The classifier tidies every kind of trailing
+        # whitespace off a line before the pattern sees it, so without a guard on the line as
+        # written, '---' followed by a non-breaking space read as a break (Codex, on SB-ASK-013).
+        for line in ("---\u00a0", "* * *\u00a0", "===\u00a0", "---\u3000", "--- \u00a0"):
+            entry = amb.classify_markup([line], 0)[0]
+            check(entry["kind"] == "keep" and entry["text"] == line.rstrip(),
+                  f"[chunking] {line!r} ends in whitespace a break may not end in, and is kept "
+                  f"(got {entry})")
+        for line in ("---  ", "---\t", "* * * \t"):
+            kind = amb.classify_markup([line], 0)[0]["kind"]
+            check(kind == "drop",
+                  f"[chunking] while {line!r} ends only in spaces or tabs and is dropped (got {kind})")
+        # The same holds when a comment shares the line, which is where the first repair of this
+        # went wrong: it judged the line as written, but what matters is how the line visibly
+        # ends once comments are gone (Agent C, on SB-ASK-013). Whitespace inside an unclosed
+        # comment is not visible; whitespace before it, or after a complete one, is.
+        for lines, want in (
+            (["--- <!-- c -->"], "drop"),
+            (["---\u00a0<!-- c -->"], "keep"),
+            (["* * *\u00a0<!-- c -->"], "keep"),
+            (["--- <!-- c -->\u00a0"], "keep"),
+            (["* * *\u00a0<!-- unclosed", "c -->"], "keep"),
+            (["--- <!-- unclosed\u00a0", "c -->"], "drop"),
+            (["---<!--\u3000", "c -->"], "drop"),
+        ):
+            kind = amb.classify_markup(lines, 0)[0]["kind"]
+            check(kind == want,
+                  f"[chunking] beside a comment, {lines[0]!r} is judged by how it visibly ends: "
+                  f"{want} (got {kind})")
+        # The pattern sees the line after comments are removed, and each removed comment leaves
+        # one space. So a rule after two removed comments begins with four spaces and is kept.
+        # Markdown would keep it too, for its own reason: a line that opens with a comment is an
+        # HTML block, and nothing on it is a thematic break.
+        entry = amb.classify_markup(["<!--a--> <!--b--> ---"], 0)[0]
+        check(entry["kind"] == "keep" and entry["text"] == "    ---",
+              f"[chunking] a rule after two removed comments is kept, four spaces in (got {entry})")
+        # The two witnesses Codex raised, through chunk_note, where whitespace is also tidied.
+        _, spaced = amb.chunk_note(
+            "# T\nVisible prose long enough for indexing here ok.\n\n* * *\n\n"
+            "After prose long enough for indexing here.\n", "n.md", 3500)
+        check("*" not in "\n".join(c["body"] for c in spaced),
+              "[chunking] a break written with spaces between its markers does not reach the body")
+        _, indented = amb.chunk_note(
+            "# T\nVisible prose long enough for indexing here ok.\n\n    ---\n\n"
+            "After prose long enough for indexing here.\n", "n.md", 3500)
+        check("---" in "\n".join(c["body"] for c in indented),
+              "[chunking] a run of markers indented four spaces is content and reaches the body")
 
         # Whether a comment opener ever closes is decided before classifying, from whether any
         # later line carries a closing marker. That is what makes the classifier linear instead
@@ -966,26 +1027,6 @@ def main() -> int:
         check(stopword_rows and amb.deterministic_evidence_strength(stopword_rows) == "HIGH",
               "[defect-pins] DEFECT D3 PINNED (not a requirement): a contentless question yields "
               "HIGH-strength evidence and would be answered by the model")
-
-        # D6 (MEDIUM, Codex on SB-ASK-009): _RULE_LINE_RE approximates a Markdown thematic break
-        # and is wrong in both directions. A break's markers may be separated by spaces, which
-        # the pattern cannot match, and a break may be indented by at most three spaces, where
-        # the pattern accepts any amount. Neither is a fault uep/work has: its rule pattern is
-        # written with a doubled backslash and deletes no rule line at all. So the first witness
-        # reads the same there only because no rule line is stripped, and the second is a deletion
-        # this line of packages introduced at SB-ASK-006, when the pattern was made to work.
-        _, spaced = amb.chunk_note(
-            "# T\nVisible prose long enough for indexing here ok.\n\n* * *\n\n"
-            "After prose long enough for indexing here.\n", "n.md", 3500)
-        check("* * *" in "\n".join(c["body"] for c in spaced),
-              "[defect-pins] DEFECT D6 PINNED (not a requirement): a thematic break written with "
-              "spaces between its markers is kept as content")
-        _, indented = amb.chunk_note(
-            "# T\nVisible prose long enough for indexing here ok.\n\n    ---\n\n"
-            "After prose long enough for indexing here.\n", "n.md", 3500)
-        check("---" not in "\n".join(c["body"] for c in indented),
-              "[defect-pins] DEFECT D6 PINNED (not a requirement): a run of markers indented four "
-              "spaces, which is not a thematic break, is deleted as one")
 
         # -------------------------------------------------------------- [containment]
         check(len(CONNECTED) >= 2,
