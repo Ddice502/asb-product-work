@@ -2,14 +2,26 @@ name: Integration-test workflow
 
 on:
   pull_request:
-    branches: [ main, chore/coderabbit-review-workflow ]
+    branches: [main]
+
+permissions:
+  contents: read
 
 jobs:
   integration-tests:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
-      - name: Run integration tests
-        run: echo "Running integration tests..."
+      - name: Run product acceptance tests
+        run: |
+          set -euo pipefail
+          python3 -B tests/test_ask_grounding_integration.py
+          python3 -B tests/test_source_references.py
+          python3 -B tests/test_weak_evidence.py
+          python3 -B tests/test_search_row_adapter.py
+          python3 -B tests/test_retrieval_core_e2e.py
