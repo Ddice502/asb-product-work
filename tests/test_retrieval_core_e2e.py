@@ -147,7 +147,7 @@ def main() -> int:
     # ------------------------------------------------------------------ [fixture-vault]
     check(VAULT.is_dir(), "[fixture-vault] fixtures/vault exists")
     notes = sorted(p.relative_to(VAULT).as_posix() for p in VAULT.rglob("*.md"))
-    check(len(notes) == 16, f"[fixture-vault] the vault holds its 16 notes (got {len(notes)})")
+    check(len(notes) == 18, f"[fixture-vault] the vault holds its 18 notes (got {len(notes)})")
     check(OUTSIDE_NOTE.is_file(),
           "[fixture-vault] the deliberate out-of-vault note is present and scanned below too")
     corpus = "\n".join(p.read_text(encoding="utf-8") for p in
@@ -170,8 +170,8 @@ def main() -> int:
         # -------------------------------------------------------------- [index-build]
         receipt = build(config)
         check("BUILD_STATUS=PASS" in receipt, f"[index-build] the build reports PASS\n{receipt}")
-        check("NOTES_INDEXED=14" in receipt, f"[index-build] 14 notes indexed\n{receipt}")
-        check("CHUNKS_INDEXED=24" in receipt, f"[index-build] 24 chunks indexed\n{receipt}")
+        check("NOTES_INDEXED=16" in receipt, f"[index-build] 16 notes indexed\n{receipt}")
+        check("CHUNKS_INDEXED=27" in receipt, f"[index-build] 27 chunks indexed\n{receipt}")
         check("FILES_SKIPPED=2" in receipt, f"[index-build] 2 files skipped\n{receipt}")
         check(database.is_file(), "[index-build] the database file exists at the configured path")
         check(oct(database.stat().st_mode & 0o777) == "0o640",
@@ -183,7 +183,7 @@ def main() -> int:
         check(metadata["schema_version"] == "1.0.0", "[index-build] the schema version is recorded")
         check(metadata["retrieval"] == "sqlite_fts5_bm25", "[index-build] the retrieval mode is recorded")
         check(metadata["vault_root"] == str(VAULT), "[index-build] the indexed vault root is recorded")
-        check(metadata["notes_indexed"] == "14" and metadata["chunks_indexed"] == "24",
+        check(metadata["notes_indexed"] == "16" and metadata["chunks_indexed"] == "27",
               "[index-build] the receipt and the metadata table agree")
         integrity = rows_of(database, "PRAGMA integrity_check")
         check(list(integrity[0].values())[0] == "ok", "[index-build] SQLite reports the index sound")
@@ -211,7 +211,7 @@ def main() -> int:
               "[exclusion] an excluded prefix contributes no chunk")
         check(not any(".obsidian" in p for p in paths),
               "[exclusion] an excluded path part contributes no chunk")
-        check(len(paths) == 14, f"[exclusion] exactly the 14 permitted notes are indexed (got {len(paths)})")
+        check(len(paths) == 16, f"[exclusion] exactly the 16 permitted notes are indexed (got {len(paths)})")
 
         # -------------------------------------------------------------- [chunking]
         greenhouse = rows_of(
@@ -275,6 +275,39 @@ def main() -> int:
         maximum = int(config.get("max_chunk_chars", 3500))
         check(all(len(c["body"]) <= maximum for c in long_line),
               f"[chunking] no chunk exceeds the configured maximum of {maximum}")
+
+        # The TITLE is the last leg of D1, repaired by SB-ASK-007. It is not an inert field:
+        # chunks_fts indexes it at the highest bm25 column weight, it feeds the coverage
+        # reranker's haystack, it is printed as "Title:" in the evidence block handed to the
+        # answer model, and for a note with no other content it becomes the chunk body. Deriving
+        # it from the raw lines let a heading inside a comment or a fence become the title.
+        titled = rows_of(database, "SELECT * FROM chunks WHERE path = ? ORDER BY start_line",
+                         "10 Areas/Commented Title Note.md")
+        check(titled, "[chunking] the commented-title note is indexed")
+        check(all(c["title"] == "Commented Title Note" for c in titled),
+              f"[chunking] the title is the note's first REAL heading, not one inside a comment "
+              f"or a fence (got {[c['title'] for c in titled]})")
+        all_titles = [r["title"] for r in rows_of(database, "SELECT DISTINCT title FROM chunks")]
+        check(not any("HIDDENTITLE" in x or "FENCEDTITLE" in x for x in all_titles),
+              f"[chunking] no commented or fenced heading becomes any note's title (got {all_titles})")
+        hidden = rows_of(database, "SELECT count(*) AS n FROM chunks_fts WHERE chunks_fts MATCH ?",
+                         "HIDDENTITLE")
+        check(hidden[0]["n"] == 0,
+              "[chunking] and a commented heading is not reachable through the index at all")
+
+        # A note whose ONLY heading is commented out falls back to its filename, and the
+        # no-signal fallback chunk therefore carries the filename rather than the comment.
+        only = rows_of(database, "SELECT * FROM chunks WHERE path = ?", "10 Areas/Hidden Title Only.md")
+        check(len(only) == 1 and only[0]["title"] == "Hidden Title Only",
+              f"[chunking] a note whose only heading is commented falls back to its filename stem "
+              f"(got {[(c['title'], c['body']) for c in only]})")
+        check("HIDDENONLYTITLE" not in only[0]["body"],
+              f"[chunking] so the fallback chunk body carries the filename, not the comment "
+              f"(got {only[0]['body']!r})")
+        orphan = rows_of(database, "SELECT count(*) AS n FROM chunks_fts WHERE chunks_fts MATCH ?",
+                         "HIDDENONLYTITLE")
+        check(orphan[0]["n"] == 0,
+              "[chunking] and that comment is unreachable through the index too")
 
         # D1, repaired by SB-ASK-006. Outside a fenced block, comments and rules are stripped.
         comment_body = rows_of(database, "SELECT body FROM chunks WHERE path = ?",

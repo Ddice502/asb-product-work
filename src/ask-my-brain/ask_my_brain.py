@@ -574,21 +574,34 @@ def excluded(
 
 
 def note_title(
-    lines: list[str],
+    classified: list[dict],
     fallback: str,
-    frontmatter_end: int,
 ) -> str:
+    """The note's title: its first level-1 heading that is real evidence.
 
-    for index, line in enumerate(
-        lines,
-        start=1,
-    ):
-        if index <= frontmatter_end:
+    Derived from CLASSIFIED lines, not the raw ones. A '# ' line inside an
+    HTML comment, or inside a fenced block, is not a heading. Reading the
+    title off the raw lines put commented-out text into chunks.title, and
+    the title is not an inert field: it is indexed in chunks_fts at the
+    highest bm25 column weight, it feeds the coverage reranker's haystack,
+    it is printed as 'Title:' in the evidence block handed to the answer
+    model, and for a note with no other indexable content it becomes the
+    chunk body. That was the last open leg of defect D1.
+
+    Frontmatter needs no special case here: classify_markup has already
+    dropped those lines.
+    """
+
+    for entry in classified:
+        if (
+            entry["kind"] != "keep"
+            or entry["fenced"]
+        ):
             continue
 
         match = re.match(
             r"^#\s+(.+?)\s*$",
-            line,
+            entry["text"],
         )
 
         if match:
@@ -1008,10 +1021,16 @@ def chunk_note(
 
     fm_end = frontmatter_end(lines)
 
-    title = note_title(
+    # Classify once, then read the title off the classification. Both the
+    # title and the chunk boundaries have to see markup before they decide.
+    classified = classify_markup(
         lines,
-        Path(relative_path).stem,
         fm_end,
+    )
+
+    title = note_title(
+        classified,
+        Path(relative_path).stem,
     )
 
     chunks: list[dict] = []
@@ -1082,10 +1101,7 @@ def chunk_note(
         end_line = None
         current_chars = 0
 
-    for entry in classify_markup(
-        lines,
-        fm_end,
-    ):
+    for entry in classified:
         line_number = entry["number"]
 
         if entry["kind"] == "drop":
