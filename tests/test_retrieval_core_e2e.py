@@ -26,8 +26,9 @@ Checkpoints, each independently observable:
     [defect-pins]          today's DEFECTIVE behaviour, pinned so a fix cannot pass unnoticed
     [containment]          no network, no writes to fixtures, database confined to the temp dir
     [doc-hygiene]          no unmarked line of this suite or fixtures/README.md carries the
-                           vocabulary of a deleted mechanism outside a fixture's own name. NOT
-                           full coverage - see the checkpoint itself for what it does not scan
+                           vocabulary of a deleted mechanism, once the two fixture-name strings
+                           are subtracted from it. NOT full coverage - see the checkpoint itself
+                           for what it does not scan
 
 READ THIS BEFORE TRUSTING [defect-pins]. Every assertion in that one checkpoint states what the
 retrieval core does TODAY and is WRONG. None of them is a requirement, and none may be cited as
@@ -945,11 +946,17 @@ def main() -> int:
         "give-back", "given back", "give back", "gives back",   # staleness-guard: SB-ASK-008
         "resumed part way", "resume from", "the resume",        # staleness-guard: SB-ASK-009
     )
-    # These name a fixture that still exists, so they are subtracted before matching. That is a
-    # real exemption and not a subtlety worth hiding: an unmarked line may carry this vocabulary
-    # when it is naming the file, which is why the check below says "outside a fixture's own name".
-    # It also means a rename only has to be reflected here when the new name still carries dead
-    # vocabulary; one that does not, does not. Both directions verified.
+    # These name a fixture that still exists, and are subtracted from each line before matching.
+    # The subtraction is a plain case-sensitive str.replace of these two literal strings, not a
+    # judgement about whether the words are naming the file, and it is neither case-insensitive nor
+    # bounded to whole words. So it exempts a line that is not naming the fixture at all -
+    # 'NotGive Back Fencepost' passes - and does not exempt one that is, when the case differs:
+    # the fixture's own name lowercased is flagged. Both verified. The check below is worded as the
+    # subtraction it performs rather than as the intent behind it, because four attempts to word it
+    # as the intent were each wrong in a different way.
+    #
+    # A rename only has to be reflected here when the new name still carries dead vocabulary; one
+    # that does not, does not. Both directions verified.
     fixture_names = ("Give Back Fence Note.md", "Give Back Fence")
     stale = []
     for doc in (Path(__file__), ROOT / "fixtures" / "README.md"):
@@ -965,7 +972,8 @@ def main() -> int:
                     stale.append(f"{doc.name}:{number} {token!r}")
     check(stale == [],
           f"[doc-hygiene] no unmarked line of this suite or fixtures/README.md carries the "
-          f"vocabulary of a deleted mechanism outside a fixture's own name (got {stale})")
+          f"vocabulary of a deleted mechanism, once the two fixture-name strings are subtracted "
+          f"from it (got {stale})")
 
     check(snapshot_fixtures() == before,
           "[containment] every fixture file is byte-for-byte and mtime unchanged")
