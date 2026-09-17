@@ -1,0 +1,177 @@
+{
+  "package_id": "SB-ASK-001",
+  "base_sha": "f3ca146f2cba204b3d5667b6a3903d34d9f6c4a4",
+  "candidate_sha": "947f7b191f51ec5113f1b4f790b73bf3522deebe",
+  "branch": "uep/task-sb-ask-001",
+  "status": "MERGED",
+  "changed_files": [
+    "src/ask-my-brain/ask_my_brain.py"
+  ],
+  "tests": [
+    {
+      "command": "python3 -B tests/test_ask_grounding_integration.py",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -B tests/test_source_references.py",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -B tests/test_weak_evidence.py",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -B tests/test_search_row_adapter.py",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -B -c '<import check: exec ask_my_brain.py>'",
+      "exit_code": 0
+    }
+  ],
+  "repair_cycles_used": 1,
+  "agent_c_required": true,
+  "codex_required": true,
+  "superseded_candidates": [
+    {
+      "sha": "700862f822373a88c3b945b6fcffd43d239946ba",
+      "verdict": "Agent C FAIL",
+      "reason": "emitted [Sn] citations resolved to the wrong note in the deduplicated SOURCES block; per-chunk provenance dropped"
+    }
+  ],
+  "known_limitations": [
+    "The SOURCES block format changed from '[S1] <path> (lines A-B)' to the merged renderer's '[n] <title> - <path> (chunk N)'. The explicit start-end line range is no longer shown.",
+    "'(chunk N)' is the row's start_line, not a chunk ordinal: the merged KI-154 adapter defines it that way and is out of this package's scope to change (Agent C finding 3).",
+    "Two chunks of one note sharing a start_line collapse to a single '(chunk N)' entry, though both their provenance lines are now printed (Agent C finding 4).",
+    "EVIDENCE_CHUNKS counts every chunk sent to the model, including any row carrying no path, which therefore has no citable reference (Agent C finding 5).",
+    "Pre-existing, not introduced here and out of scope: a row missing the 'title' key raises KeyError while building EVIDENCE (Agent C finding 6), and an empty or whitespace-only model reply still renders as a grounded answer with a full SOURCES block (Agent C finding 7). Both behave identically on the base.",
+    "Verified only against synthetic in-repo fixtures with search() and ollama_chat() stubbed; no database, model, or vault was exercised.",
+    "Agent C N1 (LOW, regression vs base, NOT fixed): a row carrying no path is labelled past the end of the reference list, so its [Sn] label dangles with no SOURCES entry, and label order no longer follows evidence order in that case. Unreachable in production because chunks.path is TEXT NOT NULL; the indexer never writes an empty path.",
+    "Agent C N2 (LOW, NOT fixed): the in-code comment claiming the context budget 'still holds' is false for pathless rows, whose label can be longer than the per-chunk index used to measure them (a few bytes per pathless row). Bounded, and smaller than a pre-existing base-identical under-count: the '---' joiners are never charged against answer_context_chars on base or candidate.",
+    "Agent C N3 (LOW, PLAUSIBLE, entered with the package, NOT fixed): a whitespace-only path yields EVIDENCE_STATUS=NONE together with a Related notes: entry, because weak_evidence strips the path and source_references does not. Byte-identical at the superseded 700862f. Unreachable through the indexer.",
+    "Code quality (Agent C): evidence_parts in ask() is now a dead accumulator, retained only as the non-empty guard for the budget loop.",
+    "Residual deviation from the corrected wording, unreachable in production: the merged weak_evidence module treats an UNKNOWN strength exactly as LOW, so UNKNOWN with two or more distinct paths would be answered rather than suppressed. ask() only ever passes deterministic_evidence_strength(), which returns HIGH, MEDIUM or LOW and never an unknown value, so this path cannot be reached from ask(). Closing it would mean changing the merged module and its accepted tests, i.e. a separate package."
+  ],
+  "rollback": "merged: revert the isolated merge SHA 2119d6c9da5ad5f14aef61904b0167e7027dff7d on uep/work (git revert -m 1). Pre-merge rollback (abandon the candidate branch) no longer applies.",
+  "agent_c": {
+    "verdict": "PASS",
+    "sha_verified": "947f7b191f51ec5113f1b4f790b73bf3522deebe",
+    "checkout": "isolated detached worktree, clean before and after",
+    "tests_observed": [
+      {
+        "command": "python3 -B tests/test_ask_grounding_integration.py",
+        "exit_code": 0
+      },
+      {
+        "command": "python3 -B tests/test_source_references.py",
+        "exit_code": 0
+      },
+      {
+        "command": "python3 -B tests/test_weak_evidence.py",
+        "exit_code": 0
+      },
+      {
+        "command": "python3 -B tests/test_search_row_adapter.py",
+        "exit_code": 0
+      },
+      {
+        "command": "module import check",
+        "exit_code": 0
+      }
+    ],
+    "blocking_findings_resolved": [
+      "Finding 1 (HIGH): emitted citations resolve to the note they came from; no dangling label for path-bearing rows; verified by Agent C's own probe over 6 rows / 3 notes, including interleaved repeats and budget truncation.",
+      "Finding 2 (MEDIUM): provenance complete for every chunk of every cited note; verified by probe."
+    ],
+    "byte_identity_confirmed": [
+      "system and user prompt byte-identical to base for the same rows, including under budget truncation",
+      "EVIDENCE_STATUS=NONE output byte-identical to base",
+      "MODEL= / EVIDENCE_CHUNKS= trailer unchanged in position and value"
+    ],
+    "residual_findings": [
+      "N1",
+      "N2",
+      "N3"
+    ]
+  },
+  "codex": {
+    "verdict": "FAIL",
+    "sha_reviewed": "947f7b191f51ec5113f1b4f790b73bf3522deebe",
+    "ran_after_agent_c": true,
+    "ran_concurrently_with_agent_c": false,
+    "review_type": "dynamic (tests plus stubbed probes) in an isolated detached checkout",
+    "blocking_finding": "HIGH/CONFIRMED: LOW and unknown evidence still invoke ollama_chat when two or more distinct notes are present, because the merged weak_evidence.evidence_verdict returns sufficient=True with reason 'low_but_corroborated'. This contradicts the package requirement 'on LOW or unknown evidence, do not call the model'.",
+    "other_findings": [
+      "LOW/CONFIRMED: 'a.md' and ' a.md ' collapse to one path for the verdict but render as two references, extending Agent C N3 beyond whitespace-only paths."
+    ],
+    "agreed_with_agent_c_residuals": [
+      "N1",
+      "N2",
+      "N3"
+    ],
+    "confirmed_unchanged": [
+      "prompt text",
+      "MODEL= / EVIDENCE_CHUNKS= trailer",
+      "EVIDENCE_STATUS=NONE response",
+      "ranking, scoring, retrieval, chunking, indexing, database logic",
+      "no material new model-facing injection surface"
+    ]
+  },
+  "escalation": {
+    "reason": "owner policy decision required: the package requirement and three owner-accepted artifacts disagree about whether LOW evidence corroborated by two or more notes may be answered.",
+    "cannot_be_repaired_in_package": [
+      "src/ask-my-brain/weak_evidence.py is a merged module outside this package's allowed source path; its rule 3a deliberately returns sufficient=True for LOW with >=2 distinct paths.",
+      "tests/test_weak_evidence.py:69 asserts reason == 'low_but_corroborated'.",
+      "tests/test_ask_grounding_integration.py:177 asserts 'LOW evidence corroborated by two notes is still answered'; the gate is pre-committed and must not be edited to make code pass."
+    ],
+    "repair_cycles_remaining": 1,
+    "not_a_regression": "On the base, ask() called the model for ALL non-empty evidence. The candidate suppresses single-source LOW and no-evidence; only the corroborated-LOW exception remains."
+  },
+  "owner_decision": {
+    "date": "2026-09-16",
+    "decision": "Corroborated LOW evidence is answered. The requirement wording was corrected; the candidate code was NOT changed.",
+    "requirement_updated": [
+      "docs/SECOND_BRAIN_EXECUTION_HANDOFF.md 'Current Product Work'",
+      "docs/SECOND_BRAIN_EXECUTION_HANDOFF.md 'First Direct Product Package' work order"
+    ],
+    "new_wording": "Do not invoke the answer model for UNKNOWN evidence, NO_EVIDENCE, or single-source/un-corroborated LOW evidence. Corroborated LOW evidence from at least two distinct notes or paths is answerable, but the response must visibly retain its LOW evidence status and include its deduplicated source references.",
+    "deferred_item": "docs/PRODUCT_DECISIONS.md PD-001 (LOW-evidence presentation), non-blocking",
+    "effect_on_codex": "Codex's HIGH finding was contractual, not a code defect: the candidate matched the merged module and the pre-committed gate, and the requirement wording was wrong. The decision dissolves the finding with no change to candidate 947f7b191f51ec5113f1b4f790b73bf3522deebe."
+  },
+  "merge": {
+    "approved_by": "owner, 2026-09-16",
+    "scope": "isolated product integration branch uep/work ONLY; not merged or promoted to main, home, vault, runtime, or any live service",
+    "integration_branch": "uep/work",
+    "merge_sha": "2119d6c9da5ad5f14aef61904b0167e7027dff7d",
+    "docs_commit_sha": "78606fac15431b486bd156e95f9e9f21c85696c6",
+    "merged_candidate_sha": "947f7b191f51ec5113f1b4f790b73bf3522deebe",
+    "candidate_is_ancestor": true,
+    "merge_strategy": "--no-ff",
+    "files_changed_by_merge": [
+      "src/ask-my-brain/ask_my_brain.py"
+    ],
+    "tests_on_integration_line": [
+      {
+        "command": "python3 -B tests/test_ask_grounding_integration.py",
+        "exit_code": 0
+      },
+      {
+        "command": "python3 -B tests/test_source_references.py",
+        "exit_code": 0
+      },
+      {
+        "command": "python3 -B tests/test_weak_evidence.py",
+        "exit_code": 0
+      },
+      {
+        "command": "python3 -B tests/test_search_row_adapter.py",
+        "exit_code": 0
+      }
+    ],
+    "candidate_branch_preserved": "uep/task-sb-ask-001 (tag sb-ask-001-candidate)",
+    "main_untouched_at": "3bb076131f7475ed2aa042988dc692562ad5460d",
+    "remotes": "none configured",
+    "status_vocabulary_note": "'MERGED' extends the handoff's documented status enum (READY_FOR_REVIEW | READY_FOR_MERGE | ESCALATED), which has no post-merge value.",
+    "rollback": "git revert -m 1 2119d6c9da5ad5f14aef61904b0167e7027dff7d on uep/work; the candidate branch and tag remain for re-merge."
+  }
+}

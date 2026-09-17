@@ -1,0 +1,204 @@
+{
+  "package": "SB-ASK-010",
+  "title": "Documentation-only cleanup: stale mechanism text and the M25 claim",
+  "owner_approval": "one documentation-only cleanup package, no product-code changes allowed, one pass through Agent C then Codex",
+  "base": "2fed7cb5d1b95b3de2719790fe7769664c977871 (SB-ASK-009 candidate, Agent C FAIL on text only)",
+  "candidate_sha": "16bbf6392bc9161d4de4774beb6f95f962882c73",
+  "branch": "uep/task-sb-ask-010",
+  "repair_cycles_used": 2,
+  "product_code_unchanged": "git diff 2fed7cb..HEAD -- src/ is 0 bytes, re-verified after repair 2",
+  "changed_files": [
+    "fixtures/README.md",
+    "tests/test_retrieval_core_e2e.py"
+  ],
+  "closes": [
+    {
+      "id": "AC3-1",
+      "what": "four present-tense statements describing the give-back deleted by SB-ASK-008",
+      "fixed": [
+        "tests:510-512 now describes what actually happens - _INLINE_COMMENT_RE strips complete comments before the opener is looked for, in the one pass",
+        "tests:518-520 now names the two branches that are bypassed rather than a give-back",
+        "the check label at tests:524 now reads 'keeps its text'",
+        "the label at tests:358 now names the Give Back Fence fixture by filename instead of asserting a mechanism",
+        "fixtures/README.md:31 no longer calls it 'the only way to reach that give-back path'"
+      ],
+      "systemic_fix": "a [doc-hygiene] check greps this suite and fixtures/README.md for the vocabulary of deleted mechanisms and fails on a present-tense hit; a line carrying the marker 'staleness-guard' may discuss one in the past tense",
+      "guard_proved_non_vacuous": "reintroducing the shipped label and the shipped README row into a scratch copy makes the suite FAIL and name both: test_retrieval_core_e2e.py:549 'given back', README.md:31 'give-back' (line numbers in that run are a837dcb's; Agent C reproduced it on the candidate, naming all five: tests:359, 533, 543, 554 and README.md:31)",
+      "fixed_line_numbers_note": "WITHDRAWN - these numbers were wrong twice, each time computed before later edits shifted the file. Citations are recorded as anchor strings in package-result-sb-ask-011.json instead."
+    },
+    {
+      "id": "AC3-2b",
+      "what": "my claim that BOTH '<= fm_end' comparisons are equivalent mutants - wrong in both halves, in different ways",
+      "classifier_cutoff_line_980": "killable on an input that really occurs. frontmatter_end accepts any line whose .strip() is '---'; _RULE_LINE_RE anchors on [ \\t]* only. Witness: a non-breaking space before the closing marker. Mutated, the body gains a literal '---' and the span starts a line early. Now pinned by four checks, and mutating line 980 fails the suite - verified in a scratch copy.",
+      "last_closing_line_cutoff_line_933": "never a survivor either, but for a different reason: mutating it fails an assertion the suite already had, last_closing_line(['-->','a'], 1) == 0. That input cannot be produced by frontmatter_end, which only returns a line stripping to exactly '---'. So Agent C's structural argument about end-to-end output stands AND the mutant is caught, by a unit check on a shape the system never builds. Both statements are now recorded separately instead of being flattened into 'equivalent by construction'.",
+      "receipt_self_contradiction_noted": "SB-ASK-009's sweep table listed that site as CAUGHT while known_limitations declared it equivalent by construction"
+    },
+    {
+      "id": "AC3-3",
+      "what": "fixtures/README.md credited Fence Shapes Note.md with a four-or-more-backtick fence it does not contain",
+      "fixed": "the row now describes the three shapes the note actually carries and points four-plus backticks at Fence Closer Note.md"
+    }
+  ],
+  "not_in_scope": [
+    "AC3-2a and AC3-4 are SB-ASK-009 receipt fields, corrected in evidence/package-result-sb-ask-009.json rather than here - they are not repository files",
+    "D2 and D3/D5 remain open and pinned; build_index still has no file-size cap"
+  ],
+  "tests": [
+    {
+      "command": "python3 -B tests/test_retrieval_core_e2e.py",
+      "exit_code": 0,
+      "last_line": "PASS retrieval_core_e2e: 240 checks"
+    },
+    {
+      "command": "python3 -B tests/test_ask_grounding_integration.py",
+      "exit_code": 0,
+      "last_line": "PASS ask_grounding_integration: 59 checks"
+    },
+    {
+      "command": "python3 -B tests/test_source_references.py",
+      "exit_code": 0,
+      "last_line": "PASS source_references: 19 checks"
+    },
+    {
+      "command": "python3 -B tests/test_weak_evidence.py",
+      "exit_code": 0,
+      "last_line": "PASS weak_evidence: 24 checks"
+    },
+    {
+      "command": "python3 -B tests/test_search_row_adapter.py",
+      "exit_code": 0,
+      "last_line": "PASS search_row_adapter: 32 checks"
+    },
+    {
+      "command": "--help",
+      "exit_code": 0
+    }
+  ],
+  "superseded_candidates": [
+    {
+      "sha": "a837dcb21a5f907d2e0c5e7831ee871470a0e040",
+      "verdict": "Agent C FAIL",
+      "reason": "two sentences of the package's own new prose: a false control-flow claim inside the text rewritten to remove a false control-flow claim, and a check label overstating the guard's coverage"
+    },
+    {
+      "sha": "c836784494b0ab3ced64149ca63f29da0eb043e0",
+      "verdict": "Agent C FAIL",
+      "reason": "F1-R: the absolute that replaced F1's absolute was false in the same way. 'applied to every non-fenced line' - two branches continue past the pattern while recording fenced=False."
+    }
+  ],
+  "repair_1": {
+    "trigger": "Agent C FAIL on a837dcb, F1 and F2, both text-only",
+    "f1": {
+      "claim_at_fault": "'_RULE_LINE_RE is never applied to it' (tests) and 'the rule pattern is never applied to it' (README:31)",
+      "truth": "it is applied to every non-fenced, non-comment line and returns None. Executor reproduced Agent C's spy independently: one call on '*** <!-- RULEOPENER must survive as literal text', matched=False.",
+      "also": "'the two branches that could destroy it are both bypassed' was half right - the truncating branch is never entered, the rule branch is entered and not taken. Both now state which is which and why the pattern fails to match.",
+      "note": "this is the second consecutive wrong mechanism claim on the same README row"
+    },
+    "f2": {
+      "claim_at_fault": "the [doc-hygiene] label 'no comment, check label or fixture note describes a mechanism the product no longer has'",
+      "truth": "the guard reads two files for seven substrings; fixture notes are not scanned at all",
+      "fix": "label scoped to 'no unmarked line of this suite or fixtures/README.md uses the vocabulary of a deleted mechanism'"
+    },
+    "o1_o4_gaps_now_stated_in_the_guard_block": [
+      "src/ is not scanned, and that is where the mechanism prose actually lives",
+      "the other four suites are not scanned",
+      "fixture note bodies are not scanned",
+      "no notion of tense: it fails on any unmarked hit",
+      "rephrasing that avoids the vocabulary passes",
+      "the marker can exempt a line that is not historical",
+      "the fixture-name exclusion is a blunt substring strip that a rename would defeat (Agent C FP2)",
+      "a label legitimately needing the vocabulary is blocked (Agent C FP1). The example this receipt gave, the nonsense query 'cafe resume pinata', was WRONG - none of the three resume tokens occurs in it and that line passes. Agent C's own example, a check label naming a literal test input, is the real case."
+    ],
+    "o3": "two staleness-guard markers removed from lines carrying no token",
+    "agent_c_proved_the_gaps": "planted stale text in src/, in test_weak_evidence.py and in a fixture body; the suite passed each time. The gaps are measured, not assumed."
+  },
+  "agent_c": {
+    "first_run": {
+      "sha": "a837dcb",
+      "verdict": "FAIL",
+      "findings": "F1 false control-flow claim, F2 overstated label",
+      "verified_sound": [
+        "binding constraint held: git diff 2fed7cb..HEAD -- src/ is 0 bytes, two files changed, both non-product",
+        "235 -> 240 reproduced from the base",
+        "all five prior stale statements closed, enumerated independently rather than from the receipt",
+        "guard non-vacuous against all five, each naming file:line:token",
+        "both M25 mutants die as claimed; the unit-check/end-to-end distinction judged stated correctly, not a measurement dressed as a proof",
+        "none of the four new checks is tautological - each falsified independently by a separate mutation",
+        "AC3-3 redirect accurate: Fence Shapes Note.md carries only the three shapes claimed; the four-backtick fence really is in Fence Closer Note.md",
+        "SB-ASK-009 receipt contradiction gone",
+        "containment clean, guard reads are read-only and repo-anchored"
+      ]
+    },
+    "third_run": {
+      "sha": "16bbf6392bc9161d4de4774beb6f95f962882c73",
+      "verdict": "FAIL",
+      "engineering_sound": [
+        "binding constraint held: git diff 2fed7cb..HEAD -- src/ is 0 bytes",
+        "all five suites and --help exit 0; 240 checks, base 235",
+        "F1-R genuinely closed - every clause of the third rewrite attacked with a spy and none falsified, including 'two earlier branches continue past it while recording fenced=False', which is exactly two and both do",
+        "guard non-vacuous against all five original stale statements, naming each file:line:token",
+        "both M25 mutants die; the NBSP pin is falsifiable; all four staleness-guard markers earned",
+        "O-A, O-B, O-C's new sentence, O-D all closed and verified in both directions",
+        "containment clean; the guard's two reads are repo-anchored and read-only"
+      ],
+      "blocking": [
+        {
+          "id": "B1",
+          "confirmed_by_executor": true,
+          "what": "the O-C overstatement was corrected by ADDING a qualified sentence rather than REMOVING the unqualified one. tests:943-944 still reads 'a rename of the Give Back Fence fixture will need the name list below updated with it', contradicted nine lines below by 'the guard only forces a rename to be reflected here when the NEW name still carries dead vocabulary'.",
+          "falsified_by_experiment": "Agent C renamed the fixture to 'Handback Fence Note.md', rewrote every reference, deliberately left fixture_names untouched: exit 0, PASS 240. The rename did not need the list updated.",
+          "why_it_matters": "third occurrence of the same MECHANISM - fix the named site, leave the duplicate. The receipt diagnosed exactly this for O-A ('the last repair missed it because F2 named the check label') and then repeated it.",
+          "executor_verification": "confirmed by reading tests:943-944 against tests:951-953"
+        },
+        {
+          "id": "B2",
+          "confirmed_by_executor": true,
+          "what": "repair_2.o_e claims the receipt's line citations were rebased onto the candidate. Three of four are c836784's numbering.",
+          "measured": "receipt says 533-536 / 542-553 / 557 / 359; the candidate has 535-538 / 544-553 / 557 / 361. In the candidate, 533 is the preceding check, 542 is the ENCLOSEDLINE check, 359 is a query-path argument rather than a label. The 542-553 range mixes two numberings.",
+          "cause": "the rebase was computed before repair 2's own edits shifted the file (+2 from the checkpoint index, +3 from the rewritten passage)",
+          "scope": "evidence/package-result-sb-ask-010.json only - an untracked file, not source-controlled, so no repository content is affected"
+        }
+      ],
+      "observations": [
+        "O1: the check label and checkpoint index remain literally false given the fixture-name subtraction - tests:361, 364 and README.md:36 are unmarked lines carrying 'Give Back' and they pass. Defensible under the intended reading, and the exemption is stated at tests:948-951, but neither the label nor the index carries the caveat. Residue of the same over-claim F2 was failed for, at a third site.",
+        "O2: the markers on the dead_mechanisms tuple are earned but are neither historical text nor a false positive; the block's taxonomy does not name that case.",
+        "O3: repair_1's receipt cites 'cafe resume pinata' as an instance of Agent C's FP1. It is not blocked - none of the three resume tokens occurs in it. Receipt-only; the in-repo prose does not repeat the example.",
+        "O4: calling the self-inflicted false positive 'the most direct evidence available that the guard blocks legitimate text' overstates its weight. The trip was caused by quoting the literal string; the sentence is expressible without it. Agent C's original FP1 - a check label naming a literal test input - is the stronger instance because it cannot be paraphrased away."
+      ],
+      "agent_c_process_incident": {
+        "disclosed_by": "Agent C, unprompted",
+        "what": "while measuring the base count it ran 'git checkout 2fed7cb -- .' from a scratch copy that had retained its .git worktree pointer, which wrote base files into the candidate worktree",
+        "remedy": "detected on the next command and restored with git reset --hard 16bbf639; no commit created",
+        "executor_verification": "independently confirmed intact: commit 16bbf639 exists with tree c331967c38d47ce6eff1147a7faa87573ed4f184, exactly three commits on the branch, main repo working tree clean apart from pre-existing untracked files, uep/work at 4573b55, main at 3bb0761, no remote. Nothing outside the scratch worktree was affected."
+      }
+    }
+  },
+  "repair_2": {
+    "trigger": "Agent C FAIL on c836784, one blocking finding (F1-R) plus observations O-A to O-E",
+    "f1r": {
+      "claim_at_fault": "'it is applied to every non-fenced line' (tests) / 'as it is to every non-fenced line' (README:31)",
+      "counterexample_reproduced": "a '***' inside frontmatter: 5 lines, 1 rule-pattern call; lines 1-4 all fenced=False and never tested, line 2 being the literal '***' the pattern matches",
+      "fix": "the universal is deleted, not re-qualified. The text claims only what the spy shows - the pattern is applied to THIS line and does not match it - and states that no claim is made about other lines, and why 'every non-fenced line' would be false.",
+      "agent_c_point_accepted": "my own receipt held a better-qualified version ('non-fenced, non-comment') that the shipped prose dropped. That version was also wrong: it misses frontmatter.",
+      "shipped_behaviour": "unaffected - those lines are dropped for other reasons. Prose defect only."
+    },
+    "o_a": "the checkpoint index at the top of the file still carried the unqualified form F2 was failed for; the last repair missed it because F2 named the check label. Now scoped, and states outright that it is not full coverage.",
+    "o_b": "the fixture-name subtraction is a real exemption, never previously stated: an unmarked line may carry this vocabulary when naming a file that still exists. Stated in the code.",
+    "o_c": "'a rename will need the list updated' overstated - it needs updating only when the new name still carries dead vocabulary. Both directions verified and recorded ('Gives Back Fence Note' fails, 'Handback Fence Note' does not).",
+    "o_d": "'one call, no match' clarified to 'called once on this line' - the spy sees seven calls across the note.",
+    "o_e": "receipt line citations rebased onto the candidate; the base-2fed7cb and a837dcb numbering is now labelled as such.",
+    "false_positive_observed_in_this_repair": "withdrawn by SB-ASK-011. Calling it 'the most direct evidence available that the guard blocks legitimate text' promoted a self-inflicted and avoidable instance: the trip was caused by quoting the literal rename examples, and the sentence is expressible without them. It now is, and the marker is gone."
+  },
+  "repair_budget": "2 of 2 used. A further FAIL is a hard stop reported to the owner.",
+  "status": "HARD STOP - repair budget exhausted (2 of 2), Agent C verdict FAIL, owner decision required",
+  "hard_stop": {
+    "reason": "repair budget exhausted, 2 of 2 used (repair_1 F1/F2, repair_2 F1-R and O-A to O-E). Agent C's third verdict is FAIL. A third repair is not mine to take.",
+    "codex_not_run": "Codex has never been started on this package. The workflow runs it only after Agent C passes, and never concurrently.",
+    "no_merge": "nothing merged or promoted. uep/work at 4573b55, main at 3bb0761, no remote.",
+    "candidate_sha": "16bbf6392bc9161d4de4774beb6f95f962882c73",
+    "branch": "uep/task-sb-ask-010",
+    "both_defects_are_text": "B1 is one sentence in a test comment; B2 is three integers in an untracked evidence file. No product code is implicated and src/ is 0 bytes changed.",
+    "note_on_the_pattern": "every failure in this package has come from NEW prose written during a repair. B1 is closed by DELETING a sentence and B2 by correcting integers; neither requires writing a new claim that could itself be wrong.",
+    "resolution": "owner approved SB-ASK-011, documentation-only, which closes B1, B2, O1, O3 and O4"
+  }
+}

@@ -1,0 +1,189 @@
+{
+  "package": "SB-ASK-011",
+  "title": "Documentation-only cleanup: delete the duplicated claim, make the guard label exact",
+  "owner_approval": "one documentation-only cleanup package, no product-code changes allowed, then Agent C and Codex once",
+  "base": "16bbf6392bc9161d4de4774beb6f95f962882c73 (SB-ASK-010 candidate, Agent C FAIL on B1/B2, text only)",
+  "candidate_sha": "a797797d8283a2d5fadd3bfd9618bb005d041dcc",
+  "branch": "uep/task-sb-ask-011",
+  "repair_cycles_used": 1,
+  "product_code_unchanged": "git diff 16bbf63..HEAD -- src/ is 0 bytes. Across the whole line from 2fed7cb it is also 0 bytes.",
+  "changed_files": [
+    "tests/test_retrieval_core_e2e.py"
+  ],
+  "method_note": "every failure in this line of packages has come from NEW prose written during a repair, so this one is deletions and derived facts. B1 is closed by deleting a sentence with no replacement. The line citations below are ANCHOR STRINGS with numbers derived from the frozen file, not typed - that is the structural fix for B2, which was wrong twice because hand-written numbers were computed before later edits shifted the file.",
+  "closes": [
+    {
+      "id": "B1",
+      "what": "tests:943-944 asserted a fixture rename 'will need the name list below updated', contradicted nine lines below by the correction SB-ASK-010 added instead of removing",
+      "fix": "the clause is deleted. Nothing replaces it.",
+      "reproduced_on_this_candidate": {
+        "rename to a name still carrying dead vocabulary, list left stale": "FAIL, 4 hits",
+        "rename to a name carrying none, list left stale": "PASS 240"
+      },
+      "mechanism_note": "third occurrence of one mechanism - fix the named site, leave the duplicate. The SB-ASK-010 receipt diagnosed it for O-A and repeated it in the same commit."
+    },
+    {
+      "id": "B2",
+      "what": "the SB-ASK-010 receipt claimed its citations were rebased onto the candidate; three of four were the previous commit's numbering",
+      "fix": "citations are now anchor strings, resolved against the frozen file and asserted unique at freeze time. Numbers are derived, not asserted.",
+      "scope": "evidence file only - no repository content was ever affected"
+    },
+    {
+      "id": "O1",
+      "what": "the check label and checkpoint index claimed no unmarked line 'uses the vocabulary of a deleted mechanism', which the fixture-name subtraction makes literally false - three lines here and one in the README carry 'Give Back' unmarked and pass",
+      "fix": "superseded by repair 1. 'outside a fixture's own name' still described intent rather than mechanism. The label and index now say 'once the two fixture-name strings are subtracted from it', which is what the code does.",
+      "counting_basis_note": "Agent C O-3: this receipt previously called it 'the fifth wording', while the block comment says 'four attempts to word it as the intent'. Those used different bases and could not both be right. The committed history supports four - a837dcb, c836784, 16bbf63, 8bd3781 - so the receipt's count was the wrong one and is withdrawn here. The code comment stands."
+    },
+    {
+      "id": "O3",
+      "what": "the SB-ASK-010 receipt cited 'cafe resume pinata' as an instance of Agent C's FP1; it is not blocked, since none of the three resume tokens occurs in it",
+      "fix": "corrected in that receipt; the in-repo prose never carried the example"
+    },
+    {
+      "id": "O4",
+      "what": "the block quoted two literal rename examples, tripping the guard on its own sentence, then spent three lines calling that the most direct evidence the guard blocks legitimate text",
+      "fix": "restated without the literal names. The marker is gone with it; three markers remain, all earned - one genuine history, two the token list itself.",
+      "agent_c_point_accepted": "that instance was avoidable and partly self-inflicted; Agent C's original FP1 (a check label naming a literal test input) is the stronger case because it cannot be paraphrased away"
+    }
+  ],
+  "not_fixed_deliberately": [
+    {
+      "id": "O2",
+      "what": "the block's taxonomy names past-tense history and non-historical exemptions but not the token-list markers as a third category",
+      "why": "self-evident from where those markers sit, and given this package line's record another sentence here is a worse risk than the gap"
+    }
+  ],
+  "derived_line_citations": {
+    "inline_comment_passage": {
+      "anchor": "# A complete comment sharing a line with a surviving opener must stay removed.",
+      "line": 536,
+      "occurrences": 1
+    },
+    "rule_opener_passage": {
+      "anchor": "# An opener on a line that is otherwise a horizontal rule must keep its text.",
+      "line": 545,
+      "occurrences": 1
+    },
+    "rule_opener_label": {
+      "anchor": "[chunking] an unterminated opener on a rule line keeps its text",
+      "line": 558,
+      "occurrences": 1
+    },
+    "give_back_fixture_label": {
+      "anchor": "[chunking] the Give Back Fence fixture is ONE chunk",
+      "line": 362,
+      "occurrences": 1
+    },
+    "doc_hygiene_label": {
+      "anchor": "[doc-hygiene] no unmarked line of this suite",
+      "line": 974,
+      "occurrences": 1
+    },
+    "guard_block_start": {
+      "anchor": "# ------------------------------------------------------------------ [doc-hygiene]",
+      "line": 933,
+      "occurrences": 1
+    },
+    "fixture_names_list": {
+      "anchor": "fixture_names = (",
+      "line": 960,
+      "occurrences": 1
+    },
+    "nbsp_witness_start": {
+      "anchor": "# Two places compare a line number against fm_end",
+      "line": 401,
+      "occurrences": 1
+    }
+  },
+  "tests": [
+    {
+      "command": "python3 -B tests/test_retrieval_core_e2e.py",
+      "exit_code": 0,
+      "last_line": "PASS retrieval_core_e2e: 240 checks"
+    },
+    {
+      "command": "python3 -B tests/test_ask_grounding_integration.py",
+      "exit_code": 0,
+      "last_line": "PASS ask_grounding_integration: 59 checks"
+    },
+    {
+      "command": "python3 -B tests/test_source_references.py",
+      "exit_code": 0,
+      "last_line": "PASS source_references: 19 checks"
+    },
+    {
+      "command": "python3 -B tests/test_weak_evidence.py",
+      "exit_code": 0,
+      "last_line": "PASS weak_evidence: 24 checks"
+    },
+    {
+      "command": "python3 -B tests/test_search_row_adapter.py",
+      "exit_code": 0,
+      "last_line": "PASS search_row_adapter: 32 checks"
+    },
+    {
+      "command": "--help",
+      "exit_code": 0
+    }
+  ],
+  "superseded_candidates": [
+    {
+      "sha": "8bd3781b81d03b3f0097b55498363bb048ed162b",
+      "agent_c": "PASS - first candidate in this line where the prose survived a clause-by-clause attack (12 clauses, 12 true)",
+      "codex": "FAIL - the fixture-name exemption clause, which Agent C had filed as non-blocking O-A"
+    }
+  ],
+  "repair_1": {
+    "trigger": "Codex FAIL on 8bd3781, converging independently on Agent C's O-A",
+    "claim_at_fault": "the check label and checkpoint index said 'outside a fixture's own name'",
+    "what_the_code_does": "a case-sensitive str.replace of two literal strings - not a judgement about whether the words name the file, not case-insensitive, not bounded to whole words",
+    "counterexamples_reproduced": {
+      "exempts a line that is NOT naming the fixture": "'The NotGive Back Fencepost mechanism is current.' -> no hits",
+      "flags a line that IS naming it": "the fixture's own name lowercased -> 'give back'"
+    },
+    "fix": "the label, the checkpoint index and the block comment are worded as the subtraction rather than the intent, because four attempts to word the intent were each wrong in a different way",
+    "self_trip_handled": "writing the counterexample tripped the guard, since quoting the lowercased name is what it flags. The fact is stated without the literal string rather than exempted with a marker - the O4 lesson applied rather than repeated. Three markers remain, none added.",
+    "also": "Codex's point that the receipt's O1 'matching the code' was itself the false claim is accepted and that field is superseded above"
+  },
+  "derived_line_citations_note": "re-derived against this candidate at freeze time; all anchors still unique",
+  "merge_gate": {
+    "candidate_sha": "a797797d8283a2d5fadd3bfd9618bb005d041dcc",
+    "branch": "uep/task-sb-ask-011",
+    "agent_c": {
+      "verdict": "PASS",
+      "sha_verified": "a797797 (the exact candidate)",
+      "could_not_break": [
+        "the label under six independent readings over the real files - code order, reversed, simultaneous longest-first, casefold, NFKC, case-sensitive - all zero hits",
+        "subtraction that MANUFACTURES a token from two fragments, in two shapes; correct under the new wording, a false positive under the old",
+        "subtraction order where one fixture name is a proper prefix of the other, and nested constructions that create or destroy an occurrence of the other",
+        "Unicode expansion under .lower() (U+0130, U+1E9E) and NFKC normalisation",
+        "both rename directions, by an actual on-disk rename with the name list left stale: 4 hits / PASS 240",
+        "all three markers defaced individually; all eight anchors re-derived; both M25 mutants; the F1-R passage with a live spy"
+      ],
+      "observations_non_blocking": [
+        "O-1 literal-substring evasion (zero-width, homoglyph) - inherent to any substring guard, unchanged from the candidate it already passed, and disclosed in the block",
+        "O-2 the receipt's O1 undercounts the unmarked 'Give Back' lines, in the safe direction",
+        "O-3 the 'four attempts' / 'fifth wording' counting-basis clash - corrected above",
+        "O-4 changed_files uses the package base while product_code_unchanged uses 2fed7cb, in adjacent fields",
+        "O-5 the marker literal is never named in prose; this is the deliberately-declined O2"
+      ]
+    },
+    "codex": {
+      "verdict": "PASS",
+      "findings": "none",
+      "confirmed": [
+        "binding constraint: no src/ difference across 2fed7cb..HEAD",
+        "the label matches the implementation element by element, and the index is byte-consistent with it",
+        "every material clause of the block comment, reproduced independently using the guard's exact operations",
+        "no new false statement in the 16 added / 8 removed lines",
+        "the guard is capable of failing - an unmarked residual token appends to stale and the check fails",
+        "all eight derived_line_citations unique and correctly numbered",
+        "CANDIDATE_DIFF.patch matches git diff 4573b55..a797797 exactly"
+      ],
+      "limitation_disclosed_by_codex": "it could not run the main retrieval suite in its sandbox - no writable temp dir - so its suite evidence covers the four smaller suites only. Agent C ran all five to completion on this SHA."
+    },
+    "both_run_sequentially": "Agent C completed before Codex started; they were never concurrent",
+    "earlier_codex_attempt": "a first re-review of this SHA was killed by SIGTERM after hanging on stdin - an invocation fault, not a verdict. Re-run with stdin closed. The 39-byte transcript is discarded.",
+    "status": "merge gate satisfied on a797797; awaiting owner merge decision. Nothing merged or promoted."
+  }
+}

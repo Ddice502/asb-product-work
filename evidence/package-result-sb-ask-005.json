@@ -1,0 +1,168 @@
+{
+  "package_id": "SB-ASK-005",
+  "purpose": "Repair D4 alone, split out of the withdrawn SB-ASK-004 at the owner's direction.",
+  "base_sha": "4d69f6dda871bc7baf1b9fac723f0168c9f0c9d2",
+  "candidate_sha": "98065ffe5fdfced93a0eedd7c0ed3991dba4e450",
+  "branch": "uep/task-sb-ask-005",
+  "status": "MERGED",
+  "changed_files": [
+    "src/ask-my-brain/ask_my_brain.py",
+    "tests/test_retrieval_core_e2e.py"
+  ],
+  "source_diff": "ONE hunk in src/ask-my-brain/ask_my_brain.py and nothing else",
+  "tests": [
+    {
+      "command": "python3 -B tests/test_retrieval_core_e2e.py",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -B tests/test_ask_grounding_integration.py",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -B tests/test_source_references.py",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -B tests/test_weak_evidence.py",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -B tests/test_search_row_adapter.py",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -B src/ask-my-brain/ask_my_brain.py --help",
+      "exit_code": 0
+    }
+  ],
+  "repair_cycles_used": 0,
+  "agent_c_required": true,
+  "codex_required": false,
+  "codex_rationale": "None of the handoff's high-risk criteria are met by D4 alone: no real data, no import/export, no vault mutation, no credentials, no permissions, no network or external API, no schema migration (schema_version is unchanged at 1.0.0), no promotion behaviour, and no answer-policy change - D4 alters citation line numbers only. Codex has already reviewed this exact hunk in situ on SB-ASK-004 and reported \"D4's arithmetic is correct after rebuilding\" across every chunk shape, raising only the stale-index point, which is recorded below. Agent C has passed this hunk three times, byte-identical each time. The owner may still require Codex at the gate.",
+  "relationship_to_withdrawn_packages": {
+    "sb_ask_003": "8163e1ef, withdrawn: tried D1-D4 together, budget exhausted with D1 and D2 still defective",
+    "sb_ask_004": "1aa987f6, withdrawn: paired D3 with D4; three formulations of D3 each traded one class of wrong answer for another",
+    "what_this_takes": "only the D4 hunk, re-applied by hand to a clean base",
+    "verified_absent": "no D1, D2 or D3 content; query_terms is byte-identical to base and its fallback is intact"
+  },
+  "defects_repaired": [
+    {
+      "id": "D4",
+      "severity": "LOW",
+      "fix": "start_line and end_line advance only on lines that carry text",
+      "effect": "a citation's line range covers its text and not the blank lines around it",
+      "measured": "Greenhouse spans (9,11),(13,16),(18,21),(23,24) -> (10,10),(14,15),(19,20),(24,24)"
+    }
+  ],
+  "defects_still_open_and_still_pinned": [
+    {
+      "id": "D1",
+      "severity": "HIGH",
+      "why_not_here": "needs fence-aware chunking; cleanup runs on a buffer whose boundaries were decided by a chunker that knows nothing about markup"
+    },
+    {
+      "id": "D2",
+      "severity": "HIGH",
+      "why_not_here": "needs the reranker to take matched terms from what FTS5 returned instead of re-deriving them by string comparison"
+    },
+    {
+      "id": "D3",
+      "severity": "MEDIUM",
+      "why_not_here": "coupled to D5: deterministic_evidence_strength returns HIGH for any all_terms match however few or generic the terms are, so every change to the term set moves strength as a side effect. Three formulations were tried and each traded one class of wrong answer for another."
+    }
+  ],
+  "regression_sweep": {
+    "mutations": 11,
+    "caught": 11,
+    "survived": 0,
+    "d4_mutations": [
+      "span guard removed",
+      "guard weakened to 'if raw_line:'",
+      "start_line off by one",
+      "end_line off by one",
+      "end_line stops advancing",
+      "guard start-only",
+      "no-signal fallback span 1,1 -> 0,0",
+      "long-line split end_line +1"
+    ],
+    "pin_liveness": [
+      "repairing D1 fails its pin",
+      "repairing D2 fails its pin",
+      "repairing D3 fails its pin"
+    ]
+  },
+  "index_effect": {
+    "measured": "all 21 chunks compared base vs candidate",
+    "columns_that_differ": [
+      "start_line",
+      "end_line"
+    ],
+    "identical": [
+      "path",
+      "title",
+      "heading",
+      "body",
+      "file_sha256",
+      "file_mtime_ns",
+      "file_size",
+      "counts",
+      "metadata"
+    ]
+  },
+  "unchanged": [
+    "index counts 11/21/2",
+    "every coverage-boundary row count",
+    "the system and user prompt contract",
+    "the MODEL= / EVIDENCE_CHUNKS= trailer",
+    "ranking, scoring, authority, scope and schema",
+    "query_terms and the D1/D2/D3 pins"
+  ],
+  "known_limitations": [
+    "REINDEX REQUIRED FOR EFFECT: start_line and end_line are persisted at index time and search does not recompute them, so an index built before this commit keeps its blank-padded spans and D4 has no effect until the index is rebuilt. schema_version is unchanged at 1.0.0 and nothing rejects a stale index, so the release procedure has to guarantee the rebuild. Chunk bodies are unchanged, so the blast radius is printed citation ranges only. Raised by Codex on SB-ASK-004.",
+    "Carried forward, not addressed here: the coverage-boundary assertion all(r['term_coverage'] >= 0.30 for r in got) is vacuous on the iteration whose expected row count is zero.",
+    "Carried forward: phrase_bonus, all_terms_bonus, gentle loosening of the 0.30 coverage floor, bm25 field weights, the execute_match candidate limit and the fts_token prefix threshold remain unpinned.",
+    "Verified against synthetic fixtures with ollama_chat stubbed; no model, database of the owner's, or vault was exercised.",
+    "Agent C, new and non-blocking: the D4 guard makes two defensive else branches in flush() unreachable - 'start_line if start_line is not None else 1' and 'end_line if ... else start_line or 1'. start_line can now be None only when every buffered line was blank, in which case the body is empty and the readable-signal gate rejects the chunk. Instrumented over 40,000 chunk_note calls: zero hits on either branch. Untestable-by-construction code; worth a cleanup note, not a repair here.",
+    "Agent C, forward coupling for whoever takes D1: the span guard asks whether the RAW line carries text, not whether it survives markup cleanup. That is exact today only because D1 leaves the cleanup regexes inert, so every non-blank line reaches the body. Once D1 is repaired, a chunk whose last line is a rule or an HTML comment will report an end_line pointing at a line no longer in its body. D1's package must re-check spans."
+  ],
+  "rollback": "merged: revert the isolated merge SHA 4573b55d0e9d698a290ee2f7b5326ac87b95c379 on uep/work (git revert -m 1). The candidate branch and tag remain.",
+  "agent_c": {
+    "verdict": "PASS",
+    "sha_verified": "98065ffe5fdfced93a0eedd7c0ed3991dba4e450",
+    "blocking_findings": "none",
+    "false_receipt_claims": "none found",
+    "isolation": "one hunk; query_terms byte-identical to base with its fallback intact; zero markers of D1/D2 work; the diff against both withdrawn candidates is exactly their extra work being absent, with the D4 region identical in all three",
+    "d4_verification": "re-derived from scratch rather than relying on hunk identity, because the enclosing function differs from the SB-ASK-003 version. 14 shaped probes plus a randomized sweep of 12,007 chunks over 4,000 generated notes at three max_chars values: zero violations of 1 <= start <= end <= len(lines) with both endpoints on text-carrying lines.",
+    "pin_liveness": "all three bite, each failing on its OWN pin first: D1, D2, D3",
+    "index_effect": "independently rebuilt both row sets: start_line differs on 17 rows, end_line on 9, nothing else; non-span payload hash equal across all 21 rows",
+    "cross_matrix": "base test + base src = 139; candidate test + candidate src = 144; base test + candidate src fails on the old D4 pin (correctly deleted, not reverted); candidate test + base src fails on the new checks",
+    "mutation_sweep": {
+      "mutations": 17,
+      "caught": 12,
+      "equivalent_or_dead": 5,
+      "equivalence_proven": "differential run of each survivor against the unmutated function over 60,018 calls, zero differing outputs"
+    },
+    "vacuity": "exactly one, the declared carried-forward line-437 case; none introduced by this package, and the new span loop widened coverage from spans[:3] to all four",
+    "codex_view": "agrees Codex can be skipped: none of the handoff's high-risk criteria is met, and the one operational hazard (stale index) was already found by Codex against this byte-identical hunk and is carried as a declared limitation"
+  },
+  "codex_required_rationale_correction": "Agent C noted the receipt argued 'no schema migration' from schema_version being unchanged, which is thin on its own. The sound reason is that build_index always constructs a fresh temporary database and replaces it, so there is nothing to migrate, only to rebuild. Same conclusion, better grounds.",
+  "merge": {
+    "approved_by": "owner",
+    "scope": "isolated product integration branch uep/work ONLY; not merged or promoted to main, home, vault, runtime, or any live service",
+    "merge_sha": "4573b55d0e9d698a290ee2f7b5326ac87b95c379",
+    "merged_candidate_sha": "98065ffe5fdfced93a0eedd7c0ed3991dba4e450",
+    "candidate_is_ancestor": true,
+    "merge_strategy": "--no-ff",
+    "tests_on_integration_line": "5/5 exit 0 (144/59/32/19/24)",
+    "candidate_branch_preserved": "uep/task-sb-ask-005 (tag sb-ask-005-candidate)",
+    "main_untouched_at": "3bb076131f7475ed2aa042988dc692562ad5460d",
+    "remotes": "none configured",
+    "release_obligation": "REINDEX REQUIRED FOR EFFECT - D4 does nothing until the index is rebuilt",
+    "still_open_on_the_integration_line": [
+      "D1 (HIGH)",
+      "D2 (HIGH)",
+      "D3 (MEDIUM, coupled to D5)"
+    ]
+  }
+}

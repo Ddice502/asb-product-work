@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "ask": [
+      "sudo\r\rsystemctl\r\rdocker, docker compose, CasaOS administration\r\rtmux\r\rssh, scp, rsync\r\rremote Git commands: push, pull, fetch, remote add/remove\r\rpaths outside /home/jro/asb-product-work\r\r.env, credentials, secrets, database directories\r\rhome/vault/runtime paths\r\rdestructive Git commands, especially against main"
+    ]
+  }
+}

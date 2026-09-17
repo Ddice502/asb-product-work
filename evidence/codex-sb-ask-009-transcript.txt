@@ -1,0 +1,2307 @@
+Reading additional input from stdin...
+OpenAI Codex v0.154.0
+--------
+workdir: /tmp/claude-1000/-home-jro-asb-product-work/3a6ea635-0952-4430-b51f-5ad9bf0bc6ac/scratchpad/codex-009
+model: gpt-5.6-sol
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: low
+reasoning summaries: none
+session id: 01a0af2d-1c7d-7603-86c2-925929895e9d
+--------
+user
+You are **Codex**, the independent reviewer for a frozen product candidate in the AI Second Brain
+project. You review only. Do not edit, create or delete any file, do not move any git ref, and do
+not propose to apply a fix yourself - report findings and stop. Agent C is not running; you are the
+only reviewer active.
+
+## The frozen object
+
+- Package: **SB-ASK-009**, "decide openers up front, and fix what counts as a thematic break"
+- Candidate SHA: 2fed7cb5d1b95b3de2719790fe7769664c977871
+- Base SHA (integration base `uep/work`): 4573b55d0e9d698a290ee2f7b5326ac87b95c379
+- Your working directory IS a detached checkout of that exact SHA.
+- Product-code-only diff: ./SRC_ONLY_DIFF.patch  (this is what matters most)
+- Full base->candidate diff, including fixtures and tests: ./CANDIDATE_DIFF.patch
+- Receipt: ./PACKAGE_RESULT.json
+
+**This is a PRODUCT CODE review.** Unlike the later packages in this line, this one changes
+`src/ask-my-brain/ask_my_brain.py` substantially: 378 insertions, 44 deletions. It has never been
+reviewed by you. Agent C passed it on behaviour but failed it twice on documentation, and the
+owner has now asked for your review before it can be merged into the integration branch.
+
+## What the package does
+
+It closes defect D1 (markup handling) and fixes two problems you yourself raised on the PREVIOUS
+package, SB-ASK-008:
+
+- **P1**: the classifier restarted from the top each time it discovered an unterminated comment
+  opener, which was O(N^2) and, with no file-size cap in `build_index`, an index-build DoS. The
+  fix introduces `last_closing_line(lines, fm_end)`, which decides up front whether any comment
+  opener can ever close, so an opener that cannot close is treated as literal text immediately and
+  no restart occurs. A bounded restart loop remains in `classify_markup` purely as a backstop.
+- **P2**: `_RULE_LINE_RE` was a character class `[-=_*]{3,}`, which deleted mixed-marker lines such
+  as `-=_*`. A Markdown thematic break is 3 or more of ONE marker, so it is now
+  `(?:\*{3,}|-{3,}|_{3,}|={3,})`.
+
+Also in scope: `fence_delimiter`, `_classify_once`, `classify_markup`, `note_title`, `chunk_note`.
+
+## History you need, because it is where the bodies are buried
+
+- An earlier candidate of this package (`fea50f44`) carried a **resume** in `_classify_once`, which
+  let a restart continue part way through the note. It carried the fence marker but NOT the
+  open-comment state, so a restart landing on a line where a comment had closed mid-line re-read
+  text that was inside a comment as ordinary content - a **content leak of commented-out text into
+  the search index**. Witness: `<!-- a\nsecret --> visible <!-- b`. The resume was deleted in
+  repair 1; every pass now classifies from line 1.
+- The executor's receipt originally claimed three mutation-sweep survivors were "output-equivalent
+  by construction". That was false and is now withdrawn.
+- A later package (SB-ASK-010/011, not under review here) found that the receipt's claim that BOTH
+  `<= fm_end` comparisons are equivalent mutants was wrong: the one in `_classify_once` is killable
+  with a non-breaking space before the frontmatter closing marker.
+
+## What to review
+
+1. **Correctness of the linear classifier.** Is `last_closing_line` actually sound as a
+   precomputation? It scans raw lines for `-->` after `fm_end`. Can it ever be WRONG in the unsafe
+   direction - i.e. can it decide an opener closes when it does not, or fail to decide one is
+   literal when it is? Consider fences, nested or malformed comments, `<!-->`, `--->`, a `-->`
+   inside a fenced code block, frontmatter edge cases, CRLF, and lines with no trailing newline.
+2. **CONTENT LEAKAGE - the highest-value target.** The purpose of this code is to strip HTML
+   comments so commented-out text never reaches the index or the model. Find any input where text
+   between `<!--` and `-->` survives into `chunk_note`'s output, or into the note title. The
+   previous candidate leaked; prove or disprove that this one does not.
+3. **The restart backstop.** `classify_markup` loops `for _ in range(len(lines) + 1)`. Is the bound
+   correct? Can the loop exit with an opener still unsettled, or spin?
+4. **P2's regex.** Does `_RULE_LINE_RE` now match exactly the Markdown thematic breaks it should,
+   and does the change lose anything the old character class correctly caught (e.g. setext
+   underlines)?
+5. **Performance.** Is the claim of linearity true? Is there any remaining superlinear path? Note
+   `build_index` still has no file-size cap - say whether that is still exploitable given P1.
+6. **`note_title` and `fence_delimiter`.** Can a heading inside a fence or inside a comment become
+   the note title (the highest-weighted index column, printed verbatim to the model)?
+7. **The receipt.** Does every claim in PACKAGE_RESULT.json match what the code does? It has been
+   corrected several times; look for surviving overclaims.
+8. Anything else a reviewer should object to: dead code, a test that cannot fail, a containment
+   risk, or behaviour changed outside the package's stated scope (ranking, scoring, chunking
+   policy, indexing, database behaviour, capture, the prompt contract).
+
+## Constraints
+
+- The suite writes its temporary database outside the working directory, so it may not run in your
+  sandbox. If it cannot, say so and review statically; do not report an environmental failure as a
+  defect.
+- Do not propose redesigns of parts outside this package's scope.
+- Do not run anything that writes outside your working directory, and do not touch the network.
+
+## Output
+
+A verdict (PASS or FAIL) and a numbered list of findings, each with the exact code at fault, its
+location, a concrete witness input, the observed versus expected behaviour, and how you verified
+it. Rank content-leakage and correctness findings above style. If you find nothing, say so plainly
+and list what you checked.
+2026-09-17T11:42:44.811865Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: "Bearer realm=\"OAuth\", resource_metadata=\"https://mcp.cloudflare.com/.well-known/oauth-protected-resource/mcp\"" })
+warning: Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest.
+codex
+I’ll perform a read-only product-code review against the frozen SHA, using the package diffs, implementation, tests, and receipt. I’ll prioritize constructing leakage/correctness witnesses and will not modify files or refs.
+exec
+/bin/bash -lc "git status --short --branch && git rev-parse HEAD && sed -n '1,240p' SRC_ONLY_DIFF.patch && sed -n '1,240p' PACKAGE_RESULT.json" in /tmp/claude-1000/-home-jro-asb-product-work/3a6ea635-0952-4430-b51f-5ad9bf0bc6ac/scratchpad/codex-009
+ succeeded in 0ms:
+## HEAD (no branch)
+?? CANDIDATE_DIFF.patch
+?? PACKAGE_RESULT.json
+?? REVIEW_TASK.md
+?? SRC_ONLY_DIFF.patch
+2fed7cb5d1b95b3de2719790fe7769664c977871
+diff --git a/src/ask-my-brain/ask_my_brain.py b/src/ask-my-brain/ask_my_brain.py
+index b78b066..3559a7b 100755
+--- a/src/ask-my-brain/ask_my_brain.py
++++ b/src/ask-my-brain/ask_my_brain.py
+@@ -574,21 +574,34 @@ def excluded(
+ 
+ 
+ def note_title(
+-    lines: list[str],
++    classified: list[dict],
+     fallback: str,
+-    frontmatter_end: int,
+ ) -> str:
++    """The note's title: its first level-1 heading that is real evidence.
++
++    Derived from CLASSIFIED lines, not the raw ones. A '# ' line inside an
++    HTML comment, or inside a fenced block, is not a heading. Reading the
++    title off the raw lines put commented-out text into chunks.title, and
++    the title is not an inert field: it is indexed in chunks_fts at the
++    highest bm25 column weight, it feeds the coverage reranker's haystack,
++    it is printed as 'Title:' in the evidence block handed to the answer
++    model, and for a note with no other indexable content it becomes the
++    chunk body. That was the last open leg of defect D1.
++
++    Frontmatter needs no special case here: classify_markup has already
++    dropped those lines.
++    """
+ 
+-    for index, line in enumerate(
+-        lines,
+-        start=1,
+-    ):
+-        if index <= frontmatter_end:
++    for entry in classified:
++        if (
++            entry["kind"] != "keep"
++            or entry["fenced"]
++        ):
+             continue
+ 
+         match = re.match(
+             r"^#\s+(.+?)\s*$",
+-            line,
++            entry["text"],
+         )
+ 
+         if match:
+@@ -813,6 +826,332 @@ def provenance_json(
+     )
+ 
+ 
++# A fenced-code delimiter, as Markdown actually defines one: at most three
++# spaces of indent (four makes it an indented code block), a run of at least
++# three backticks or tildes, and an optional info string.
++_FENCE_LINE_RE = re.compile(
++    r"^ {0,3}(?P<marker>`{3,}|~{3,})(?P<info>.*)$"
++)
++
++
++def fence_delimiter(
++    line: str,
++    open_marker,
++):
++    """Is this line a fence delimiter, and does it open or close?
++
++    Returns the marker that is now open ('```', '~~~~', ...), or None when
++    no fence is open, or False when the line is not a delimiter at all and
++    should be treated as ordinary content.
++
++    Treating every run of three backticks as a toggle was wrong in three
++    separate ways, all of which put text where it should not be:
++
++    - a closing fence may not carry an info string, so inside a fence the
++      line '```not-a-closer' is CONTENT. Toggling on it ended the fence
++      early, which both destroyed the real fenced content that followed and
++      let a heading inside the fence become the note's title.
++    - a fence may be four or more backticks, or tildes. Not recognising
++      those meant an author's literal fenced example lost its comments and
++      rules.
++    - a fence may be indented at most three spaces. Accepting deeper
++      indentation meant an indented code block was read as a fence, which
++      protected commented-out text and carried it into the evidence.
++
++    A closing fence must use the same character as its opener and be at
++    least as long.
++    """
++
++    match = _FENCE_LINE_RE.match(line)
++
++    if not match:
++        return False
++
++    marker = match.group("marker")
++    info = match.group("info")
++
++    if open_marker is None:
++        # A backtick fence's info string may not itself contain a backtick.
++        if (
++            marker[0] == "`"
++            and "`" in info
++        ):
++            return False
++
++        return marker
++
++    if (
++        marker[0] == open_marker[0]
++        and len(marker) >= len(open_marker)
++        and info.strip() == ""
++    ):
++        return None
++
++    return False
++
++# A thematic break is three or more of ONE marker, not any mixture of them.
++# Written as a character class, this deleted lines like '-=_*' that are not
++# breaks at all - a latent error inherited from the base, where the pattern
++# never fired because it was inert. '=' is kept as a marker so that a setext
++# underline is still removed, which is the behaviour this line has always
++# been declared to have.
++_RULE_LINE_RE = re.compile(
++    r"^[ \t]*"
++    r"(?:\*{3,}|-{3,}|_{3,}|={3,})"
++    r"[ \t]*$"
++)
++
++_INLINE_COMMENT_RE = re.compile(
++    r"<!--.*?-->"
++)
++
++
++def last_closing_line(
++    lines: list[str],
++    fm_end: int,
++) -> int:
++    """The last line number carrying a comment closing marker, or 0.
++
++    Whether a comment opener ever closes does not depend on fences or on any
++    other classification: once a comment is open every following line is
++    comment text until a '-->' appears, so the opener at line L closes if and
++    only if some line after L carries one. Knowing that before classifying
++    means an opener that cannot close is treated as literal text immediately,
++    with no restart at all.
++
++    Complete comments on the opener's own line are removed before the opener
++    is looked for, so no '-->' can remain after it on that line - which is why
++    only LATER lines matter here.
++    """
++
++    last = 0
++
++    for number, raw_line in enumerate(
++        lines,
++        start=1,
++    ):
++        if number <= fm_end:
++            continue
++
++        if "-->" in raw_line:
++            last = number
++
++    return last
++
++
++def _classify_once(
++    lines: list[str],
++    fm_end: int,
++    literal_openers: set,
++    last_close: int = None,
++) -> tuple:
++    """Classify every line of the note, always starting from the first.
++
++    `literal_openers` holds the line numbers of '<!--' markers already known
++    not to close; those are ordinary text and open nothing.
++
++    An earlier version of this function could resume part way, to avoid
++    rescanning the prefix a restart would otherwise repeat. It was removed.
++    The rescanning was never what made this quadratic - last_closing_line is
++    what made it linear, by deciding openers up front - and over 20,000
++    openers the two measured the same to within run-to-run noise, so the
++    resume was buying nothing. It cost something real, though: it restored
++    the fence marker but not the open-comment state, so a restart landing on
++    a line where a comment had closed mid-line re-read the text before that
++    closing marker as ordinary content. That text was inside a comment. The
++    backstop is only worth having if it is correct, so it starts from the top.
++
++    Returns the classification and the line number of the first opener that
++    reached the end of the note still unclosed (or None).
++    """
++
++    if last_close is None:
++        last_close = last_closing_line(lines, fm_end)
++
++    classified: list[dict] = []
++    fence_marker = None
++    open_at = None
++
++    for number, raw_line in enumerate(
++        lines,
++        start=1,
++    ):
++
++        if number <= fm_end:
++            classified.append(
++                {
++                    "number": number,
++                    "kind": "drop",
++                    "text": "",
++                    "fenced": False,
++                }
++            )
++            continue
++
++        line = raw_line.rstrip()
++
++        # An open comment is resolved BEFORE the fence test. A fence
++        # delimiter inside a comment is comment text, not a delimiter.
++        if open_at is not None:
++            closing = line.find("-->")
++
++            if closing == -1:
++                classified.append(
++                    {
++                        "number": number,
++                        "kind": "drop",
++                        "text": "",
++                        "fenced": False,
++                    }
++                )
++                continue
++
++            open_at = None
++            line = line[closing + 3:]
++
++        else:
++            delimiter = fence_delimiter(
++                line,
++                fence_marker,
++            )
++
+{
+  "package_id": "SB-ASK-009",
+  "purpose": "Fix the two findings Codex raised against SB-ASK-008: the quadratic restart with no file-size cap, and a rule pattern that deleted mixed-punctuation lines that are not thematic breaks.",
+  "supersedes": {
+    "package": "SB-ASK-008",
+    "candidate": "20c015628d8b093b80baae77d6d411575cd5bfb3",
+    "status": "ESCALATED, never merged, branch and tag preserved",
+    "codex_on_the_mechanism": "'The restart repair is logically correct for D1's prior state-restoration failure. I found no path where commented-out text reaches the body, title, heading, FTS index, or evidence because of restart ordering.' Both findings were elsewhere.",
+    "budget": "a new owner-approved package, so a fresh repair budget"
+  },
+  "base_sha": "4573b55d0e9d698a290ee2f7b5326ac87b95c379",
+  "candidate_sha": "2fed7cb5d1b95b3de2719790fe7769664c977871",
+  "branch": "uep/task-sb-ask-009",
+  "status": "HARD STOP - repair budget exhausted (2 of 2), Agent C verdict FAIL, owner decision required",
+  "changed_files": [
+    "fixtures/README.md",
+    "fixtures/vault/10 Areas/Backtick Info Note.md",
+    "fixtures/vault/10 Areas/Bound Exactness Note.md",
+    "fixtures/vault/10 Areas/Break Markers Note.md",
+    "fixtures/vault/10 Areas/Comment Fence Note.md",
+    "fixtures/vault/10 Areas/Comment Marker Note.md",
+    "fixtures/vault/10 Areas/Commented Title Note.md",
+    "fixtures/vault/10 Areas/Fence Closer Note.md",
+    "fixtures/vault/10 Areas/Fence Shapes Note.md",
+    "fixtures/vault/10 Areas/Fenced Markup Note.md",
+    "fixtures/vault/10 Areas/Give Back Fence Note.md",
+    "fixtures/vault/10 Areas/Hidden Title Only.md",
+    "fixtures/vault/10 Areas/Multi Opener Note.md",
+    "fixtures/vault/10 Areas/Rule Opener Note.md",
+    "fixtures/vault/10 Areas/Title Precedence Note.md",
+    "src/ask-my-brain/ask_my_brain.py",
+    "tests/test_retrieval_core_e2e.py"
+  ],
+  "commits_carried": [
+    "4203eaa SB-ASK-009 repair 1: delete the resume, so the backstop is correct again",
+    "fea50f4 SB-ASK-009: decide openers up front, and fix what counts as a thematic break",
+    "20c0156 SB-ASK-008 repair 2: pin the four gaps instead of declaring them",
+    "1148d56 SB-ASK-008 repair 1: bound the restart instead of guarding one shape of it",
+    "f77e494 SB-ASK-008: decide before acting, so there is nothing to undo",
+    "dd391c8 SB-ASK-007 repair 2: recognise fences properly instead of toggling on backticks",
+    "592dfb6 SB-ASK-007 repair 1: pin note_title's contract",
+    "4aa8f3b SB-ASK-007: close D1's last leg, the note title",
+    "350c7bc SB-ASK-006 repair 2: the give-back must restore the line, not the raw line",
+    "473b9cd SB-ASK-006 repair 1: a comment may only remove text it actually encloses",
+    "44e7588 SB-ASK-006: repair D1 by making markup handling line-local and fence-aware"
+  ],
+  "tests": [
+    {
+      "command": "python3 -B tests/test_retrieval_core_e2e.py",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -B tests/test_ask_grounding_integration.py",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -B tests/test_source_references.py",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -B tests/test_weak_evidence.py",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -B tests/test_search_row_adapter.py",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -B src/ask-my-brain/ask_my_brain.py --help",
+      "exit_code": 0
+    }
+  ],
+  "repair_cycles_used": 2,
+  "agent_c_required": true,
+  "codex_required": true,
+  "codex_rationale": "D1 decides what text from an untrusted note reaches the answer model, and P1 concerns an indexing denial-of-service surface. Codex has overturned four declared limitations in this package line. The high-risk criteria are met.",
+  "p1": {
+    "finding": "the restart was O(N^2) and build_index applies no file-size cap, so note content controlled index-rebuild time",
+    "two_wrong_attempts_before_the_right_one": [
+      "resuming from the settled opener did not help: the expensive part is scanning to the end of the note to DISCOVER a comment never closes",
+      "reusing the prefix instead of copying it did not help either; nor did indexing instead of slicing, though both were real costs"
+    ],
+    "fix": "last_closing_line() answers, in one scan before classifying, whether any later line carries a closing marker. Whether an opener closes does not depend on fences or any other classification, because once a comment is open every following line is comment text until '-->'. An opener that cannot close is literal immediately, with no restart.",
+    "measured": {
+      "1000": 0.0023,
+      "4000": 0.0077,
+      "16000": 0.0316,
+      "64000": 0.1428
+    },
+    "sb_ask_008_for_comparison": "32000 lines took 125s",
+    "equivalence": "differential against SB-ASK-008 with only the P2 fix applied, so P1 was the sole variable: 15,000 randomised notes across max_chars 3500, 200 and 40 - zero mismatches",
+    "backstop": "the restart loop is kept for the case where that decision is ever wrong in the direction of opening a comment that does not close. No fixture needs more than one pass.",
+    "measured_taken_on": "fea50f44, BEFORE the resume was deleted. repair_1.timings_after is the candidate's."
+  },
+  "p2": {
+    "finding": "_RULE_LINE_RE was a character class, so any MIXTURE of break characters was deleted. '-=_*' is not a thematic break; the base kept it and SB-ASK-008 deleted it.",
+    "fix": "a break is three or more of ONE marker. '=' stays a marker so a setext underline is still removed, which is the declared behaviour.",
+    "pinned_both_directions": "mixtures survive ('-=_*', '*-*-*-', '--'), runs of one marker are stripped ('---', '***', '___', '===')"
+  },
+  "stale_claim_corrected": "Bound Exactness Note's comment said it pinned the restart bound. Since openers are decided up front it settles in one pass, so it pins that each opener is literal and keeps its marker, and no longer exercises the bound. Corrected in the test and the fixtures README rather than left.",
+  "index_effect": {
+    "notes_indexed": 24,
+    "chunks_indexed": 37,
+    "files_skipped": 2,
+    "vs_uep_work_over_the_same_vault": {
+      "identical_in_every_column": "13 of 24",
+      "movers": {
+        "10 Areas/Backtick Info Note.md": {
+          "columns": [
+            "body"
+          ],
+          "chunks": "1 -> 1"
+        },
+        "10 Areas/Break Markers Note.md": {
+          "columns": [
+            "body"
+          ],
+          "chunks": "1 -> 1"
+        },
+        "10 Areas/Comment Fence Note.md": {
+          "columns": [
+            "body"
+          ],
+          "chunks": "1 -> 1"
+        },
+        "10 Areas/Comment Marker Note.md": {
+          "columns": [
+            "body"
+          ],
+          "chunks": "1 -> 1"
+        },
+        "10 Areas/Commented Title Note.md": {
+          "columns": [
+            "body",
+            "chunk_count",
+            "end_line",
+            "heading",
+            "start_line",
+            "title"
+          ],
+          "chunks": "1 -> 2"
+        },
+        "10 Areas/Fence Closer Note.md": {
+          "columns": [
+            "body"
+          ],
+          "chunks": "1 -> 1"
+        },
+        "10 Areas/Fence Shapes Note.md": {
+          "columns": [
+            "body",
+            "chunk_count",
+            "end_line"
+          ],
+          "chunks": "2 -> 1"
+        },
+        "10 Areas/Fenced Markup Note.md": {
+          "columns": [
+            "body",
+            "chunk_count",
+            "end_line"
+          ],
+          "chunks": "2 -> 1"
+        },
+        "10 Areas/Give Back Fence Note.md": {
+          "columns": [
+            "body",
+            "chunk_count",
+            "end_line",
+            "title"
+          ],
+          "chunks": "2 -> 1"
+        },
+        "10 Areas/Hidden Title Only.md": {
+          "columns": [
+            "body",
+            "title"
+          ],
+          "chunks": "1 -> 1"
+        },
+        "10 Areas/Multi Opener Note.md": {
+          "columns": [
+            "body",
+            "chunk_count",
+            "end_line",
+            "title"
+          ],
+          "chunks": "2 -> 1"
+        }
+      }
+    }
+  },
+  "regression_sweep": {
+    "mutations": 9,
+    "caught": 6,
+    "survived": 3,
+    "hung": 0,
+    "method": "per-mutant output-equivalence measured over 12,000 randomised notes, not asserted",
+    "survivors_all_measured_equivalent": [
+      "the opener cutoff >= weakened to > : 0 of 12,000",
+      "the precompute recording an opener but opening it anyway: 0 of 12,000",
+      "the restart bound one pass short: 0 of 12,000"
+    ],
+    "note": "the first two are the mutations that forced the F1 leak before this repair. That they now measure 0 of 12,000 is the evidence the backstop is correct, not a claim that it is.",
+    "withdrawn": "the reason originally given for this survivor - 'the frontmatter closing --- is itself a thematic break, so it is dropped either way' - was misattributed, and the survivorship itself was an artefact of an ASCII-only generator. See SB-ASK-010.",
+    "survivor_later_killed": [
+      "the frontmatter cutoff in _classify_once (line 980) weakened to '<': 0 of 12,000 on ASCII-only notes, which is why this measurement was mistaken for a proof. SB-ASK-010 killed it with a non-breaking space before the closing marker. NOT an equivalent mutant - withdrawn from this list."
+    ],
+    "recount_note": "Agent C O5: entry [3] declared itself withdrawn while remaining in a list named for survivors, and the survived count still included it. It is now in its own field and the counts are restated: 3 survivors measured equivalent, 6 caught - the sixth by SB-ASK-010's NBSP witness, which did not exist when this sweep ran."
+  },
+  "defects_still_open_and_still_pinned": [
+    {
+      "id": "D2",
+      "severity": "HIGH",
+      "why_not_here": "needs the reranker to take matched terms from what FTS5 returned instead of re-deriving them by string comparison"
+    },
+    {
+      "id": "D3",
+      "severity": "MEDIUM",
+      "why_not_here": "coupled to D5: deterministic_evidence_strength returns HIGH for any all_terms match however few or generic the terms are"
+    }
+  ],
+  "known_limitations": [
+    "REINDEX REQUIRED: chunk bodies, titles and, for a note with a heading-like line inside a fence, chunk boundaries all change. An index built before this commit carries marker text in its bodies and may carry a commented heading as a title.",
+    "Tilde fences, four-or-more-backtick fences and the three-space indent rule are now handled, and three of the five closer sub-rules are pinned: same character, not shorter, no info string. The other two are not - see the coverage gaps below. The previous receipt declared the first two as limitations; Codex ruled that dishonest about impact and it was.",
+    "Setext underlines (=== under a heading) are consumed by the rule pattern, flattening setext headings.",
+    "After a comment closes mid-line, what remains is treated as text rather than re-tested as a fence delimiter. Either reading is defensible; declared rather than pinned.",
+    "Fence markers are removed from the evidence a note contributes, so a fenced block reaches the model as ordinary prose. The system prompt still declares all evidence untrusted, so no trust boundary changes.",
+    "Carried forward: the coverage-boundary assertion all(r['term_coverage'] >= 0.30 for r in got) is vacuous on the zero-row iteration; and phrase_bonus, all_terms_bonus, the 0.30 floor, bm25 weights, the execute_match candidate limit and the fts_token prefix threshold remain unpinned.",
+    "Agent C F5, undeclared until now: 'a closer must be at least as long as its opener' is only half pinned. A SHORTER closer is pinned not to close; nothing pins that a LONGER one does. Shipped behaviour is correct. A regression here leaves the fence open longer, so it protects more and strips less - it cannot promote removed text into a title or the evidence.",
+    "Agent C F6: a closer carrying only trailing whitespace still closes, and that is unpinned. Same over-protective direction as F5.",
+    "Agent C F12: the rule that a TILDE fence's info string may contain a tilde is unpinned, although its backtick counterpart is pinned by Backtick Info Note. This is the tilde image of Codex's finding 2: a regression would fail to open the fence, so a literal tilde-fenced example would lose its comments. Content loss, not a leak.",
+    "Agent C C17, carried from SB-ASK-002 and not previously declared: max_chars split FIDELITY is unpinned. The suite asserts only that a piece is no longer than the maximum, so a mutant dropping one character from every piece passes. Shipped splitting is lossless, verified.",
+    "Documentation debt, carried: the comment above the coverage-boundary block still says no question over these fixtures lands inside [0.30, 0.35). Two questions ten lines above it are now asserted to do exactly that, and Agent C measured both at 0.309 and 0.3397. The comment is false and self-contradicting. It is a comment, not an assertion, and the repair budget is exhausted, so it is recorded rather than fixed.",
+    "Restored after Agent C caught it being deleted: a heading line that itself opens a never-closing comment yields a title carrying the literal marker, e.g. 'Title: Something <!--'. Measured identical on SB-ASK-007 and here. I had removed this from the list as 'an edge of the give-back' when it is nothing of the kind - it is a property of treating an unterminated opener as literal text, which this design preserves by construction. Cosmetic: no commented-out content leaks, the marker is the note's own literal text. Only the G1 limitation was genuinely resolved.",
+    "A mutation removing the restart bound alone survives the suite, and always will: it is a defensive limit that correct code never reaches. Every mutation it exists to contain - progress broken in any shape - is caught now that it is a bound rather than a progress check.",
+    "Agent C, new and outside this package's surface: the readable-signal gate is >= 20 characters and no fixture sits near that boundary - the closest margin is 15 - so a mutation to >= 19 survives. The gate is byte-identical to base apart from re-indentation.",
+    "Agent C, new and outside this package's surface: no fixture carries an h4, h5 or h6 heading, so narrowing the chunk-heading pattern from #{1,6} to #{1,3} survives. Also byte-identical to base.",
+    "The restart bound is unreachable in correct code now that openers are decided up front - shipped classifies every one of 20,000 generated notes and all 26 fixtures in exactly one pass - so no output-level test can pin it. It is a backstop, and mutations to it survive the suite by construction. There is no resume: this package deleted it (see repair_1).",
+    "build_index still applies no file-size cap. That is no longer a denial-of-service surface now that classification is linear, but a very large note is still read wholly into memory.",
+
+exec
+/bin/bash -lc "sed -n '900,1190p' src/ask-my-brain/ask_my_brain.py && sed -n '1190,1420p' src/ask-my-brain/ask_my_brain.py && sed -n '240,520p' PACKAGE_RESULT.json" in /tmp/claude-1000/-home-jro-asb-product-work/3a6ea635-0952-4430-b51f-5ad9bf0bc6ac/scratchpad/codex-009
+ succeeded in 0ms:
+    r"(?:\*{3,}|-{3,}|_{3,}|={3,})"
+    r"[ \t]*$"
+)
+
+_INLINE_COMMENT_RE = re.compile(
+    r"<!--.*?-->"
+)
+
+
+def last_closing_line(
+    lines: list[str],
+    fm_end: int,
+) -> int:
+    """The last line number carrying a comment closing marker, or 0.
+
+    Whether a comment opener ever closes does not depend on fences or on any
+    other classification: once a comment is open every following line is
+    comment text until a '-->' appears, so the opener at line L closes if and
+    only if some line after L carries one. Knowing that before classifying
+    means an opener that cannot close is treated as literal text immediately,
+    with no restart at all.
+
+    Complete comments on the opener's own line are removed before the opener
+    is looked for, so no '-->' can remain after it on that line - which is why
+    only LATER lines matter here.
+    """
+
+    last = 0
+
+    for number, raw_line in enumerate(
+        lines,
+        start=1,
+    ):
+        if number <= fm_end:
+            continue
+
+        if "-->" in raw_line:
+            last = number
+
+    return last
+
+
+def _classify_once(
+    lines: list[str],
+    fm_end: int,
+    literal_openers: set,
+    last_close: int = None,
+) -> tuple:
+    """Classify every line of the note, always starting from the first.
+
+    `literal_openers` holds the line numbers of '<!--' markers already known
+    not to close; those are ordinary text and open nothing.
+
+    An earlier version of this function could resume part way, to avoid
+    rescanning the prefix a restart would otherwise repeat. It was removed.
+    The rescanning was never what made this quadratic - last_closing_line is
+    what made it linear, by deciding openers up front - and over 20,000
+    openers the two measured the same to within run-to-run noise, so the
+    resume was buying nothing. It cost something real, though: it restored
+    the fence marker but not the open-comment state, so a restart landing on
+    a line where a comment had closed mid-line re-read the text before that
+    closing marker as ordinary content. That text was inside a comment. The
+    backstop is only worth having if it is correct, so it starts from the top.
+
+    Returns the classification and the line number of the first opener that
+    reached the end of the note still unclosed (or None).
+    """
+
+    if last_close is None:
+        last_close = last_closing_line(lines, fm_end)
+
+    classified: list[dict] = []
+    fence_marker = None
+    open_at = None
+
+    for number, raw_line in enumerate(
+        lines,
+        start=1,
+    ):
+
+        if number <= fm_end:
+            classified.append(
+                {
+                    "number": number,
+                    "kind": "drop",
+                    "text": "",
+                    "fenced": False,
+                }
+            )
+            continue
+
+        line = raw_line.rstrip()
+
+        # An open comment is resolved BEFORE the fence test. A fence
+        # delimiter inside a comment is comment text, not a delimiter.
+        if open_at is not None:
+            closing = line.find("-->")
+
+            if closing == -1:
+                classified.append(
+                    {
+                        "number": number,
+                        "kind": "drop",
+                        "text": "",
+                        "fenced": False,
+                    }
+                )
+                continue
+
+            open_at = None
+            line = line[closing + 3:]
+
+        else:
+            delimiter = fence_delimiter(
+                line,
+                fence_marker,
+            )
+
+            if delimiter is not False:
+                fence_marker = delimiter
+                classified.append(
+                    {
+                        "number": number,
+                        "kind": "drop",
+                        "text": "",
+                        "fenced": True,
+                    }
+                )
+                continue
+
+        if fence_marker is not None:
+            classified.append(
+                {
+                    "number": number,
+                    "kind": "keep",
+                    "text": line,
+                    "fenced": True,
+                }
+            )
+            continue
+
+        # Complete comments on this line go first, so two of them cannot
+        # merge and text between them survives.
+        line = _INLINE_COMMENT_RE.sub(
+            " ",
+            line,
+        )
+
+        if number not in literal_openers:
+            opening = line.find("<!--")
+
+            # An opener with no closing marker after it can never close, so
+            # it is literal text and there is nothing to discover later.
+            if (
+                opening != -1
+                and number >= last_close
+            ):
+                literal_openers.add(number)
+                opening = -1
+
+            if opening != -1:
+                open_at = number
+                line = line[:opening]
+
+        line = line.rstrip()
+
+        if _RULE_LINE_RE.match(line):
+            classified.append(
+                {
+                    "number": number,
+                    "kind": "drop",
+                    "text": "",
+                    "fenced": False,
+                }
+            )
+            continue
+
+        classified.append(
+            {
+                "number": number,
+                "kind": "keep",
+                "text": line,
+                "fenced": False,
+            }
+        )
+
+    return classified, open_at
+
+
+def classify_markup(
+    lines: list[str],
+    fm_end: int,
+) -> list[dict]:
+    """Classify every line of a note once, before anything is chunked.
+
+    Returns one dict per line, aligned with `lines`, carrying:
+        number   1-based line number
+        kind     'keep' or 'drop'
+        text     the line's content after markup removal ('' when dropped)
+        fenced   True if the line sits inside a fenced block
+
+    Every markup decision here is line-local, so no pattern CAN span lines,
+    whatever it is written as. That is what closed the first three attempts
+    at this defect, each of which let a marker pattern run past its own line
+    and delete the content between two markers.
+
+    A comment may only remove text it actually encloses. An earlier version
+    discovered that after the fact and handed the swallowed lines back. That
+    restored their TEXT but not the STATE the wrong decision had produced:
+    fence tracking had already run with those lines consumed, so a heading
+    textually inside a fence could become the note's title and the fence
+    delimiters reached the evidence.
+
+    So the decision is made before it is acted on. The pass runs, and if a
+    comment opener turns out never to close, that opener is recorded as
+    ordinary text and the whole pass is run again with it. Each restart
+    settles one opener, so this terminates, and the classification that is
+    finally returned was computed with the right answer from the first line
+    - fence state included. There is nothing left to undo.
+    """
+
+    literal_openers: set = set()
+    classified: list[dict] = []
+    last_close = last_closing_line(lines, fm_end)
+
+    # With last_closing_line deciding openers up front, a pass should never
+    # report an unterminated opener and this loop should run exactly once.
+    # It is kept as a correctness backstop: if that decision were ever wrong
+    # in the direction of opening a comment that does not close, the restart
+    # still settles it rather than letting the comment swallow the note.
+    #
+    # Bounded, not merely convergent. Each restart settles one opener and a
+    # note has at most len(lines) of them, so the bound is never reached while
+    # this function is correct. It is written as a bound rather than a
+    # progress check because a progress check only catches the shape of
+    # non-progress it tests for: an earlier version guarded against the same
+    # opener being re-reported, and a change that simply stopped recording
+    # openers still span forever. Indexing a note must always finish, so the
+    # loop cannot depend on the body being right.
+    for _ in range(len(lines) + 1):
+        classified, unterminated = _classify_once(
+            lines,
+            fm_end,
+            literal_openers,
+            last_close,
+        )
+
+        if unterminated is None:
+            break
+
+        literal_openers.add(unterminated)
+
+    return classified
+
+
+def chunk_note(
+    text: str,
+    relative_path: str,
+    max_chars: int,
+) -> tuple[str, list[dict]]:
+
+    lines = text.splitlines()
+
+    fm_end = frontmatter_end(lines)
+
+    # Classify once, then read the title off the classification. Both the
+    # title and the chunk boundaries have to see markup before they decide.
+    classified = classify_markup(
+        lines,
+        fm_end,
+    )
+
+    title = note_title(
+        classified,
+        Path(relative_path).stem,
+    )
+
+    chunks: list[dict] = []
+
+    buffer: list[str] = []
+
+    current_heading = ""
+
+    start_line: int | None = None
+    end_line: int | None = None
+    current_chars = 0
+
+    def flush() -> None:
+        nonlocal buffer
+        nonlocal start_line
+        nonlocal end_line
+        nonlocal end_line
+        nonlocal current_chars
+
+        # Comments, rules and fence markers were already removed line by line
+        # by classify_markup, so nothing here can span lines. What is left is
+        # whitespace tidying. Both patterns were previously written with
+        # doubled backslashes, which made them match a literal backslash and
+        # never fire (defect D1).
+        body = "\n".join(
+            buffer
+        ).strip()
+
+        body = re.sub(
+            r"[ \t]+",
+            " ",
+            body,
+        )
+
+        body = re.sub(
+            r"\n{3,}",
+            "\n\n",
+            body,
+        ).strip()
+
+        # Reject chunks containing essentially no human-readable
+        # evidence after structural markup has been removed.
+        signal = re.sub(
+            r"[^A-Za-z0-9]+",
+            "",
+            body,
+        )
+
+        if body and len(signal) >= 20:
+            chunks.append(
+                {
+                    "heading": current_heading,
+                    "body": body,
+                    "start_line": (
+                        start_line
+                        if start_line is not None
+                        else 1
+                    ),
+                    "end_line": (
+                        end_line
+                        if end_line is not None
+                        else start_line or 1
+                    ),
+                }
+            )
+
+        buffer = []
+        start_line = None
+        end_line = None
+        current_chars = 0
+
+    for entry in classified:
+        line_number = entry["number"]
+
+        if entry["kind"] == "drop":
+            continue
+
+        line = entry["text"]
+
+        # A '#' line inside a fenced block is a shell, YAML or Python comment,
+        # not a heading. Splitting the chunk there used to strand the rest of
+        # the fence outside its own fence state.
+        heading_match = (
+            None
+            if entry["fenced"]
+            else re.match(
+                r"^(#{1,6})\s+(.+?)\s*$",
+                line,
+            )
+        )
+
+        if heading_match:
+            flush()
+
+            current_heading = (
+                heading_match
+                .group(2)
+                .strip()
+            )
+
+            continue
+
+        if len(line) > max_chars:
+            flush()
+
+            for offset in range(
+                0,
+                len(line),
+                max_chars,
+            ):
+                piece = line[
+                    offset:
+                    offset + max_chars
+                ].strip()
+
+                if piece:
+                    chunks.append(
+                        {
+                            "heading":
+                                current_heading,
+                            "body": piece,
+                            "start_line":
+                                line_number,
+                            "end_line":
+                                line_number,
+                        }
+                    )
+
+            continue
+
+        projected = (
+            current_chars
+            + len(line)
+            + 1
+        )
+
+        if (
+            buffer
+            and projected > max_chars
+        ):
+            flush()
+
+        buffer.append(line)
+        current_chars += len(line) + 1
+
+        # A span must cover the chunk's text, not the blank lines that happen
+        # to sit either side of it, or a printed citation range is a line wide
+        # at each end (defect D4).
+        if line.strip():
+            if start_line is None:
+                start_line = line_number
+
+            end_line = line_number
+
+    flush()
+
+    if not chunks:
+        chunks.append(
+            {
+                "heading": "",
+                "body": title,
+                "start_line": 1,
+                "end_line": 1,
+            }
+        )
+
+    return title, chunks
+
+
+def build_index(
+    config: dict,
+) -> None:
+
+    vault = Path(
+        config["vault_root"]
+    ).resolve()
+
+    database = Path(
+        config["database_path"]
+    )
+
+    if not vault.is_dir():
+        fail(
+            f"Vault is not readable: {vault}"
+        )
+
+    database.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    temporary = database.with_name(
+        f".{database.name}."
+        f"{os.getpid()}.tmp"
+    )
+
+    temporary.unlink(
+        missing_ok=True
+    )
+
+    connection = sqlite3.connect(
+        temporary
+    )
+
+    try:
+        connection.execute(
+            "PRAGMA journal_mode=OFF"
+        )
+
+        connection.execute(
+            "PRAGMA synchronous=OFF"
+        )
+
+        connection.execute(
+            """
+            CREATE TABLE metadata (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            )
+            """
+        )
+
+        connection.execute(
+            """
+            CREATE TABLE chunks (
+                id INTEGER PRIMARY KEY,
+                path TEXT NOT NULL,
+                title TEXT NOT NULL,
+                heading TEXT NOT NULL,
+                body TEXT NOT NULL,
+                start_line INTEGER NOT NULL,
+                end_line INTEGER NOT NULL,
+                file_sha256 TEXT NOT NULL,
+                file_mtime_ns INTEGER NOT NULL,
+                file_size INTEGER NOT NULL
+            )
+            """
+        )
+
+        connection.execute(
+            """
+            CREATE INDEX chunks_path_idx
+            ON chunks(path)
+            """
+        )
+
+        connection.execute(
+    "build_index still applies no file-size cap. That is no longer a denial-of-service surface now that classification is linear, but a very large note is still read wholly into memory.",
+    "Agent C M25, now resolved by SB-ASK-010 and recorded here as a correction, not a limitation: my claim that BOTH '<= fm_end' comparisons are equivalent mutants was wrong in both halves. The classifier's (line 980) is killable on a real input - a non-breaking space before the closing marker - and is now pinned. The one in last_closing_line (line 933) was never a survivor either: mutating it fails an assertion this suite already had, on an input frontmatter_end cannot produce. This receipt's own sweep table listed that site as CAUGHT while known_limitations declared it equivalent by construction."
+  ],
+  "rollback": "abandon candidate branch uep/task-sb-ask-009 (uep/work unchanged at 4573b55d0e9d698a290ee2f7b5326ac87b95c379)",
+  "superseded_candidates": [
+    {
+      "sha": "fea50f44ba0ef8b93d5d46c4118a8a2937f4dd9d",
+      "verdict": "Agent C FAIL",
+      "reason": "the resume carried the fence marker but not the open-comment state, so a restart landing on a line where a comment had closed mid-line re-read comment text as content. My claim that all three survivors were output-equivalent because the backstop settles them was false, and it was the sole justification for leaving them untested."
+    },
+    {
+      "sha": "4203eaa8f8d95ed6b74d0d98c3d17120ce1e7899",
+      "verdict": "Agent C FAIL",
+      "reason": "text-only: four statements asserting the deleted resume still exists, including _classify_once's own documented return contract, plus a self-contradicting receipt. No behavioural defect."
+    },
+    {
+      "sha": "2fed7cb5d1b95b3de2719790fe7769664c977871",
+      "verdict": "Agent C FAIL",
+      "reason": "text only: four present-tense statements describing the deleted give-back (one a printed check label), and a false equivalence claim. No behavioural defect; AST verified identical to 4203eaa apart from docstrings. Closed by SB-ASK-010."
+    }
+  ],
+  "repair_1": {
+    "trigger": "Agent C F1 on fea50f44, verified independently on its two-line witness",
+    "what_was_wrong": "not shipped output - the precompute means the backstop never fires - but the backstop itself, which is the last line of defence for exactly the leak class this package line exists to close, and which this package broke while claiming it was what made the survivors safe",
+    "fix": "the resume is deleted rather than repaired. It was never earning its place: last_closing_line is what made the classifier linear, not the resume. Over 20,000 openers the two measure the same to within run-to-run noise - Agent C's independent timing has the sign flipping between best and median - so the resume was buying nothing. Each pass now classifies from the first line.",
+    "evidence": "the two mutations that force the backstop to fire now differ from shipped output on 0 of 12,000 randomised notes; before the repair they differed on 371",
+    "f2_also": "the stale claim I reported as corrected survived in two more places - fixtures/README.md and the Multi Opener comment both still said the classifier 'restarts more than once', and a check label still credited 'the bound was large enough to settle every opener'. All 26 fixtures settle in one pass. All three corrected.",
+    "timings_after": {
+      "1000": 0.0022,
+      "4000": 0.0081,
+      "16000": 0.0325,
+      "64000": 0.1358
+    }
+  },
+  "repair_2": {
+    "trigger": "Agent C FAIL on 4203eaa, findings 1-5, all text-only; no behavioural defect found",
+    "what_was_wrong": "the commit that deleted the resume left four statements asserting it still exists, including the rewritten function's own documented return contract, and this receipt contradicted itself between known_limitations and repair_1. This is the third consecutive cycle of the same finding class in this package, and the class Agent C was explicitly charged to audit.",
+    "corrections": [
+      "F1/F2 of this cycle: _classify_once's docstring summary said 'optionally resumed part way' and its Returns clause described a third return value and a resume point. The function returns two values and has no resume parameter. Both rewritten; the summary now states what the function actually guarantees - it always starts from the first line.",
+      "F3: tests/test_retrieval_core_e2e.py declared 'the bound and the resume are unreachable... both are declared as backstops'. Only the bound exists; the comment now names only the bound.",
+      "F4: known_limitations said the resume was a live untestable backstop, contradicting repair_1.fix in the same file. Corrected to name only the bound and to record that the resume was deleted.",
+      "F5 (Agent C finding 4): the M25 equivalence declaration reached a true conclusion by a mechanism that does not apply to the function it named - last_closing_line has no rule branch. The stated reason was true of the other cutoff, in _classify_once. Both now stated separately with their actual reasons. Agent C notes this is the same shape as the F1 justification it failed last cycle: right words, wrong mechanism, differing only in that the conclusion held this time.",
+      "F6 (Agent C finding 5): '0.0428s against 0.0422s' was presented as a measurement settling whether the resume earned its place. Agent C's independent timing has the sign flipping between best and median, and 1.4% is not separable from noise on this workload. The conclusion stands; the specific figures are withdrawn in favour of 'the same to within run-to-run noise' in both the docstring and this receipt."
+    ],
+    "code_behaviour_changed": "none - every correction is to a docstring, a comment or this receipt",
+    "ast_check": "ast.dump of the candidate equals ast.dump of 4203eaa once docstrings are stripped - the repair changes no code"
+  },
+  "agent_c": {
+    "first_run": {
+      "sha": "fea50f44",
+      "verdict": "FAIL",
+      "finding": "F1, the false survivor-equivalence justification"
+    },
+    "second_run": {
+      "sha": "4203eaa8f8d95ed6b74d0d98c3d17120ce1e7899",
+      "verdict": "FAIL",
+      "findings": "1-5, all text-only; no behavioural defect",
+      "independent_confirmations": [
+        "the F1 leak is closed: 17 hand-built witnesses plus a tagged-token leak oracle over 20,000 structured notes x 3 max_chars = 180,000 checks, 0 leaks, with the backstop forced to fire",
+        "survivor claim re-measured on Agent C's own generator at 60,000 comparisons per mutant (receipt claimed 12,000): 0 differing for all four, plus a fifth variant it found itself",
+        "the measurement is not vacuous: M19 restarts on 5,515 of 20,000 notes up to 8 passes deep and still never differs, and the same generator detects the pre-repair bug on fea50f44 at 1,272 of 36,000",
+        "shipped never restarts: exactly 1 pass on all 20,000 generated notes and all 26 fixtures",
+        "linearity reproduced at 1k/4k/16k/64k, cost per line flat to within 9% across a 64x range",
+        "containment clean: 17 changed files matching this receipt file for file, no database/network/vault/home/.env/real-data surface",
+        "index_effect reproduced exactly: 24 notes, 37 chunks, 2 skipped"
+      ]
+    },
+    "third_run": {
+      "sha": "2fed7cb5d1b95b3de2719790fe7769664c977871",
+      "verdict": "FAIL",
+      "behavioural": "clean - AST-equality claim verified independently (docstring-stripped ast.dump equal; the test-file change is a # comment, so even the raw AST is equal), all five prior findings confirmed fixed, six commands exit 0, F1 witness clean with the backstop force-fired, 1,200 comparisons against 4203eaa with 0 differences, containment clean",
+      "findings": [
+        {
+          "id": "AC3-1",
+          "severity": "the fourth cycle of the staleness class",
+          "confirmed_by_executor": true,
+          "what": "four live present-tense statements describing the GIVE-BACK, a mechanism deleted two packages ago by SB-ASK-008 f77e494 ('decide before acting, so there is nothing to undo')",
+          "locations": [
+            "tests/test_retrieval_core_e2e.py:510-512",
+            "tests/test_retrieval_core_e2e.py:518-520",
+            "tests/test_retrieval_core_e2e.py:524 (a CHECK LABEL the suite prints on every passing run)",
+            "fixtures/README.md:31 ('the only way to reach that give-back path')"
+          ],
+          "why_the_checks_actually_pass": "ENCLOSEDSECRET stays out because _INLINE_COMMENT_RE.sub runs on the line before the opener search in the single pass - nothing is ever restored. RULEOPENER survives because last_closing_line returns 0, so the opener is literal at 1051-1057 and the rule branch is never entered - it is not given back, it is never taken away.",
+          "provenance": "git log -S dates all four to 350c7bc (SB-ASK-006 repair 2). They survived SB-ASK-008's deletion of the mechanism and both SB-ASK-009 repair cycles.",
+          "sharpest_point": "the same test file already carries the CORRECTLY past-tensed version at lines 349-354, 160 lines above the stale present-tense ones - the correction was made in one place in this very file and not the others. And repair_1 claims the sweep caught 'a check label still credited the bound was large enough'; the identical sub-class was left standing four lines from a label that was fixed.",
+          "executor_verification": "confirmed by direct grep; both 'restore' hits in the source (958, 1108) are past-tense history, so the stale text is confined to tests and fixtures/README"
+        },
+        {
+          "id": "AC3-2a",
+          "severity": "receipt self-contradiction, same shape as the one that failed 4203eaa",
+          "what": "regression_sweep.survivors_all_measured_equivalent[3] still carries the exact mechanism M25 withdrew ('the frontmatter closing --- is itself a thematic break, so it is dropped either way'), and still names a single 'frontmatter cutoff'. repair_2.corrections F5 claims 'Both now stated separately with their actual reasons' - only known_limitations was rewritten, so F5 falsifies itself.",
+          "executor_verification": "confirmed by reading the file"
+        },
+        {
+          "id": "AC3-2b",
+          "severity": "a false equivalence claim - the substantive one",
+          "confirmed_by_executor": true,
+          "what": "M25 asserts 'BOTH <= fm_end cutoffs are equivalent mutants'. The last_closing_line one is (airtight: frontmatter_end only returns a line stripping to exactly '---', which cannot contain '-->'). The _classify_once one at line 980 is NOT: _RULE_LINE_RE anchors ^[ \\t]* while frontmatter_end accepts any line whose .strip() is '---', so 15 whitespace codepoints (including \\xa0) separate them.",
+          "witness": "note '---/title: N/\\xa0---/PROSE...' with ONLY line 980 mutated to '<': shipped body 'PROSE line long enough...' against mutant body '---\\nPROSE line long enough...', start_line 4 against 3",
+          "executor_verification": "reproduced exactly. _RULE_LINE_RE.match('\\xa0---') is False while '\\xa0---'.strip() == '---' is True. The mutant is killable, so it does not belong on a list of survivors excused by construction.",
+          "shipped_behaviour": "correct and unchanged - this is a receipt over-claim, not a product defect",
+          "why_it_was_missed": "Agent C's 60,000-comparison and 200,000-note measurements, which M25 cites as support, were ASCII-only and could not have found it. The receipt generalised a measurement into a construction proof."
+        },
+        {
+          "id": "AC3-3",
+          "severity": "minor",
+          "what": "fixtures/README.md:39 says Fence Shapes Note.md carries 'four-plus backticks and tildes'. It carries no four-or-more-backtick fence; the only one in the vault is in Fence Closer Note.md."
+        },
+        {
+          "id": "AC3-4",
+          "severity": "minor, not counted by Agent C",
+          "what": "p1.measured (64000 -> 0.1428, taken on fea50f44 pre-repair) and repair_1.timings_after (64000 -> 0.1358) give two tables for the same quantity with no marker of which applies to the candidate"
+        }
+      ],
+      "agent_c_bottom_line": "The product is in good shape. The code is behaviourally byte-equivalent to a candidate verified exhaustively, the F1 leak is closed, and nothing here is a shipping risk. What fails is receipt-and-comment discipline, for the fourth cycle running and in the same two ways each time."
+    }
+  },
+  "hard_stop": {
+    "reason": "the standing work order allows at most two evidence-based repair cycles; both are used (repair_1 the resume deletion, repair_2 the stale-text corrections). Agent C's third verdict is FAIL. A third repair is not mine to take.",
+    "codex_not_run": "Codex review was not started. The workflow runs it only after Agent C passes, and never concurrently.",
+    "no_merge": "nothing merged, nothing promoted. uep/work is untouched at 4573b55; main untouched at 3bb0761; no remote.",
+    "candidate_sha": "2fed7cb5d1b95b3de2719790fe7769664c977871",
+    "branch": "uep/task-sb-ask-009",
+    "all_defects_are_text": "every open finding is a comment, a check label, a fixture README row or a receipt field. No product code change is implicated. The AST is identical to 4203eaa apart from docstrings.",
+    "resolution": "owner approved SB-ASK-010, a documentation-only cleanup package with no product-code changes"
+  }
+}
+
+codex
+The first substantive issue is in P2’s definition: the new pattern distinguishes marker types, but it still does not implement Markdown thematic-break syntax. I’m also stress-testing the “linear” claim at the per-line regex level, because the precompute only removes repeated whole-note passes.
+exec
+/bin/bash -lc "python3 -B - <<'PY'
+import importlib.util, pathlib, time
+p=pathlib.Path('src/ask-my-brain/ask_my_brain.py')
+s=importlib.util.spec_from_file_location('amb',p); m=importlib.util.module_from_spec(s); s.loader.exec_module(m)
+for text in [
+'# Title\\nVisible prose long enough for indexing.\\n* * *\\nAfter prose long enough for indexing.\\n',
+'# Title\\nVisible prose long enough for indexing.\\n    ---\\nAfter prose long enough for indexing.\\n',
+'<"'!-- a'"\\nsecret --> visible <"'!-- b'"\\nMore visible prose long enough for indexing.\\n',
+'<"'!-- a'"\\n"'```'"\\nsecret --> visible\\n"'```'"\\nMore visible prose long enough for indexing.\\n']:
+ print('---')
+ print(m.chunk_note(text,'x.md',3500))
+for n in [1000,2000,4000,8000,16000]:
+ lines=['<"'!--'"'*n]
+ t=time.perf_counter(); m.classify_markup(lines,0); d=time.perf_counter()-t
+ print(n, f'{d:.6f}')
+PY
+nl -ba src/ask-my-brain/ask_my_brain.py | sed -n '826,1145p'
+rg -n \"RULE_LINE|thematic|last_closing|classify_markup|comment|fence|restore|give-back|surviv\" tests/test_retrieval_core_e2e.py fixtures/README.md PACKAGE_RESULT.json | head -220" in /tmp/claude-1000/-home-jro-asb-product-work/3a6ea635-0952-4430-b51f-5ad9bf0bc6ac/scratchpad/codex-009
+ succeeded in 3966ms:
+---
+('Title', [{'heading': 'Title', 'body': 'Visible prose long enough for indexing.\n* * *\nAfter prose long enough for indexing.', 'start_line': 2, 'end_line': 4}])
+---
+('Title', [{'heading': 'Title', 'body': 'Visible prose long enough for indexing.\nAfter prose long enough for indexing.', 'start_line': 2, 'end_line': 4}])
+---
+('x', [{'heading': '', 'body': 'visible <!-- b\nMore visible prose long enough for indexing.', 'start_line': 2, 'end_line': 3}])
+---
+('x', [{'heading': '', 'body': 'visible\nMore visible prose long enough for indexing.', 'start_line': 3, 'end_line': 5}])
+1000 0.012389
+2000 0.048138
+4000 0.192333
+8000 0.767135
+16000 3.013818
+   826	    )
+   827	
+   828	
+   829	# A fenced-code delimiter, as Markdown actually defines one: at most three
+   830	# spaces of indent (four makes it an indented code block), a run of at least
+   831	# three backticks or tildes, and an optional info string.
+   832	_FENCE_LINE_RE = re.compile(
+   833	    r"^ {0,3}(?P<marker>`{3,}|~{3,})(?P<info>.*)$"
+   834	)
+   835	
+   836	
+   837	def fence_delimiter(
+   838	    line: str,
+   839	    open_marker,
+   840	):
+   841	    """Is this line a fence delimiter, and does it open or close?
+   842	
+   843	    Returns the marker that is now open ('```', '~~~~', ...), or None when
+   844	    no fence is open, or False when the line is not a delimiter at all and
+   845	    should be treated as ordinary content.
+   846	
+   847	    Treating every run of three backticks as a toggle was wrong in three
+   848	    separate ways, all of which put text where it should not be:
+   849	
+   850	    - a closing fence may not carry an info string, so inside a fence the
+   851	      line '```not-a-closer' is CONTENT. Toggling on it ended the fence
+   852	      early, which both destroyed the real fenced content that followed and
+   853	      let a heading inside the fence become the note's title.
+   854	    - a fence may be four or more backticks, or tildes. Not recognising
+   855	      those meant an author's literal fenced example lost its comments and
+   856	      rules.
+   857	    - a fence may be indented at most three spaces. Accepting deeper
+   858	      indentation meant an indented code block was read as a fence, which
+   859	      protected commented-out text and carried it into the evidence.
+   860	
+   861	    A closing fence must use the same character as its opener and be at
+   862	    least as long.
+   863	    """
+   864	
+   865	    match = _FENCE_LINE_RE.match(line)
+   866	
+   867	    if not match:
+   868	        return False
+   869	
+   870	    marker = match.group("marker")
+   871	    info = match.group("info")
+   872	
+   873	    if open_marker is None:
+   874	        # A backtick fence's info string may not itself contain a backtick.
+   875	        if (
+   876	            marker[0] == "`"
+   877	            and "`" in info
+   878	        ):
+   879	            return False
+   880	
+   881	        return marker
+   882	
+   883	    if (
+   884	        marker[0] == open_marker[0]
+   885	        and len(marker) >= len(open_marker)
+   886	        and info.strip() == ""
+   887	    ):
+   888	        return None
+   889	
+   890	    return False
+   891	
+   892	# A thematic break is three or more of ONE marker, not any mixture of them.
+   893	# Written as a character class, this deleted lines like '-=_*' that are not
+   894	# breaks at all - a latent error inherited from the base, where the pattern
+   895	# never fired because it was inert. '=' is kept as a marker so that a setext
+   896	# underline is still removed, which is the behaviour this line has always
+   897	# been declared to have.
+   898	_RULE_LINE_RE = re.compile(
+   899	    r"^[ \t]*"
+   900	    r"(?:\*{3,}|-{3,}|_{3,}|={3,})"
+   901	    r"[ \t]*$"
+   902	)
+   903	
+   904	_INLINE_COMMENT_RE = re.compile(
+   905	    r"<!--.*?-->"
+   906	)
+   907	
+   908	
+   909	def last_closing_line(
+   910	    lines: list[str],
+   911	    fm_end: int,
+   912	) -> int:
+   913	    """The last line number carrying a comment closing marker, or 0.
+   914	
+   915	    Whether a comment opener ever closes does not depend on fences or on any
+   916	    other classification: once a comment is open every following line is
+   917	    comment text until a '-->' appears, so the opener at line L closes if and
+   918	    only if some line after L carries one. Knowing that before classifying
+   919	    means an opener that cannot close is treated as literal text immediately,
+   920	    with no restart at all.
+   921	
+   922	    Complete comments on the opener's own line are removed before the opener
+   923	    is looked for, so no '-->' can remain after it on that line - which is why
+   924	    only LATER lines matter here.
+   925	    """
+   926	
+   927	    last = 0
+   928	
+   929	    for number, raw_line in enumerate(
+   930	        lines,
+   931	        start=1,
+   932	    ):
+   933	        if number <= fm_end:
+   934	            continue
+   935	
+   936	        if "-->" in raw_line:
+   937	            last = number
+   938	
+   939	    return last
+   940	
+   941	
+   942	def _classify_once(
+   943	    lines: list[str],
+   944	    fm_end: int,
+   945	    literal_openers: set,
+   946	    last_close: int = None,
+   947	) -> tuple:
+   948	    """Classify every line of the note, always starting from the first.
+   949	
+   950	    `literal_openers` holds the line numbers of '<!--' markers already known
+   951	    not to close; those are ordinary text and open nothing.
+   952	
+   953	    An earlier version of this function could resume part way, to avoid
+   954	    rescanning the prefix a restart would otherwise repeat. It was removed.
+   955	    The rescanning was never what made this quadratic - last_closing_line is
+   956	    what made it linear, by deciding openers up front - and over 20,000
+   957	    openers the two measured the same to within run-to-run noise, so the
+   958	    resume was buying nothing. It cost something real, though: it restored
+   959	    the fence marker but not the open-comment state, so a restart landing on
+   960	    a line where a comment had closed mid-line re-read the text before that
+   961	    closing marker as ordinary content. That text was inside a comment. The
+   962	    backstop is only worth having if it is correct, so it starts from the top.
+   963	
+   964	    Returns the classification and the line number of the first opener that
+   965	    reached the end of the note still unclosed (or None).
+   966	    """
+   967	
+   968	    if last_close is None:
+   969	        last_close = last_closing_line(lines, fm_end)
+   970	
+   971	    classified: list[dict] = []
+   972	    fence_marker = None
+   973	    open_at = None
+   974	
+   975	    for number, raw_line in enumerate(
+   976	        lines,
+   977	        start=1,
+   978	    ):
+   979	
+   980	        if number <= fm_end:
+   981	            classified.append(
+   982	                {
+   983	                    "number": number,
+   984	                    "kind": "drop",
+   985	                    "text": "",
+   986	                    "fenced": False,
+   987	                }
+   988	            )
+   989	            continue
+   990	
+   991	        line = raw_line.rstrip()
+   992	
+   993	        # An open comment is resolved BEFORE the fence test. A fence
+   994	        # delimiter inside a comment is comment text, not a delimiter.
+   995	        if open_at is not None:
+   996	            closing = line.find("-->")
+   997	
+   998	            if closing == -1:
+   999	                classified.append(
+  1000	                    {
+  1001	                        "number": number,
+  1002	                        "kind": "drop",
+  1003	                        "text": "",
+  1004	                        "fenced": False,
+  1005	                    }
+  1006	                )
+  1007	                continue
+  1008	
+  1009	            open_at = None
+  1010	            line = line[closing + 3:]
+  1011	
+  1012	        else:
+  1013	            delimiter = fence_delimiter(
+  1014	                line,
+  1015	                fence_marker,
+  1016	            )
+  1017	
+  1018	            if delimiter is not False:
+  1019	                fence_marker = delimiter
+  1020	                classified.append(
+  1021	                    {
+  1022	                        "number": number,
+  1023	                        "kind": "drop",
+  1024	                        "text": "",
+  1025	                        "fenced": True,
+  1026	                    }
+  1027	                )
+  1028	                continue
+  1029	
+  1030	        if fence_marker is not None:
+  1031	            classified.append(
+  1032	                {
+  1033	                    "number": number,
+  1034	                    "kind": "keep",
+  1035	                    "text": line,
+  1036	                    "fenced": True,
+  1037	                }
+  1038	            )
+  1039	            continue
+  1040	
+  1041	        # Complete comments on this line go first, so two of them cannot
+  1042	        # merge and text between them survives.
+  1043	        line = _INLINE_COMMENT_RE.sub(
+  1044	            " ",
+  1045	            line,
+  1046	        )
+  1047	
+  1048	        if number not in literal_openers:
+  1049	            opening = line.find("<!--")
+  1050	
+  1051	            # An opener with no closing marker after it can never close, so
+  1052	            # it is literal text and there is nothing to discover later.
+  1053	            if (
+  1054	                opening != -1
+  1055	                and number >= last_close
+  1056	            ):
+  1057	                literal_openers.add(number)
+  1058	                opening = -1
+  1059	
+  1060	            if opening != -1:
+  1061	                open_at = number
+  1062	                line = line[:opening]
+  1063	
+  1064	        line = line.rstrip()
+  1065	
+  1066	        if _RULE_LINE_RE.match(line):
+  1067	            classified.append(
+  1068	                {
+  1069	                    "number": number,
+  1070	                    "kind": "drop",
+  1071	                    "text": "",
+  1072	                    "fenced": False,
+  1073	                }
+  1074	            )
+  1075	            continue
+  1076	
+  1077	        classified.append(
+  1078	            {
+  1079	                "number": number,
+  1080	                "kind": "keep",
+  1081	                "text": line,
+  1082	                "fenced": False,
+  1083	            }
+  1084	        )
+  1085	
+  1086	    return classified, open_at
+  1087	
+  1088	
+  1089	def classify_markup(
+  1090	    lines: list[str],
+  1091	    fm_end: int,
+  1092	) -> list[dict]:
+  1093	    """Classify every line of a note once, before anything is chunked.
+  1094	
+  1095	    Returns one dict per line, aligned with `lines`, carrying:
+  1096	        number   1-based line number
+  1097	        kind     'keep' or 'drop'
+  1098	        text     the line's content after markup removal ('' when dropped)
+  1099	        fenced   True if the line sits inside a fenced block
+  1100	
+  1101	    Every markup decision here is line-local, so no pattern CAN span lines,
+  1102	    whatever it is written as. That is what closed the first three attempts
+  1103	    at this defect, each of which let a marker pattern run past its own line
+  1104	    and delete the content between two markers.
+  1105	
+  1106	    A comment may only remove text it actually encloses. An earlier version
+  1107	    discovered that after the fact and handed the swallowed lines back. That
+  1108	    restored their TEXT but not the STATE the wrong decision had produced:
+  1109	    fence tracking had already run with those lines consumed, so a heading
+  1110	    textually inside a fence could become the note's title and the fence
+  1111	    delimiters reached the evidence.
+  1112	
+  1113	    So the decision is made before it is acted on. The pass runs, and if a
+  1114	    comment opener turns out never to close, that opener is recorded as
+  1115	    ordinary text and the whole pass is run again with it. Each restart
+  1116	    settles one opener, so this terminates, and the classification that is
+  1117	    finally returned was computed with the right answer from the first line
+  1118	    - fence state included. There is nothing left to undo.
+  1119	    """
+  1120	
+  1121	    literal_openers: set = set()
+  1122	    classified: list[dict] = []
+  1123	    last_close = last_closing_line(lines, fm_end)
+  1124	
+  1125	    # With last_closing_line deciding openers up front, a pass should never
+  1126	    # report an unterminated opener and this loop should run exactly once.
+  1127	    # It is kept as a correctness backstop: if that decision were ever wrong
+  1128	    # in the direction of opening a comment that does not close, the restart
+  1129	    # still settles it rather than letting the comment swallow the note.
+  1130	    #
+  1131	    # Bounded, not merely convergent. Each restart settles one opener and a
+  1132	    # note has at most len(lines) of them, so the bound is never reached while
+  1133	    # this function is correct. It is written as a bound rather than a
+  1134	    # progress check because a progress check only catches the shape of
+  1135	    # non-progress it tests for: an earlier version guarded against the same
+  1136	    # opener being re-reported, and a change that simply stopped recording
+  1137	    # openers still span forever. Indexing a note must always finish, so the
+  1138	    # loop cannot depend on the body being right.
+  1139	    for _ in range(len(lines) + 1):
+  1140	        classified, unterminated = _classify_once(
+  1141	            lines,
+  1142	            fm_end,
+  1143	            literal_openers,
+  1144	            last_close,
+  1145	        )
+PACKAGE_RESULT.json:3:  "purpose": "Fix the two findings Codex raised against SB-ASK-008: the quadratic restart with no file-size cap, and a rule pattern that deleted mixed-punctuation lines that are not thematic breaks.",
+PACKAGE_RESULT.json:8:    "codex_on_the_mechanism": "'The restart repair is logically correct for D1's prior state-restoration failure. I found no path where commented-out text reaches the body, title, heading, FTS index, or evidence because of restart ordering.' Both findings were elsewhere.",
+PACKAGE_RESULT.json:36:    "fea50f4 SB-ASK-009: decide openers up front, and fix what counts as a thematic break",
+PACKAGE_RESULT.json:40:    "dd391c8 SB-ASK-007 repair 2: recognise fences properly instead of toggling on backticks",
+PACKAGE_RESULT.json:43:    "350c7bc SB-ASK-006 repair 2: the give-back must restore the line, not the raw line",
+PACKAGE_RESULT.json:44:    "473b9cd SB-ASK-006 repair 1: a comment may only remove text it actually encloses",
+PACKAGE_RESULT.json:45:    "44e7588 SB-ASK-006: repair D1 by making markup handling line-local and fence-aware"
+PACKAGE_RESULT.json:80:      "resuming from the settled opener did not help: the expensive part is scanning to the end of the note to DISCOVER a comment never closes",
+PACKAGE_RESULT.json:83:    "fix": "last_closing_line() answers, in one scan before classifying, whether any later line carries a closing marker. Whether an opener closes does not depend on fences or any other classification, because once a comment is open every following line is comment text until '-->'. An opener that cannot close is literal immediately, with no restart.",
+PACKAGE_RESULT.json:92:    "backstop": "the restart loop is kept for the case where that decision is ever wrong in the direction of opening a comment that does not close. No fixture needs more than one pass.",
+PACKAGE_RESULT.json:96:    "finding": "_RULE_LINE_RE was a character class, so any MIXTURE of break characters was deleted. '-=_*' is not a thematic break; the base kept it and SB-ASK-008 deleted it.",
+PACKAGE_RESULT.json:98:    "pinned_both_directions": "mixtures survive ('-=_*', '*-*-*-', '--'), runs of one marker are stripped ('---', '***', '___', '===')"
+PACKAGE_RESULT.json:100:  "stale_claim_corrected": "Bound Exactness Note's comment said it pinned the restart bound. Since openers are decided up front it settles in one pass, so it pins that each opener is literal and keeps its marker, and no longer exercises the bound. Corrected in the test and the fixtures README rather than left.",
+PACKAGE_RESULT.json:196:    "survived": 3,
+PACKAGE_RESULT.json:199:    "survivors_all_measured_equivalent": [
+PACKAGE_RESULT.json:205:    "withdrawn": "the reason originally given for this survivor - 'the frontmatter closing --- is itself a thematic break, so it is dropped either way' - was misattributed, and the survivorship itself was an artefact of an ASCII-only generator. See SB-ASK-010.",
+PACKAGE_RESULT.json:206:    "survivor_later_killed": [
+PACKAGE_RESULT.json:209:    "recount_note": "Agent C O5: entry [3] declared itself withdrawn while remaining in a list named for survivors, and the survived count still included it. It is now in its own field and the counts are restated: 3 survivors measured equivalent, 6 caught - the sixth by SB-ASK-010's NBSP witness, which did not exist when this sweep ran."
+PACKAGE_RESULT.json:224:    "REINDEX REQUIRED: chunk bodies, titles and, for a note with a heading-like line inside a fence, chunk boundaries all change. An index built before this commit carries marker text in its bodies and may carry a commented heading as a title.",
+PACKAGE_RESULT.json:225:    "Tilde fences, four-or-more-backtick fences and the three-space indent rule are now handled, and three of the five closer sub-rules are pinned: same character, not shorter, no info string. The other two are not - see the coverage gaps below. The previous receipt declared the first two as limitations; Codex ruled that dishonest about impact and it was.",
+PACKAGE_RESULT.json:227:    "After a comment closes mid-line, what remains is treated as text rather than re-tested as a fence delimiter. Either reading is defensible; declared rather than pinned.",
+PACKAGE_RESULT.json:228:    "Fence markers are removed from the evidence a note contributes, so a fenced block reaches the model as ordinary prose. The system prompt still declares all evidence untrusted, so no trust boundary changes.",
+PACKAGE_RESULT.json:230:    "Agent C F5, undeclared until now: 'a closer must be at least as long as its opener' is only half pinned. A SHORTER closer is pinned not to close; nothing pins that a LONGER one does. Shipped behaviour is correct. A regression here leaves the fence open longer, so it protects more and strips less - it cannot promote removed text into a title or the evidence.",
+PACKAGE_RESULT.json:232:    "Agent C F12: the rule that a TILDE fence's info string may contain a tilde is unpinned, although its backtick counterpart is pinned by Backtick Info Note. This is the tilde image of Codex's finding 2: a regression would fail to open the fence, so a literal tilde-fenced example would lose its comments. Content loss, not a leak.",
+PACKAGE_RESULT.json:234:    "Documentation debt, carried: the comment above the coverage-boundary block still says no question over these fixtures lands inside [0.30, 0.35). Two questions ten lines above it are now asserted to do exactly that, and Agent C measured both at 0.309 and 0.3397. The comment is false and self-contradicting. It is a comment, not an assertion, and the repair budget is exhausted, so it is recorded rather than fixed.",
+PACKAGE_RESULT.json:235:    "Restored after Agent C caught it being deleted: a heading line that itself opens a never-closing comment yields a title carrying the literal marker, e.g. 'Title: Something <!--'. Measured identical on SB-ASK-007 and here. I had removed this from the list as 'an edge of the give-back' when it is nothing of the kind - it is a property of treating an unterminated opener as literal text, which this design preserves by construction. Cosmetic: no commented-out content leaks, the marker is the note's own literal text. Only the G1 limitation was genuinely resolved.",
+PACKAGE_RESULT.json:236:    "A mutation removing the restart bound alone survives the suite, and always will: it is a defensive limit that correct code never reaches. Every mutation it exists to contain - progress broken in any shape - is caught now that it is a bound rather than a progress check.",
+PACKAGE_RESULT.json:237:    "Agent C, new and outside this package's surface: the readable-signal gate is >= 20 characters and no fixture sits near that boundary - the closest margin is 15 - so a mutation to >= 19 survives. The gate is byte-identical to base apart from re-indentation.",
+PACKAGE_RESULT.json:238:    "Agent C, new and outside this package's surface: no fixture carries an h4, h5 or h6 heading, so narrowing the chunk-heading pattern from #{1,6} to #{1,3} survives. Also byte-identical to base.",
+PACKAGE_RESULT.json:239:    "The restart bound is unreachable in correct code now that openers are decided up front - shipped classifies every one of 20,000 generated notes and all 26 fixtures in exactly one pass - so no output-level test can pin it. It is a backstop, and mutations to it survive the suite by construction. There is no resume: this package deleted it (see repair_1).",
+PACKAGE_RESULT.json:241:    "Agent C M25, now resolved by SB-ASK-010 and recorded here as a correction, not a limitation: my claim that BOTH '<= fm_end' comparisons are equivalent mutants was wrong in both halves. The classifier's (line 980) is killable on a real input - a non-breaking space before the closing marker - and is now pinned. The one in last_closing_line (line 933) was never a survivor either: mutating it fails an assertion this suite already had, on an input frontmatter_end cannot produce. This receipt's own sweep table listed that site as CAUGHT while known_limitations declared it equivalent by construction."
+PACKAGE_RESULT.json:248:      "reason": "the resume carried the fence marker but not the open-comment state, so a restart landing on a line where a comment had closed mid-line re-read comment text as content. My claim that all three survivors were output-equivalent because the backstop settles them was false, and it was the sole justification for leaving them untested."
+PACKAGE_RESULT.json:258:      "reason": "text only: four present-tense statements describing the deleted give-back (one a printed check label), and a false equivalence claim. No behavioural defect; AST verified identical to 4203eaa apart from docstrings. Closed by SB-ASK-010."
+PACKAGE_RESULT.json:263:    "what_was_wrong": "not shipped output - the precompute means the backstop never fires - but the backstop itself, which is the last line of defence for exactly the leak class this package line exists to close, and which this package broke while claiming it was what made the survivors safe",
+PACKAGE_RESULT.json:264:    "fix": "the resume is deleted rather than repaired. It was never earning its place: last_closing_line is what made the classifier linear, not the resume. Over 20,000 openers the two measure the same to within run-to-run noise - Agent C's independent timing has the sign flipping between best and median - so the resume was buying nothing. Each pass now classifies from the first line.",
+PACKAGE_RESULT.json:266:    "f2_also": "the stale claim I reported as corrected survived in two more places - fixtures/README.md and the Multi Opener comment both still said the classifier 'restarts more than once', and a check label still credited 'the bound was large enough to settle every opener'. All 26 fixtures settle in one pass. All three corrected.",
+PACKAGE_RESULT.json:279:      "F3: tests/test_retrieval_core_e2e.py declared 'the bound and the resume are unreachable... both are declared as backstops'. Only the bound exists; the comment now names only the bound.",
+PACKAGE_RESULT.json:281:      "F5 (Agent C finding 4): the M25 equivalence declaration reached a true conclusion by a mechanism that does not apply to the function it named - last_closing_line has no rule branch. The stated reason was true of the other cutoff, in _classify_once. Both now stated separately with their actual reasons. Agent C notes this is the same shape as the F1 justification it failed last cycle: right words, wrong mechanism, differing only in that the conclusion held this time.",
+PACKAGE_RESULT.json:284:    "code_behaviour_changed": "none - every correction is to a docstring, a comment or this receipt",
+PACKAGE_RESULT.json:291:      "finding": "F1, the false survivor-equivalence justification"
+PACKAGE_RESULT.json:299:        "survivor claim re-measured on Agent C's own generator at 60,000 comparisons per mutant (receipt claimed 12,000): 0 differing for all four, plus a fifth variant it found itself",
+PACKAGE_RESULT.json:310:      "behavioural": "clean - AST-equality claim verified independently (docstring-stripped ast.dump equal; the test-file change is a # comment, so even the raw AST is equal), all five prior findings confirmed fixed, six commands exit 0, F1 witness clean with the backstop force-fired, 1,200 comparisons against 4203eaa with 0 differences, containment clean",
+PACKAGE_RESULT.json:321:            "fixtures/README.md:31 ('the only way to reach that give-back path')"
+PACKAGE_RESULT.json:323:          "why_the_checks_actually_pass": "ENCLOSEDSECRET stays out because _INLINE_COMMENT_RE.sub runs on the line before the opener search in the single pass - nothing is ever restored. RULEOPENER survives because last_closing_line returns 0, so the opener is literal at 1051-1057 and the rule branch is never entered - it is not given back, it is never taken away.",
+PACKAGE_RESULT.json:324:          "provenance": "git log -S dates all four to 350c7bc (SB-ASK-006 repair 2). They survived SB-ASK-008's deletion of the mechanism and both SB-ASK-009 repair cycles.",
+PACKAGE_RESULT.json:326:          "executor_verification": "confirmed by direct grep; both 'restore' hits in the source (958, 1108) are past-tense history, so the stale text is confined to tests and fixtures/README"
+PACKAGE_RESULT.json:331:          "what": "regression_sweep.survivors_all_measured_equivalent[3] still carries the exact mechanism M25 withdrew ('the frontmatter closing --- is itself a thematic break, so it is dropped either way'), and still names a single 'frontmatter cutoff'. repair_2.corrections F5 claims 'Both now stated separately with their actual reasons' - only known_limitations was rewritten, so F5 falsifies itself.",
+PACKAGE_RESULT.json:338:          "what": "M25 asserts 'BOTH <= fm_end cutoffs are equivalent mutants'. The last_closing_line one is (airtight: frontmatter_end only returns a line stripping to exactly '---', which cannot contain '-->'). The _classify_once one at line 980 is NOT: _RULE_LINE_RE anchors ^[ \\t]* while frontmatter_end accepts any line whose .strip() is '---', so 15 whitespace codepoints (including \\xa0) separate them.",
+PACKAGE_RESULT.json:340:          "executor_verification": "reproduced exactly. _RULE_LINE_RE.match('\\xa0---') is False while '\\xa0---'.strip() == '---' is True. The mutant is killable, so it does not belong on a list of survivors excused by construction.",
+PACKAGE_RESULT.json:347:          "what": "fixtures/README.md:39 says Fence Shapes Note.md carries 'four-plus backticks and tildes'. It carries no four-or-more-backtick fence; the only one in the vault is in Fence Closer Note.md."
+PACKAGE_RESULT.json:355:      "agent_c_bottom_line": "The product is in good shape. The code is behaviourally byte-equivalent to a candidate verified exhaustively, the F1 leak is closed, and nothing here is a shipping risk. What fails is receipt-and-comment discipline, for the fourth cycle running and in the same two ways each time."
+PACKAGE_RESULT.json:364:    "all_defects_are_text": "every open finding is a comment, a check label, a fixture README row or a receipt field. No product code change is implicated. The AST is identical to 4203eaa apart from docstrings.",
+fixtures/README.md:26:| `10 Areas/Comment Marker Note.md` | comment shapes outside a fence: one between sentences, two on one line with text between and either side, one between two words with no spaces (the replacement is a space, not nothing), one spanning several lines and closing mid-line with text after it; plus a two-dash line that is NOT a rule, and a run of blank lines. All markers must go and every sentence kept (was defect D1, repaired by SB-ASK-006) |
+fixtures/README.md:27:| `10 Areas/Comment Fence Note.md` | a terminated comment containing a fence delimiter, which must still be removed in full, and an unterminated marker in prose, which must remove nothing at all. Resolving the fence before the comment state makes the first leak and the second swallow the note |
+fixtures/README.md:28:| `10 Areas/Commented Title Note.md` | a heading inside an HTML comment and a heading inside a fence, both before the note's real heading. Neither may become the title: the title is indexed at the highest bm25 column weight and is printed as `Title:` in the evidence block |
+fixtures/README.md:30:| `10 Areas/Hidden Title Only.md` | a note whose ONLY heading is inside a comment. The title falls back to the filename stem, and the no-signal fallback chunk therefore carries the filename rather than the comment |
+fixtures/README.md:31:| `10 Areas/Rule Opener Note.md` | an unterminated comment opener on a line that is otherwise a horizontal rule, with nothing else open. The rule branch returns early, so this is the only way to reach that give-back path |
+fixtures/README.md:32:| `10 Areas/Fence Shapes Note.md` | the three ways a fence delimiter is not simply "three backticks": a three-backtick line carrying an info string is content, not a closer; four-plus backticks and tildes are fences; four spaces of indent makes an indented code block, not a fence |
+fixtures/README.md:33:| `10 Areas/Break Markers Note.md` | mixtures of break characters, which are not thematic breaks and must survive, beside runs of a single marker, which are stripped |
+fixtures/README.md:35:| `10 Areas/Multi Opener Note.md` | three unterminated openers followed by a fence. Each must be literal text and the fence must still be recognised afterwards. Since SB-ASK-009 decides openers up front this settles in one pass and no longer exercises a restart |
+fixtures/README.md:36:| `10 Areas/Give Back Fence Note.md` | an unterminated comment opener followed by a fence containing a heading, and deliberately no real heading of its own. The fence must not have been swallowed: the fenced heading must not become the title, and the delimiters must still be dropped |
+fixtures/README.md:37:| `10 Areas/Fence Closer Note.md` | a four-backtick fence that a three-backtick line must not close, and a tilde fence that a backtick line must not close. Relaxing either rule ends the fence early and strips what was inside it |
+fixtures/README.md:38:| `10 Areas/Backtick Info Note.md` | a backtick line whose info string contains a backtick, which opens no fence |
+fixtures/README.md:39:| `10 Areas/Fenced Markup Note.md` | a fenced block containing a heading-like line, an HTML comment and a rule, all of which must survive verbatim, beside a comment and a rule OUTSIDE the fence which must be stripped. The heading-like line must not split the chunk |
+tests/test_retrieval_core_e2e.py:39:    D1  markup is stripped outside fenced blocks and only there       -> [chunking]  (SB-ASK-006)
+tests/test_retrieval_core_e2e.py:113:    Returns a restore callable."""
+tests/test_retrieval_core_e2e.py:122:    def restore():
+tests/test_retrieval_core_e2e.py:125:    return restore
+tests/test_retrieval_core_e2e.py:167:        restore_sqlite = watch_sqlite()
+tests/test_retrieval_core_e2e.py:168:        atexit.register(restore_sqlite)  # check() exits on first failure; never leak the spy
+tests/test_retrieval_core_e2e.py:283:        # it from the raw lines let a heading inside a comment or a fence become the title.
+tests/test_retrieval_core_e2e.py:286:        check(titled, "[chunking] the commented-title note is indexed")
+tests/test_retrieval_core_e2e.py:288:              f"[chunking] the title is the note's first REAL heading, not one inside a comment "
+tests/test_retrieval_core_e2e.py:289:              f"or a fence (got {[c['title'] for c in titled]})")
+tests/test_retrieval_core_e2e.py:292:              f"[chunking] no commented or fenced heading becomes any note's title (got {all_titles})")
+tests/test_retrieval_core_e2e.py:296:              "[chunking] and a commented heading is not reachable through the index at all")
+tests/test_retrieval_core_e2e.py:298:        # A note whose ONLY heading is commented out falls back to its filename, and the
+tests/test_retrieval_core_e2e.py:299:        # no-signal fallback chunk therefore carries the filename rather than the comment.
+tests/test_retrieval_core_e2e.py:302:              f"[chunking] a note whose only heading is commented falls back to its filename stem "
+tests/test_retrieval_core_e2e.py:305:              f"[chunking] so the fallback chunk body carries the filename, not the comment "
+tests/test_retrieval_core_e2e.py:310:              "[chunking] and that comment is unreachable through the index too")
+tests/test_retrieval_core_e2e.py:325:        # A fence delimiter is not just "three backticks". Treating it as a toggle failed three
+tests/test_retrieval_core_e2e.py:326:        # ways at once, each putting text where it should not be: a closing fence carries no info
+tests/test_retrieval_core_e2e.py:327:        # string, so inside a fence '```NOTACLOSER...' is CONTENT and toggling on it ended the
+tests/test_retrieval_core_e2e.py:328:        # fence early - destroying the real fenced content and letting a fenced heading become the
+tests/test_retrieval_core_e2e.py:329:        # title; a fence may be four or more backticks, or tildes; and a fence is indented at most
+tests/test_retrieval_core_e2e.py:330:        # three spaces, so four spaces is an indented code block and NOT a fence.
+tests/test_retrieval_core_e2e.py:333:        check(len(shapes) == 1, f"[chunking] the fence-shapes note is one chunk (got {len(shapes)})")
+tests/test_retrieval_core_e2e.py:336:              f"[chunking] a heading inside a fence that a false closer would have ended does not "
+tests/test_retrieval_core_e2e.py:339:              f"[chunking] a three-backtick line WITH an info string is fenced content, not a "
+tests/test_retrieval_core_e2e.py:342:              "[chunking] so the comment after it is still inside the fence and survives")
+tests/test_retrieval_core_e2e.py:344:              f"[chunking] a tilde fence is a fence, so its comment survives (got {shapes_body!r})")
+tests/test_retrieval_core_e2e.py:347:              f"fence, so the comment there is stripped like any other (got {shapes_body!r})")
+tests/test_retrieval_core_e2e.py:349:        # An unterminated comment opener must not have swallowed the fence that follows it.
+tests/test_retrieval_core_e2e.py:351:        # restored their TEXT but not the STATE: fence tracking had already run with the lines
+tests/test_retrieval_core_e2e.py:352:        # consumed, so a heading textually inside the fence became the note's TITLE - the highest
+tests/test_retrieval_core_e2e.py:353:        # weighted index column, printed verbatim to the model - and the fence delimiters reached
+tests/test_retrieval_core_e2e.py:358:              f"[chunking] the give-back-fence note is ONE chunk: the fence was never swallowed, "
+tests/test_retrieval_core_e2e.py:362:              f"[chunking] a heading inside a fence that an unterminated opener appeared to "
+tests/test_retrieval_core_e2e.py:367:              f"[chunking] while both lines survive as fenced content (got {gb_body!r})")
+tests/test_retrieval_core_e2e.py:371:              f"[chunking] and the fence delimiters are still dropped, because the fence was "
+tests/test_retrieval_core_e2e.py:372:              f"classified as a fence (got {gb_body!r})")
+tests/test_retrieval_core_e2e.py:374:        # A thematic break is three or more of ONE marker. Written as a character class the
+tests/test_retrieval_core_e2e.py:377:        # inert. Both directions are pinned: mixtures survive, single repeated markers go.
+tests/test_retrieval_core_e2e.py:382:                  f"[chunking] {kept!r} is not a thematic break and survives (got {marks!r})")
+tests/test_retrieval_core_e2e.py:387:        # Whether a comment opener ever closes is decided before classifying, from whether any
+tests/test_retrieval_core_e2e.py:390:        check(amb.last_closing_line(["a", "b <!-- x", "c -->", "d"], 0) == 3,
+tests/test_retrieval_core_e2e.py:392:        check(amb.last_closing_line(["a", "<!-- x", "b"], 0) == 0,
+tests/test_retrieval_core_e2e.py:394:        check(amb.last_closing_line(["-->", "a"], 1) == 0,
+tests/test_retrieval_core_e2e.py:406:            check(token in bound_body, f"[chunking] {token}'s line survives")
+tests/test_retrieval_core_e2e.py:411:        # Several unterminated openers followed by a fence. Since SB-ASK-009 decides openers up
+tests/test_retrieval_core_e2e.py:413:        # pins is that every opener is literal text and that the fence after them is still
+tests/test_retrieval_core_e2e.py:421:                  f"[chunking] {token}'s line survives with its literal marker: settling one "
+tests/test_retrieval_core_e2e.py:424:              f"[chunking] and the heading inside the fence below them is still not the title "
+tests/test_retrieval_core_e2e.py:427:              "[chunking] while both fenced lines survive as fenced content")
+tests/test_retrieval_core_e2e.py:429:              f"[chunking] and the delimiters are dropped, so the fence was classified as a "
+tests/test_retrieval_core_e2e.py:430:              f"fence after every opener had settled (got {multi_body!r})")
+tests/test_retrieval_core_e2e.py:432:        # A closing fence must use the SAME character as its opener and be at least as long,
+tests/test_retrieval_core_e2e.py:433:        # and a backtick fence's info string may not itself contain a backtick. Each of those
+tests/test_retrieval_core_e2e.py:434:        # three rules, relaxed, lets a fence end early - which strips content that was inside it.
+tests/test_retrieval_core_e2e.py:439:              f"[chunking] a three-backtick line cannot close a four-backtick fence, so the "
+tests/test_retrieval_core_e2e.py:440:              f"comment after it is still inside and survives (got {closer_body!r})")
+tests/test_retrieval_core_e2e.py:442:              f"[chunking] and a backtick line cannot close a tilde fence (got {closer_body!r})")
+tests/test_retrieval_core_e2e.py:446:              f"[chunking] a backtick line whose info string contains a backtick opens no fence, "
+tests/test_retrieval_core_e2e.py:447:              f"so a comment after it is stripped like any other (got {info_note!r})")
+tests/test_retrieval_core_e2e.py:451:        # D1, repaired by SB-ASK-006. Outside a fenced block, comments and rules are stripped.
+tests/test_retrieval_core_e2e.py:452:        comment_body = rows_of(database, "SELECT body FROM chunks WHERE path = ?",
+tests/test_retrieval_core_e2e.py:454:        check("<!--" not in comment_body and "pipeline marker" not in comment_body,
+tests/test_retrieval_core_e2e.py:455:              f"[chunking] an HTML comment is stripped from indexed evidence (got {comment_body!r})")
+tests/test_retrieval_core_e2e.py:456:        check("The first real sentence" in comment_body and "The second real sentence" in comment_body,
+tests/test_retrieval_core_e2e.py:458:        # Two comments on ONE line: a greedy stripper matches from the first '<!--' to the last
+tests/test_retrieval_core_e2e.py:460:        check("BRIDGE_TEXT" in comment_body,
+tests/test_retrieval_core_e2e.py:461:              f"[chunking] text between two comments on one line is kept: the stripper is not "
+tests/test_retrieval_core_e2e.py:462:              f"greedy (got {comment_body!r})")
+tests/test_retrieval_core_e2e.py:463:        check("Alpha BRIDGE_TEXT omega" in comment_body,
+tests/test_retrieval_core_e2e.py:465:        # A comment that opens on one line and closes several lines later.
+tests/test_retrieval_core_e2e.py:466:        check("runs across several lines" not in comment_body,
+tests/test_retrieval_core_e2e.py:467:              "[chunking] a comment spanning several lines is removed in full")
+tests/test_retrieval_core_e2e.py:468:        check("The third real sentence" in comment_body,
+tests/test_retrieval_core_e2e.py:469:              "[chunking] and the sentence after it survives")
+tests/test_retrieval_core_e2e.py:470:        check("\n\n\n" not in comment_body,
+tests/test_retrieval_core_e2e.py:471:              f"[chunking] a run of blank lines is collapsed to one (got {comment_body!r})")
+tests/test_retrieval_core_e2e.py:472:        check("The fourth real sentence" in comment_body,
+tests/test_retrieval_core_e2e.py:473:              "[chunking] and the sentence after that run survives")
+tests/test_retrieval_core_e2e.py:474:        # A comment is replaced by a SPACE, not by nothing, or the words either side fuse.
+tests/test_retrieval_core_e2e.py:475:        check("FUSEDLEFT FUSEDRIGHT" in comment_body,
+tests/test_retrieval_core_e2e.py:476:              f"[chunking] a comment between two words leaves them separated (got {comment_body!r})")
+tests/test_retrieval_core_e2e.py:478:        check("TAILAFTERCLOSE" in comment_body,
+tests/test_retrieval_core_e2e.py:480:        check("TAILNOSPACE" in comment_body,
+tests/test_retrieval_core_e2e.py:482:              f"hide an off-by-one in how far the closer is consumed (got {comment_body!r})")
+tests/test_retrieval_core_e2e.py:483:        check(">TAILNOSPACE" not in comment_body,
+tests/test_retrieval_core_e2e.py:485:              f"(got {comment_body!r})")
+tests/test_retrieval_core_e2e.py:487:        check("\n--\n" in comment_body,
+tests/test_retrieval_core_e2e.py:488:              f"[chunking] a two-character dash line is NOT a rule and survives (got {comment_body!r})")
+tests/test_retrieval_core_e2e.py:490:        # A comment must never consume text it does not enclose. The fence test has to be
+tests/test_retrieval_core_e2e.py:491:        # resolved AFTER an open comment, or a delimiter inside the comment steals its closing
+tests/test_retrieval_core_e2e.py:492:        # marker: either the commented-out text leaks into the evidence, or the rest of the note
+tests/test_retrieval_core_e2e.py:494:        fence_comment = rows_of(database, "SELECT * FROM chunks WHERE path = ? ORDER BY start_line",
+tests/test_retrieval_core_e2e.py:496:        check(len(fence_comment) == 1,
+tests/test_retrieval_core_e2e.py:497:              f"[chunking] the comment-fence note is one chunk (got {len(fence_comment)})")
+tests/test_retrieval_core_e2e.py:498:        fc_body = fence_comment[0]["body"]
+tests/test_retrieval_core_e2e.py:500:              f"[chunking] a comment containing a fence delimiter is still removed in full, so its "
+tests/test_retrieval_core_e2e.py:502:        check("Prose after the comment" in fc_body,
+tests/test_retrieval_core_e2e.py:503:              "[chunking] and the prose after that comment survives")
+tests/test_retrieval_core_e2e.py:510:        # The give-back must restore the line as it was AFTER complete comments were removed.
+tests/test_retrieval_core_e2e.py:511:        # Restoring the raw line resurrects a comment that genuinely closed, so one line reading
+tests/test_retrieval_core_e2e.py:514:              f"[chunking] a COMPLETE comment sharing a line with a surviving opener stays removed "
+tests/test_retrieval_core_e2e.py:520:        # other comment is already open.
+tests/test_retrieval_core_e2e.py:527:              "[chunking] and the prose after it survives")
+tests/test_retrieval_core_e2e.py:528:        # An odd number of fence delimiters inside a comment must not leave the fence latched on,
+tests/test_retrieval_core_e2e.py:531:              f"[chunking] an odd fence delimiter inside a comment does not latch the fence on, so "
+tests/test_retrieval_core_e2e.py:532:              f"later comments are still stripped (got {fc_body!r})")
+tests/test_retrieval_core_e2e.py:534:              "[chunking] and the prose around that later comment is kept")
+tests/test_retrieval_core_e2e.py:537:              f"[chunking] with two openers on one line the leftmost opens the comment, so neither "
+tests/test_retrieval_core_e2e.py:541:        # A comment closes at the FIRST '-->', not the last: a later '-->' on the same line is
+tests/test_retrieval_core_e2e.py:544:              f"[chunking] a comment closes at the first marker, so text between that marker and "
+tests/test_retrieval_core_e2e.py:545:              f"a later one on the same line survives (got {fc_body!r})")
+tests/test_retrieval_core_e2e.py:547:              f"[chunking] exactly one '-->' survives - the one that is ordinary text after the "
+tests/test_retrieval_core_e2e.py:548:              f"comment closed. The marker the comment consumed is gone (got {fc_body!r})")
+tests/test_retrieval_core_e2e.py:550:        # Inside a fenced block nothing is stripped: a note documenting markup legitimately
+tests/test_retrieval_core_e2e.py:551:        # contains a comment or a rule there. Three earlier attempts at D1 deleted exactly this.
+tests/test_retrieval_core_e2e.py:552:        fenced = rows_of(database, "SELECT * FROM chunks WHERE path = ? ORDER BY start_line",
+tests/test_retrieval_core_e2e.py:554:        check(len(fenced) == 1,
+tests/test_retrieval_core_e2e.py:555:              f"[chunking] the fenced-markup note is ONE chunk: a '#' line inside a fence is a shell "
+tests/test_retrieval_core_e2e.py:556:              f"comment, not a heading, and must not split it (got {len(fenced)})")
+tests/test_retrieval_core_e2e.py:557:        check(fenced[0]["heading"] == "Fenced Markup Note",
+tests/test_retrieval_core_e2e.py:558:              f"[chunking] and the chunk keeps the note's real heading (got {fenced[0]['heading']!r})")
+tests/test_retrieval_core_e2e.py:559:        fenced_body = fenced[0]["body"]
+tests/test_retrieval_core_e2e.py:560:        check("# rotate the credential before the deploy" in fenced_body,
+tests/test_retrieval_core_e2e.py:561:              f"[chunking] a heading-like line inside a fence survives verbatim (got {fenced_body!r})")
+tests/test_retrieval_core_e2e.py:562:        check("<!-- the rule above is part of the printed banner -->" in fenced_body,
+tests/test_retrieval_core_e2e.py:563:              "[chunking] an HTML comment inside a fence survives verbatim")
+tests/test_retrieval_core_e2e.py:564:        check("\n---\n" in fenced_body,
+tests/test_retrieval_core_e2e.py:565:              "[chunking] a rule inside a fence survives verbatim")
+tests/test_retrieval_core_e2e.py:566:        check(fenced_body.count("---") == 1,
+tests/test_retrieval_core_e2e.py:567:              f"[chunking] while the rule OUTSIDE the fence is stripped (got {fenced_body!r})")
+tests/test_retrieval_core_e2e.py:568:        check("a pipeline marker outside the fence" not in fenced_body,
+tests/test_retrieval_core_e2e.py:569:              "[chunking] and so is the comment outside the fence")
+tests/test_retrieval_core_e2e.py:570:        body_lines = fenced_body.split("\n")
+tests/test_retrieval_core_e2e.py:572:              f"[chunking] no line of the body is a fence delimiter: they are dropped "
+tests/test_retrieval_core_e2e.py:574:        for phrase in ("Prose before the fence", "Prose between the fence", "Prose after the rule"):
+tests/test_retrieval_core_e2e.py:575:            check(phrase in fenced_body, f"[chunking] {phrase!r} survives")
+tests/test_retrieval_core_e2e.py:576:        # A fence may be four or more backticks, and the declared limitation that said otherwise
+tests/test_retrieval_core_e2e.py:577:        # was itself a defect: an author's literal fenced example lost its comments. Repaired by
+tests/test_retrieval_core_e2e.py:579:        check("QUADSECRET" in fenced_body,
+tests/test_retrieval_core_e2e.py:580:              f"[chunking] a four-backtick block is a fence and its content is kept "
+tests/test_retrieval_core_e2e.py:581:              f"(got {fenced_body!r})")
+tests/test_retrieval_core_e2e.py:582:        check("QUADMARKER" in fenced_body,
+tests/test_retrieval_core_e2e.py:583:              f"[chunking] including a comment inside it, which is literal example text "
+tests/test_retrieval_core_e2e.py:584:              f"(got {fenced_body!r})")
+tests/test_retrieval_core_e2e.py:585:        check("````" not in fenced_body.split("\n"),
+tests/test_retrieval_core_e2e.py:589:        # that is no longer in the body. The rule and the comment are the last two markup lines
+tests/test_retrieval_core_e2e.py:592:        span_end = source[fenced[0]["end_line"] - 1]
+tests/test_retrieval_core_e2e.py:593:        check(span_end.strip() and span_end.strip() in fenced_body,
+tests/test_retrieval_core_e2e.py:595:              f"(line {fenced[0]['end_line']}: {span_end!r})")
+tests/test_retrieval_core_e2e.py:596:        span_start = source[fenced[0]["start_line"] - 1]
+tests/test_retrieval_core_e2e.py:597:        check(span_start.strip() and span_start.strip() in fenced_body,
+tests/test_retrieval_core_e2e.py:598:              f"[chunking] and starts on one too (line {fenced[0]['start_line']}: {span_start!r})")
+tests/test_retrieval_core_e2e.py:758:                  f"[search] and no row below the 0.30 coverage floor survives for {question!r}")
+tests/test_retrieval_core_e2e.py:870:              "[defect-pins] DEFECT D3 PINNED (not a requirement): a stopword survives as a search "
+
+exec
+/bin/bash -lc "nl -ba PACKAGE_RESULT.json | sed -n '72,110p;188,245p;300,390p'
+nl -ba tests/test_retrieval_core_e2e.py | sed -n '368,432p;504,530p'
+nl -ba fixtures/README.md | sed -n '27,42p'
+git diff --stat 4573b55d0e9d698a290ee2f7b5326ac87b95c379..HEAD && git diff --name-only 4573b55d0e9d698a290ee2f7b5326ac87b95c379..HEAD" in /tmp/claude-1000/-home-jro-asb-product-work/3a6ea635-0952-4430-b51f-5ad9bf0bc6ac/scratchpad/codex-009
+ succeeded in 0ms:
+    72	  ],
+    73	  "repair_cycles_used": 2,
+    74	  "agent_c_required": true,
+    75	  "codex_required": true,
+    76	  "codex_rationale": "D1 decides what text from an untrusted note reaches the answer model, and P1 concerns an indexing denial-of-service surface. Codex has overturned four declared limitations in this package line. The high-risk criteria are met.",
+    77	  "p1": {
+    78	    "finding": "the restart was O(N^2) and build_index applies no file-size cap, so note content controlled index-rebuild time",
+    79	    "two_wrong_attempts_before_the_right_one": [
+    80	      "resuming from the settled opener did not help: the expensive part is scanning to the end of the note to DISCOVER a comment never closes",
+    81	      "reusing the prefix instead of copying it did not help either; nor did indexing instead of slicing, though both were real costs"
+    82	    ],
+    83	    "fix": "last_closing_line() answers, in one scan before classifying, whether any later line carries a closing marker. Whether an opener closes does not depend on fences or any other classification, because once a comment is open every following line is comment text until '-->'. An opener that cannot close is literal immediately, with no restart.",
+    84	    "measured": {
+    85	      "1000": 0.0023,
+    86	      "4000": 0.0077,
+    87	      "16000": 0.0316,
+    88	      "64000": 0.1428
+    89	    },
+    90	    "sb_ask_008_for_comparison": "32000 lines took 125s",
+    91	    "equivalence": "differential against SB-ASK-008 with only the P2 fix applied, so P1 was the sole variable: 15,000 randomised notes across max_chars 3500, 200 and 40 - zero mismatches",
+    92	    "backstop": "the restart loop is kept for the case where that decision is ever wrong in the direction of opening a comment that does not close. No fixture needs more than one pass.",
+    93	    "measured_taken_on": "fea50f44, BEFORE the resume was deleted. repair_1.timings_after is the candidate's."
+    94	  },
+    95	  "p2": {
+    96	    "finding": "_RULE_LINE_RE was a character class, so any MIXTURE of break characters was deleted. '-=_*' is not a thematic break; the base kept it and SB-ASK-008 deleted it.",
+    97	    "fix": "a break is three or more of ONE marker. '=' stays a marker so a setext underline is still removed, which is the declared behaviour.",
+    98	    "pinned_both_directions": "mixtures survive ('-=_*', '*-*-*-', '--'), runs of one marker are stripped ('---', '***', '___', '===')"
+    99	  },
+   100	  "stale_claim_corrected": "Bound Exactness Note's comment said it pinned the restart bound. Since openers are decided up front it settles in one pass, so it pins that each opener is literal and keeps its marker, and no longer exercises the bound. Corrected in the test and the fixtures README rather than left.",
+   101	  "index_effect": {
+   102	    "notes_indexed": 24,
+   103	    "chunks_indexed": 37,
+   104	    "files_skipped": 2,
+   105	    "vs_uep_work_over_the_same_vault": {
+   106	      "identical_in_every_column": "13 of 24",
+   107	      "movers": {
+   108	        "10 Areas/Backtick Info Note.md": {
+   109	          "columns": [
+   110	            "body"
+   188	          "chunks": "2 -> 1"
+   189	        }
+   190	      }
+   191	    }
+   192	  },
+   193	  "regression_sweep": {
+   194	    "mutations": 9,
+   195	    "caught": 6,
+   196	    "survived": 3,
+   197	    "hung": 0,
+   198	    "method": "per-mutant output-equivalence measured over 12,000 randomised notes, not asserted",
+   199	    "survivors_all_measured_equivalent": [
+   200	      "the opener cutoff >= weakened to > : 0 of 12,000",
+   201	      "the precompute recording an opener but opening it anyway: 0 of 12,000",
+   202	      "the restart bound one pass short: 0 of 12,000"
+   203	    ],
+   204	    "note": "the first two are the mutations that forced the F1 leak before this repair. That they now measure 0 of 12,000 is the evidence the backstop is correct, not a claim that it is.",
+   205	    "withdrawn": "the reason originally given for this survivor - 'the frontmatter closing --- is itself a thematic break, so it is dropped either way' - was misattributed, and the survivorship itself was an artefact of an ASCII-only generator. See SB-ASK-010.",
+   206	    "survivor_later_killed": [
+   207	      "the frontmatter cutoff in _classify_once (line 980) weakened to '<': 0 of 12,000 on ASCII-only notes, which is why this measurement was mistaken for a proof. SB-ASK-010 killed it with a non-breaking space before the closing marker. NOT an equivalent mutant - withdrawn from this list."
+   208	    ],
+   209	    "recount_note": "Agent C O5: entry [3] declared itself withdrawn while remaining in a list named for survivors, and the survived count still included it. It is now in its own field and the counts are restated: 3 survivors measured equivalent, 6 caught - the sixth by SB-ASK-010's NBSP witness, which did not exist when this sweep ran."
+   210	  },
+   211	  "defects_still_open_and_still_pinned": [
+   212	    {
+   213	      "id": "D2",
+   214	      "severity": "HIGH",
+   215	      "why_not_here": "needs the reranker to take matched terms from what FTS5 returned instead of re-deriving them by string comparison"
+   216	    },
+   217	    {
+   218	      "id": "D3",
+   219	      "severity": "MEDIUM",
+   220	      "why_not_here": "coupled to D5: deterministic_evidence_strength returns HIGH for any all_terms match however few or generic the terms are"
+   221	    }
+   222	  ],
+   223	  "known_limitations": [
+   224	    "REINDEX REQUIRED: chunk bodies, titles and, for a note with a heading-like line inside a fence, chunk boundaries all change. An index built before this commit carries marker text in its bodies and may carry a commented heading as a title.",
+   225	    "Tilde fences, four-or-more-backtick fences and the three-space indent rule are now handled, and three of the five closer sub-rules are pinned: same character, not shorter, no info string. The other two are not - see the coverage gaps below. The previous receipt declared the first two as limitations; Codex ruled that dishonest about impact and it was.",
+   226	    "Setext underlines (=== under a heading) are consumed by the rule pattern, flattening setext headings.",
+   227	    "After a comment closes mid-line, what remains is treated as text rather than re-tested as a fence delimiter. Either reading is defensible; declared rather than pinned.",
+   228	    "Fence markers are removed from the evidence a note contributes, so a fenced block reaches the model as ordinary prose. The system prompt still declares all evidence untrusted, so no trust boundary changes.",
+   229	    "Carried forward: the coverage-boundary assertion all(r['term_coverage'] >= 0.30 for r in got) is vacuous on the zero-row iteration; and phrase_bonus, all_terms_bonus, the 0.30 floor, bm25 weights, the execute_match candidate limit and the fts_token prefix threshold remain unpinned.",
+   230	    "Agent C F5, undeclared until now: 'a closer must be at least as long as its opener' is only half pinned. A SHORTER closer is pinned not to close; nothing pins that a LONGER one does. Shipped behaviour is correct. A regression here leaves the fence open longer, so it protects more and strips less - it cannot promote removed text into a title or the evidence.",
+   231	    "Agent C F6: a closer carrying only trailing whitespace still closes, and that is unpinned. Same over-protective direction as F5.",
+   232	    "Agent C F12: the rule that a TILDE fence's info string may contain a tilde is unpinned, although its backtick counterpart is pinned by Backtick Info Note. This is the tilde image of Codex's finding 2: a regression would fail to open the fence, so a literal tilde-fenced example would lose its comments. Content loss, not a leak.",
+   233	    "Agent C C17, carried from SB-ASK-002 and not previously declared: max_chars split FIDELITY is unpinned. The suite asserts only that a piece is no longer than the maximum, so a mutant dropping one character from every piece passes. Shipped splitting is lossless, verified.",
+   234	    "Documentation debt, carried: the comment above the coverage-boundary block still says no question over these fixtures lands inside [0.30, 0.35). Two questions ten lines above it are now asserted to do exactly that, and Agent C measured both at 0.309 and 0.3397. The comment is false and self-contradicting. It is a comment, not an assertion, and the repair budget is exhausted, so it is recorded rather than fixed.",
+   235	    "Restored after Agent C caught it being deleted: a heading line that itself opens a never-closing comment yields a title carrying the literal marker, e.g. 'Title: Something <!--'. Measured identical on SB-ASK-007 and here. I had removed this from the list as 'an edge of the give-back' when it is nothing of the kind - it is a property of treating an unterminated opener as literal text, which this design preserves by construction. Cosmetic: no commented-out content leaks, the marker is the note's own literal text. Only the G1 limitation was genuinely resolved.",
+   236	    "A mutation removing the restart bound alone survives the suite, and always will: it is a defensive limit that correct code never reaches. Every mutation it exists to contain - progress broken in any shape - is caught now that it is a bound rather than a progress check.",
+   237	    "Agent C, new and outside this package's surface: the readable-signal gate is >= 20 characters and no fixture sits near that boundary - the closest margin is 15 - so a mutation to >= 19 survives. The gate is byte-identical to base apart from re-indentation.",
+   238	    "Agent C, new and outside this package's surface: no fixture carries an h4, h5 or h6 heading, so narrowing the chunk-heading pattern from #{1,6} to #{1,3} survives. Also byte-identical to base.",
+   239	    "The restart bound is unreachable in correct code now that openers are decided up front - shipped classifies every one of 20,000 generated notes and all 26 fixtures in exactly one pass - so no output-level test can pin it. It is a backstop, and mutations to it survive the suite by construction. There is no resume: this package deleted it (see repair_1).",
+   240	    "build_index still applies no file-size cap. That is no longer a denial-of-service surface now that classification is linear, but a very large note is still read wholly into memory.",
+   241	    "Agent C M25, now resolved by SB-ASK-010 and recorded here as a correction, not a limitation: my claim that BOTH '<= fm_end' comparisons are equivalent mutants was wrong in both halves. The classifier's (line 980) is killable on a real input - a non-breaking space before the closing marker - and is now pinned. The one in last_closing_line (line 933) was never a survivor either: mutating it fails an assertion this suite already had, on an input frontmatter_end cannot produce. This receipt's own sweep table listed that site as CAUGHT while known_limitations declared it equivalent by construction."
+   242	  ],
+   243	  "rollback": "abandon candidate branch uep/task-sb-ask-009 (uep/work unchanged at 4573b55d0e9d698a290ee2f7b5326ac87b95c379)",
+   244	  "superseded_candidates": [
+   245	    {
+   300	        "the measurement is not vacuous: M19 restarts on 5,515 of 20,000 notes up to 8 passes deep and still never differs, and the same generator detects the pre-repair bug on fea50f44 at 1,272 of 36,000",
+   301	        "shipped never restarts: exactly 1 pass on all 20,000 generated notes and all 26 fixtures",
+   302	        "linearity reproduced at 1k/4k/16k/64k, cost per line flat to within 9% across a 64x range",
+   303	        "containment clean: 17 changed files matching this receipt file for file, no database/network/vault/home/.env/real-data surface",
+   304	        "index_effect reproduced exactly: 24 notes, 37 chunks, 2 skipped"
+   305	      ]
+   306	    },
+   307	    "third_run": {
+   308	      "sha": "2fed7cb5d1b95b3de2719790fe7769664c977871",
+   309	      "verdict": "FAIL",
+   310	      "behavioural": "clean - AST-equality claim verified independently (docstring-stripped ast.dump equal; the test-file change is a # comment, so even the raw AST is equal), all five prior findings confirmed fixed, six commands exit 0, F1 witness clean with the backstop force-fired, 1,200 comparisons against 4203eaa with 0 differences, containment clean",
+   311	      "findings": [
+   312	        {
+   313	          "id": "AC3-1",
+   314	          "severity": "the fourth cycle of the staleness class",
+   315	          "confirmed_by_executor": true,
+   316	          "what": "four live present-tense statements describing the GIVE-BACK, a mechanism deleted two packages ago by SB-ASK-008 f77e494 ('decide before acting, so there is nothing to undo')",
+   317	          "locations": [
+   318	            "tests/test_retrieval_core_e2e.py:510-512",
+   319	            "tests/test_retrieval_core_e2e.py:518-520",
+   320	            "tests/test_retrieval_core_e2e.py:524 (a CHECK LABEL the suite prints on every passing run)",
+   321	            "fixtures/README.md:31 ('the only way to reach that give-back path')"
+   322	          ],
+   323	          "why_the_checks_actually_pass": "ENCLOSEDSECRET stays out because _INLINE_COMMENT_RE.sub runs on the line before the opener search in the single pass - nothing is ever restored. RULEOPENER survives because last_closing_line returns 0, so the opener is literal at 1051-1057 and the rule branch is never entered - it is not given back, it is never taken away.",
+   324	          "provenance": "git log -S dates all four to 350c7bc (SB-ASK-006 repair 2). They survived SB-ASK-008's deletion of the mechanism and both SB-ASK-009 repair cycles.",
+   325	          "sharpest_point": "the same test file already carries the CORRECTLY past-tensed version at lines 349-354, 160 lines above the stale present-tense ones - the correction was made in one place in this very file and not the others. And repair_1 claims the sweep caught 'a check label still credited the bound was large enough'; the identical sub-class was left standing four lines from a label that was fixed.",
+   326	          "executor_verification": "confirmed by direct grep; both 'restore' hits in the source (958, 1108) are past-tense history, so the stale text is confined to tests and fixtures/README"
+   327	        },
+   328	        {
+   329	          "id": "AC3-2a",
+   330	          "severity": "receipt self-contradiction, same shape as the one that failed 4203eaa",
+   331	          "what": "regression_sweep.survivors_all_measured_equivalent[3] still carries the exact mechanism M25 withdrew ('the frontmatter closing --- is itself a thematic break, so it is dropped either way'), and still names a single 'frontmatter cutoff'. repair_2.corrections F5 claims 'Both now stated separately with their actual reasons' - only known_limitations was rewritten, so F5 falsifies itself.",
+   332	          "executor_verification": "confirmed by reading the file"
+   333	        },
+   334	        {
+   335	          "id": "AC3-2b",
+   336	          "severity": "a false equivalence claim - the substantive one",
+   337	          "confirmed_by_executor": true,
+   338	          "what": "M25 asserts 'BOTH <= fm_end cutoffs are equivalent mutants'. The last_closing_line one is (airtight: frontmatter_end only returns a line stripping to exactly '---', which cannot contain '-->'). The _classify_once one at line 980 is NOT: _RULE_LINE_RE anchors ^[ \\t]* while frontmatter_end accepts any line whose .strip() is '---', so 15 whitespace codepoints (including \\xa0) separate them.",
+   339	          "witness": "note '---/title: N/\\xa0---/PROSE...' with ONLY line 980 mutated to '<': shipped body 'PROSE line long enough...' against mutant body '---\\nPROSE line long enough...', start_line 4 against 3",
+   340	          "executor_verification": "reproduced exactly. _RULE_LINE_RE.match('\\xa0---') is False while '\\xa0---'.strip() == '---' is True. The mutant is killable, so it does not belong on a list of survivors excused by construction.",
+   341	          "shipped_behaviour": "correct and unchanged - this is a receipt over-claim, not a product defect",
+   342	          "why_it_was_missed": "Agent C's 60,000-comparison and 200,000-note measurements, which M25 cites as support, were ASCII-only and could not have found it. The receipt generalised a measurement into a construction proof."
+   343	        },
+   344	        {
+   345	          "id": "AC3-3",
+   346	          "severity": "minor",
+   347	          "what": "fixtures/README.md:39 says Fence Shapes Note.md carries 'four-plus backticks and tildes'. It carries no four-or-more-backtick fence; the only one in the vault is in Fence Closer Note.md."
+   348	        },
+   349	        {
+   350	          "id": "AC3-4",
+   351	          "severity": "minor, not counted by Agent C",
+   352	          "what": "p1.measured (64000 -> 0.1428, taken on fea50f44 pre-repair) and repair_1.timings_after (64000 -> 0.1358) give two tables for the same quantity with no marker of which applies to the candidate"
+   353	        }
+   354	      ],
+   355	      "agent_c_bottom_line": "The product is in good shape. The code is behaviourally byte-equivalent to a candidate verified exhaustively, the F1 leak is closed, and nothing here is a shipping risk. What fails is receipt-and-comment discipline, for the fourth cycle running and in the same two ways each time."
+   356	    }
+   357	  },
+   358	  "hard_stop": {
+   359	    "reason": "the standing work order allows at most two evidence-based repair cycles; both are used (repair_1 the resume deletion, repair_2 the stale-text corrections). Agent C's third verdict is FAIL. A third repair is not mine to take.",
+   360	    "codex_not_run": "Codex review was not started. The workflow runs it only after Agent C passes, and never concurrently.",
+   361	    "no_merge": "nothing merged, nothing promoted. uep/work is untouched at 4573b55; main untouched at 3bb0761; no remote.",
+   362	    "candidate_sha": "2fed7cb5d1b95b3de2719790fe7769664c977871",
+   363	    "branch": "uep/task-sb-ask-009",
+   364	    "all_defects_are_text": "every open finding is a comment, a check label, a fixture README row or a receipt field. No product code change is implicated. The AST is identical to 4203eaa apart from docstrings.",
+   365	    "resolution": "owner approved SB-ASK-010, a documentation-only cleanup package with no product-code changes"
+   366	  }
+   367	}
+   368	        check("an unterminated opener that must not swallow" in gb_body,
+   369	              "[chunking] and the unterminated opener is kept as the literal text it is")
+   370	        check("```" not in gb_body,
+   371	              f"[chunking] and the fence delimiters are still dropped, because the fence was "
+   372	              f"classified as a fence (got {gb_body!r})")
+   373	
+   374	        # A thematic break is three or more of ONE marker. Written as a character class the
+   375	        # pattern deleted any mixture of them, so an ordinary line like '-=_*' was destroyed -
+   376	        # a latent error inherited from the base, where the pattern never fired because it was
+   377	        # inert. Both directions are pinned: mixtures survive, single repeated markers go.
+   378	        marks = rows_of(database, "SELECT body FROM chunks WHERE path = ?",
+   379	                        "10 Areas/Break Markers Note.md")[0]["body"]
+   380	        for kept in ("MIXEDMARKS-=_*", "\n-=_*\n", "\n*-*-*-\n", "\n--\n"):
+   381	            check(kept in marks,
+   382	                  f"[chunking] {kept!r} is not a thematic break and survives (got {marks!r})")
+   383	        for dropped in ("\n---\n", "\n***\n", "\n___\n", "\n===\n"):
+   384	            check(dropped not in marks,
+   385	                  f"[chunking] {dropped!r} is a run of one marker and is stripped (got {marks!r})")
+   386	
+   387	        # Whether a comment opener ever closes is decided before classifying, from whether any
+   388	        # later line carries a closing marker. That is what makes the classifier linear instead
+   389	        # of restarting over the whole note per opener.
+   390	        check(amb.last_closing_line(["a", "b <!-- x", "c -->", "d"], 0) == 3,
+   391	              "[chunking] the last closing marker's line is found")
+   392	        check(amb.last_closing_line(["a", "<!-- x", "b"], 0) == 0,
+   393	              "[chunking] and a note with no closing marker reports none")
+   394	        check(amb.last_closing_line(["-->", "a"], 1) == 0,
+   395	              "[chunking] a marker inside frontmatter does not count")
+   396	
+   397	        # A note whose every line is an unterminated opener. Since openers are now decided up
+   398	        # front this settles in a single pass, so these checks no longer pin the restart bound -
+   399	        # they pin that every such opener is literal text and keeps its marker. The bound itself
+   400	        # is unreachable in correct code and cannot be pinned at the output level, so it is
+   401	        # declared as a backstop in the receipt rather than claimed as tested.
+   402	        bound = rows_of(database, "SELECT * FROM chunks WHERE path = ? ORDER BY start_line",
+   403	                        "10 Areas/Bound Exactness Note.md")
+   404	        bound_body = "\n".join(c["body"] for c in bound)
+   405	        for token in ("BOUNDONE", "BOUNDTWO", "BOUNDTHREE", "BOUNDFOUR"):
+   406	            check(token in bound_body, f"[chunking] {token}'s line survives")
+   407	        check("BOUNDFOUR line carrying an opener <!--" in bound_body,
+   408	              f"[chunking] and the LAST line keeps its literal marker, like every other "
+   409	              f"(got {bound_body!r})")
+   410	
+   411	        # Several unterminated openers followed by a fence. Since SB-ASK-009 decides openers up
+   412	        # front this settles in one pass, so it no longer exercises a restart either; what it
+   413	        # pins is that every opener is literal text and that the fence after them is still
+   414	        # recognised - the whole point of settling before acting.
+   415	        multi = rows_of(database, "SELECT * FROM chunks WHERE path = ? ORDER BY start_line",
+   416	                        "10 Areas/Multi Opener Note.md")
+   417	        check(len(multi) == 1, f"[chunking] the multi-opener note is one chunk (got {len(multi)})")
+   418	        multi_body = multi[0]["body"]
+   419	        for token in ("MULTIONE", "MULTITWO", "MULTITHREE"):
+   420	            check(token in multi_body,
+   421	                  f"[chunking] {token}'s line survives with its literal marker: settling one "
+   422	                  f"opener does not disturb the others (got {multi_body!r})")
+   423	        check(multi[0]["title"] == "Multi Opener Note",
+   424	              f"[chunking] and the heading inside the fence below them is still not the title "
+   425	              f"(got {multi[0]['title']!r})")
+   426	        check("MULTIFENCEDHEADING" in multi_body and "MULTIFENCEDCONTENT" in multi_body,
+   427	              "[chunking] while both fenced lines survive as fenced content")
+   428	        check("```" not in multi_body,
+   429	              f"[chunking] and the delimiters are dropped, so the fence was classified as a "
+   430	              f"fence after every opener had settled (got {multi_body!r})")
+   431	
+   432	        # A closing fence must use the SAME character as its opener and be at least as long,
+   504	        # An UNTERMINATED marker encloses nothing, so it may remove nothing.
+   505	        check("ORPHAN_TAIL" in fc_body,
+   506	              f"[chunking] an unterminated marker does not swallow the rest of the note "
+   507	              f"(got {fc_body!r})")
+   508	        check("an opener <!-- that never closes" in fc_body,
+   509	              "[chunking] and its line is kept, the marker treated as the literal text it is")
+   510	        # The give-back must restore the line as it was AFTER complete comments were removed.
+   511	        # Restoring the raw line resurrects a comment that genuinely closed, so one line reading
+   512	        # '<!--metadata--> <!--' would put the metadata back into the evidence.
+   513	        check("ENCLOSEDSECRET" not in fc_body,
+   514	              f"[chunking] a COMPLETE comment sharing a line with a surviving opener stays removed "
+   515	              f"(got {fc_body!r})")
+   516	        check("ENCLOSEDLINE" in fc_body,
+   517	              "[chunking] while that line's own prose is kept")
+   518	        # An opener whose line begins with a rule must still be given back, not destroyed. It
+   519	        # needs its own note: the rule branch returns early, so this path is only reached when no
+   520	        # other comment is already open.
+   521	        rule_opener = rows_of(database, "SELECT body FROM chunks WHERE path = ?",
+   522	                              "10 Areas/Rule Opener Note.md")[0]["body"]
+   523	        check("RULEOPENER" in rule_opener,
+   524	              f"[chunking] an unterminated opener on a rule line is given back too "
+   525	              f"(got {rule_opener!r})")
+   526	        check("Closing prose" in rule_opener,
+   527	              "[chunking] and the prose after it survives")
+   528	        # An odd number of fence delimiters inside a comment must not leave the fence latched on,
+   529	        # or everything after it stops being stripped.
+   530	        check("LATCHSECRET" not in fc_body,
+    27	| `10 Areas/Comment Fence Note.md` | a terminated comment containing a fence delimiter, which must still be removed in full, and an unterminated marker in prose, which must remove nothing at all. Resolving the fence before the comment state makes the first leak and the second swallow the note |
+    28	| `10 Areas/Commented Title Note.md` | a heading inside an HTML comment and a heading inside a fence, both before the note's real heading. Neither may become the title: the title is indexed at the highest bm25 column weight and is printed as `Title:` in the evidence block |
+    29	| `10 Areas/Title Precedence Note.md` | a level-two heading, then two level-one headings. The title must be the FIRST level-one heading: neither the level-two heading above it nor the second level-one heading below it |
+    30	| `10 Areas/Hidden Title Only.md` | a note whose ONLY heading is inside a comment. The title falls back to the filename stem, and the no-signal fallback chunk therefore carries the filename rather than the comment |
+    31	| `10 Areas/Rule Opener Note.md` | an unterminated comment opener on a line that is otherwise a horizontal rule, with nothing else open. The rule branch returns early, so this is the only way to reach that give-back path |
+    32	| `10 Areas/Fence Shapes Note.md` | the three ways a fence delimiter is not simply "three backticks": a three-backtick line carrying an info string is content, not a closer; four-plus backticks and tildes are fences; four spaces of indent makes an indented code block, not a fence |
+    33	| `10 Areas/Break Markers Note.md` | mixtures of break characters, which are not thematic breaks and must survive, beside runs of a single marker, which are stripped |
+    34	| `10 Areas/Bound Exactness Note.md` | every line an unterminated opener. Pins that each is treated as literal text and keeps its marker. Since SB-ASK-009 decides openers up front this settles in one pass, so it no longer exercises the restart bound |
+    35	| `10 Areas/Multi Opener Note.md` | three unterminated openers followed by a fence. Each must be literal text and the fence must still be recognised afterwards. Since SB-ASK-009 decides openers up front this settles in one pass and no longer exercises a restart |
+    36	| `10 Areas/Give Back Fence Note.md` | an unterminated comment opener followed by a fence containing a heading, and deliberately no real heading of its own. The fence must not have been swallowed: the fenced heading must not become the title, and the delimiters must still be dropped |
+    37	| `10 Areas/Fence Closer Note.md` | a four-backtick fence that a three-backtick line must not close, and a tilde fence that a backtick line must not close. Relaxing either rule ends the fence early and strips what was inside it |
+    38	| `10 Areas/Backtick Info Note.md` | a backtick line whose info string contains a backtick, which opens no fence |
+    39	| `10 Areas/Fenced Markup Note.md` | a fenced block containing a heading-like line, an HTML comment and a rule, all of which must survive verbatim, beside a comment and a rule OUTSIDE the fence which must be stripped. The heading-like line must not split the chunk |
+    40	| `10 Areas/Diacritics Note.md` | accented characters. FTS5 indexes them correctly but `search()` cannot reach them (finding D2); this note pins that defect |
+    41	| `10 Areas/Bare Note.md` | no headings and no frontmatter: title falls back to the filename stem |
+    42	| `10 Areas/Empty Signal Note.md` | frontmatter only, below the readable-signal threshold |
+ fixtures/README.md                               |  19 +-
+ fixtures/vault/10 Areas/Backtick Info Note.md    |   8 +
+ fixtures/vault/10 Areas/Bound Exactness Note.md  |   4 +
+ fixtures/vault/10 Areas/Break Markers Note.md    |  15 +
+ fixtures/vault/10 Areas/Comment Fence Note.md    |  24 ++
+ fixtures/vault/10 Areas/Comment Marker Note.md   |  17 +
+ fixtures/vault/10 Areas/Commented Title Note.md  |  11 +
+ fixtures/vault/10 Areas/Fence Closer Note.md     |  17 +
+ fixtures/vault/10 Areas/Fence Shapes Note.md     |  20 ++
+ fixtures/vault/10 Areas/Fenced Markup Note.md    |  26 ++
+ fixtures/vault/10 Areas/Give Back Fence Note.md  |   9 +
+ fixtures/vault/10 Areas/Hidden Title Only.md     |   3 +
+ fixtures/vault/10 Areas/Multi Opener Note.md     |  10 +
+ fixtures/vault/10 Areas/Rule Opener Note.md      |   7 +
+ fixtures/vault/10 Areas/Title Precedence Note.md |  11 +
+ src/ask-my-brain/ask_my_brain.py                 | 422 ++++++++++++++++++++---
+ tests/test_retrieval_core_e2e.py                 | 372 ++++++++++++++++++--
+ 17 files changed, 916 insertions(+), 79 deletions(-)
+fixtures/README.md
+fixtures/vault/10 Areas/Backtick Info Note.md
+fixtures/vault/10 Areas/Bound Exactness Note.md
+fixtures/vault/10 Areas/Break Markers Note.md
+fixtures/vault/10 Areas/Comment Fence Note.md
+fixtures/vault/10 Areas/Comment Marker Note.md
+fixtures/vault/10 Areas/Commented Title Note.md
+fixtures/vault/10 Areas/Fence Closer Note.md
+fixtures/vault/10 Areas/Fence Shapes Note.md
+fixtures/vault/10 Areas/Fenced Markup Note.md
+fixtures/vault/10 Areas/Give Back Fence Note.md
+fixtures/vault/10 Areas/Hidden Title Only.md
+fixtures/vault/10 Areas/Multi Opener Note.md
+fixtures/vault/10 Areas/Rule Opener Note.md
+fixtures/vault/10 Areas/Title Precedence Note.md
+src/ask-my-brain/ask_my_brain.py
+tests/test_retrieval_core_e2e.py
+
+codex
+Verdict: **FAIL**
+
+1. **HIGH — Classification remains quadratic on a single long line, so P1’s index-build DoS is not closed.**
+
+   - Fault: [`ask_my_brain.py:904`](</tmp/claude-1000/-home-jro-asb-product-work/3a6ea635-0952-4430-b51f-5ad9bf0bc6ac/scratchpad/codex-009/src/ask-my-brain/ask_my_brain.py:904>)
+
+     ```python
+     _INLINE_COMMENT_RE = re.compile(r"<!--.*?-->")
+     ...
+     line = _INLINE_COMMENT_RE.sub(" ", line)
+     ```
+
+   - Witness: one line containing `<!--` repeated N times, with no `-->`.
+   - Cause: for every possible opener, the lazy `.*?` searches the remaining suffix for a closer. With no closer, total work is quadratic in the number of openers.
+   - Measured with `python3 -B`, calling `classify_markup([ "<!--" * n ], 0)`:
+
+     | Openers | Time |
+     |---:|---:|
+     | 1,000 | 0.012 s |
+     | 2,000 | 0.048 s |
+     | 4,000 | 0.192 s |
+     | 8,000 | 0.767 s |
+     | 16,000 | 3.014 s |
+
+     Doubling input produces approximately 4× runtime.
+
+   - Observed: a 64 KB adversarial line already takes roughly three seconds; larger uncapped notes can control rebuild time superlinearly.
+   - Expected: classification time linear in total note size.
+   - `last_closing_line()` removes the earlier repeated whole-note scan, but does not make `_INLINE_COMMENT_RE.sub()` linear.
+   - This directly falsifies the receipt’s “classification is linear” and “no longer a denial-of-service surface” claims at [`PACKAGE_RESULT.json:240`](</tmp/claude-1000/-home-jro-asb-product-work/3a6ea635-0952-4430-b51f-5ad9bf0bc6ac/scratchpad/codex-009/PACKAGE_RESULT.json:240>) and the reproduced-linearity claim at line 302.
+
+2. **MEDIUM — `_RULE_LINE_RE` still does not recognize Markdown thematic breaks correctly and deletes indented code.**
+
+   - Fault: [`ask_my_brain.py:892`](</tmp/claude-1000/-home-jro-asb-product-work/3a6ea635-0952-4430-b51f-5ad9bf0bc6ac/scratchpad/codex-009/src/ask-my-brain/ask_my_brain.py:892>)
+
+     ```python
+     r"^[ \t]*(?:\*{3,}|-{3,}|_{3,}|={3,})[ \t]*$"
+     ```
+
+   - Witness A:
+
+     ```markdown
+     # Title
+     Visible prose long enough for indexing.
+     * * *
+     After prose long enough for indexing.
+     ```
+
+     Observed `chunk_note()` body retains `* * *`. Expected: it is a valid Markdown thematic break and should be stripped. Markdown permits spaces between identical markers.
+
+   - Witness B:
+
+     ```markdown
+     # Title
+     Visible prose long enough for indexing.
+         ---
+     After prose long enough for indexing.
+     ```
+
+     Observed: the four-space-indented `---` is deleted. Expected: four leading spaces make this indented code, not a thematic break, so it should survive. The expression accepts unlimited spaces and tabs rather than at most three leading spaces.
+
+   - `=` is not a Markdown thematic-break marker; retaining `===` may be the project’s declared setext-cleanup behavior, but it does not make the pattern an exact thematic-break implementation.
+   - The tests at [`test_retrieval_core_e2e.py:374`](</tmp/claude-1000/-home-jro-asb-product-work/3a6ea635-0952-4430-b51f-5ad9bf0bc6ac/scratchpad/codex-009/tests/test_retrieval_core_e2e.py:374>) cover only contiguous runs and therefore cannot detect either error.
+   - P2 does correctly stop deleting mixed-marker strings such as `-=_*`; the defect is that its claimed Markdown coverage remains incomplete and overbroad.
+
+3. **LOW — The receipt still contains materially false product conclusions.**
+
+   - [`PACKAGE_RESULT.json:240`](</tmp/claude-1000/-home-jro-asb-product-work/3a6ea635-0952-4430-b51f-5ad9bf0bc6ac/scratchpad/codex-009/PACKAGE_RESULT.json:240>) says the lack of a file-size cap is no longer a DoS surface because classification is linear. Finding 1 disproves that.
+   - [`PACKAGE_RESULT.json:364`](</tmp/claude-1000/-home-jro-asb-product-work/3a6ea635-0952-4430-b51f-5ad9bf0bc6ac/scratchpad/codex-009/PACKAGE_RESULT.json:364>) says every open finding is textual and no product code is implicated. Findings 1 and 2 implicate shipped product code.
+   - The receipt itself accurately records Agent C’s prior documentation failures, including stale “give-back” descriptions at test lines 510–524 and fixture README line 31. Those descriptions remain stale, but they rank below the product defects above.
+
+I found **no content-leakage witness** in the shipped comment state machine. Static tracing and direct calls confirmed that the previous witness—
+
+```text
+<!-- a
+secret --> visible <!-- b
+```
+
+—produces only `visible <!-- b` plus subsequent visible prose; `secret` does not enter the body or title. A `-->` inside a visually fenced region also correctly closes an already-open comment because fence syntax is comment text while the comment is open. CRLF and no-final-newline inputs are normalized safely by `splitlines()`.
+
+`last_closing_line()` is sound for the classifier’s first-`-->` comment semantics, and the current precomputation makes the restart backstop unreachable. If invoked, `len(lines) + 1` passes are sufficient for at most one newly settled line number per pass; it cannot spin indefinitely. Heading selection also correctly excludes classified comments and fenced headings.
+tokens used
+47,796
+Verdict: **FAIL**
+
+1. **HIGH — Classification remains quadratic on a single long line, so P1’s index-build DoS is not closed.**
+
+   - Fault: [`ask_my_brain.py:904`](</tmp/claude-1000/-home-jro-asb-product-work/3a6ea635-0952-4430-b51f-5ad9bf0bc6ac/scratchpad/codex-009/src/ask-my-brain/ask_my_brain.py:904>)
+
+     ```python
+     _INLINE_COMMENT_RE = re.compile(r"<!--.*?-->")
+     ...
+     line = _INLINE_COMMENT_RE.sub(" ", line)
+     ```
+
+   - Witness: one line containing `<!--` repeated N times, with no `-->`.
+   - Cause: for every possible opener, the lazy `.*?` searches the remaining suffix for a closer. With no closer, total work is quadratic in the number of openers.
+   - Measured with `python3 -B`, calling `classify_markup([ "<!--" * n ], 0)`:
+
+     | Openers | Time |
+     |---:|---:|
+     | 1,000 | 0.012 s |
+     | 2,000 | 0.048 s |
+     | 4,000 | 0.192 s |
+     | 8,000 | 0.767 s |
+     | 16,000 | 3.014 s |
+
+     Doubling input produces approximately 4× runtime.
+
+   - Observed: a 64 KB adversarial line already takes roughly three seconds; larger uncapped notes can control rebuild time superlinearly.
+   - Expected: classification time linear in total note size.
+   - `last_closing_line()` removes the earlier repeated whole-note scan, but does not make `_INLINE_COMMENT_RE.sub()` linear.
+   - This directly falsifies the receipt’s “classification is linear” and “no longer a denial-of-service surface” claims at [`PACKAGE_RESULT.json:240`](</tmp/claude-1000/-home-jro-asb-product-work/3a6ea635-0952-4430-b51f-5ad9bf0bc6ac/scratchpad/codex-009/PACKAGE_RESULT.json:240>) and the reproduced-linearity claim at line 302.
+
+2. **MEDIUM — `_RULE_LINE_RE` still does not recognize Markdown thematic breaks correctly and deletes indented code.**
+
+   - Fault: [`ask_my_brain.py:892`](</tmp/claude-1000/-home-jro-asb-product-work/3a6ea635-0952-4430-b51f-5ad9bf0bc6ac/scratchpad/codex-009/src/ask-my-brain/ask_my_brain.py:892>)
+
+     ```python
+     r"^[ \t]*(?:\*{3,}|-{3,}|_{3,}|={3,})[ \t]*$"
+     ```
+
+   - Witness A:
+
+     ```markdown
+     # Title
+     Visible prose long enough for indexing.
+     * * *
+     After prose long enough for indexing.
+     ```
+
+     Observed `chunk_note()` body retains `* * *`. Expected: it is a valid Markdown thematic break and should be stripped. Markdown permits spaces between identical markers.
+
+   - Witness B:
+
+     ```markdown
+     # Title
+     Visible prose long enough for indexing.
+         ---
+     After prose long enough for indexing.
+     ```
+
+     Observed: the four-space-indented `---` is deleted. Expected: four leading spaces make this indented code, not a thematic break, so it should survive. The expression accepts unlimited spaces and tabs rather than at most three leading spaces.
+
+   - `=` is not a Markdown thematic-break marker; retaining `===` may be the project’s declared setext-cleanup behavior, but it does not make the pattern an exact thematic-break implementation.
+   - The tests at [`test_retrieval_core_e2e.py:374`](</tmp/claude-1000/-home-jro-asb-product-work/3a6ea635-0952-4430-b51f-5ad9bf0bc6ac/scratchpad/codex-009/tests/test_retrieval_core_e2e.py:374>) cover only contiguous runs and therefore cannot detect either error.
+   - P2 does correctly stop deleting mixed-marker strings such as `-=_*`; the defect is that its claimed Markdown coverage remains incomplete and overbroad.
+
+3. **LOW — The receipt still contains materially false product conclusions.**
+
+   - [`PACKAGE_RESULT.json:240`](</tmp/claude-1000/-home-jro-asb-product-work/3a6ea635-0952-4430-b51f-5ad9bf0bc6ac/scratchpad/codex-009/PACKAGE_RESULT.json:240>) says the lack of a file-size cap is no longer a DoS surface because classification is linear. Finding 1 disproves that.
+   - [`PACKAGE_RESULT.json:364`](</tmp/claude-1000/-home-jro-asb-product-work/3a6ea635-0952-4430-b51f-5ad9bf0bc6ac/scratchpad/codex-009/PACKAGE_RESULT.json:364>) says every open finding is textual and no product code is implicated. Findings 1 and 2 implicate shipped product code.
+   - The receipt itself accurately records Agent C’s prior documentation failures, including stale “give-back” descriptions at test lines 510–524 and fixture README line 31. Those descriptions remain stale, but they rank below the product defects above.
+
+I found **no content-leakage witness** in the shipped comment state machine. Static tracing and direct calls confirmed that the previous witness—
+
+```text
+<!-- a
+secret --> visible <!-- b
+```
+
+—produces only `visible <!-- b` plus subsequent visible prose; `secret` does not enter the body or title. A `-->` inside a visually fenced region also correctly closes an already-open comment because fence syntax is comment text while the comment is open. CRLF and no-final-newline inputs are normalized safely by `splitlines()`.
+
+`last_closing_line()` is sound for the classifier’s first-`-->` comment semantics, and the current precomputation makes the restart backstop unreachable. If invoked, `len(lines) + 1` passes are sufficient for at most one newly settled line number per pass; it cannot spin indefinitely. Heading selection also correctly excludes classified comments and fenced headings.

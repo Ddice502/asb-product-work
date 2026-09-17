@@ -1,0 +1,366 @@
+{
+  "package": "SB-ASK-012",
+  "title": "CODEX-1: bound the inline-comment pattern; pin CODEX-2 as D6",
+  "owner_approval": "one narrow package for CODEX-1 plus tests for both CODEX-2 witnesses",
+  "base": "a797797d8283a2d5fadd3bfd9618bb005d041dcc (SB-ASK-011 candidate; Agent C PASS, Codex PASS)",
+  "integration_base": "uep/work 4573b55",
+  "candidate_sha": "48752ee8db2ea0e8b8ad78dd784238de237b3533",
+  "branch": "uep/task-sb-ask-012",
+  "repair_cycles_used": 2,
+  "changed_files": [
+    "src/ask-my-brain/ask_my_brain.py",
+    "tests/test_retrieval_core_e2e.py"
+  ],
+  "src_change": "behavioural change: one site in _classify_once, 5 lines removed, 17 added, 7 of the added lines comment (83ad280). Repair 2 additionally corrects one comment above _RULE_LINE_RE. ast.dump of ask_my_brain.py is identical between 0089904 and this candidate.",
+  "tests": [
+    {
+      "command": "python3 -B tests/test_retrieval_core_e2e.py",
+      "exit_code": 0,
+      "last_line": "PASS retrieval_core_e2e: 251 checks"
+    },
+    {
+      "command": "python3 -B tests/test_ask_grounding_integration.py",
+      "exit_code": 0,
+      "last_line": "PASS ask_grounding_integration: 59 checks"
+    },
+    {
+      "command": "python3 -B tests/test_source_references.py",
+      "exit_code": 0,
+      "last_line": "PASS source_references: 19 checks"
+    },
+    {
+      "command": "python3 -B tests/test_weak_evidence.py",
+      "exit_code": 0,
+      "last_line": "PASS weak_evidence: 24 checks"
+    },
+    {
+      "command": "python3 -B tests/test_search_row_adapter.py",
+      "exit_code": 0,
+      "last_line": "PASS search_row_adapter: 32 checks"
+    },
+    {
+      "command": "python3 -B src/ask-my-brain/ask_my_brain.py --help",
+      "exit_code": 0
+    }
+  ],
+  "codex_1": {
+    "defect": "_INLINE_COMMENT_RE.sub over a whole line was quadratic in the '<!--' openers on that line",
+    "fix": "the pattern is shown only line[:last '-->' + 3]; a line with no '-->' is not shown to it at all",
+    "why_it_is_equivalent": "every match ends in '-->', so none can extend past the last one or begin after it",
+    "measured": {
+      "before_32000_openers_one_line": "11.976s",
+      "after_32000_openers_one_line": "0.00003s (best of 5)",
+      "after_256000": "0.0003s"
+    },
+    "differential": "60,000 randomised adversarial notes, classify_markup and chunk_note compared against a797797: 0 differing",
+    "introduced_at": "44e7588 (SB-ASK-006). Absent at uep/work 4573b55; present in every candidate of the unmerged line until this one.",
+    "why_it_was_missed": "my SB-ASK-009 benchmark put one opener per LINE, the shape that package fixed, and I generalised it to 'classification is linear'"
+  },
+  "shape_sweep": {
+    "what": "21 adversarial shapes through chunk_note at N=8,000 and N=32,000",
+    "worst_ratio_for_4x_input": "4.9x",
+    "flagged_superlinear": 0,
+    "vs_uep_work": "WITHDRAWN: 'each within about 2x' was false and contradicted by my own table. See vs_uep_work_measured.",
+    "limit": "a sweep of shapes I thought of. It is NOT a proof that classification is linear, and no such claim is made."
+  },
+  "pins": {
+    "equivalence": "6 witnesses; expected text taken from a797797's output, not written by hand",
+    "spy": "pattern shown nothing for a no-closer line; exactly '<!-- a -->' for a one-closer line",
+    "timing": "32,000-opener line under 2.0s; 11.976s measured before the change"
+  },
+  "mutation_check": {
+    "caught": [
+      "M1 guard removed - caught by the spy check",
+      "M2 pattern not shown the last closer",
+      "M3 first closer instead of last",
+      "M4 text after the last closer dropped",
+      "M5 rule pattern limited to three spaces (fails the indented D6 pin)",
+      "M6 spaced asterisks recognised (fails the spaced D6 pin)"
+    ],
+    "survived": [],
+    "limit": "the suite stops at its first failure, so M1 never reached the timing check. That check's liveness rests on the 11.976s measurement against its 2.0s bound, not on a mutation."
+  },
+  "codex_2_as_D6": {
+    "status": "PINNED, not repaired, as approved",
+    "witness_a": "'* * *' is a thematic break and is kept",
+    "witness_b": "'    ---' is not one and is deleted",
+    "pre_existing": "WITHDRAWN - false for witness (b). uep/work's rule pattern is r\"(?m)^\\\\s*[-=_*]{3,}\\\\s*$\" - doubled backslashes, so it looks for a literal backslash and matches no rule line. It is not strictly inert: Agent C showed it deletes lines such as a marker run wrapped in literal backslashes. '* * *' is kept there only because no rule line is stripped. Deleting '    ---' became live at 44e7588 (SB-ASK-006). Measured: kept at 4573b55, deleted at 44e7588 and at this candidate.",
+    "consequence_for_the_owner": "the 'pin, not repair' scope was approved after I stated both witnesses were pre-existing. Witness (b) is instead a deletion the unmerged line introduces relative to uep/work. Pinned as approved; the repair decision is the owner's."
+  },
+  "unchanged_and_out_of_scope": [
+    "build_index still has no file-size cap",
+    "D2 and D3/D5 remain open and pinned"
+  ],
+  "derived_line_citations": {
+    "fix_site": {
+      "file": "src/ask-my-brain/ask_my_brain.py",
+      "anchor": "last_closer = line.rfind(\"-->\")",
+      "line": 1049
+    },
+    "codex1_checks": {
+      "file": "tests/test_retrieval_core_e2e.py",
+      "anchor": "# Codex, on SB-ASK-009: substituting complete comments",
+      "line": 428
+    },
+    "d6_pins": {
+      "file": "tests/test_retrieval_core_e2e.py",
+      "anchor": "# D6 (MEDIUM, Codex on SB-ASK-009)",
+      "line": 970
+    }
+  },
+  "superseded_candidates": [
+    {
+      "sha": "83ad2808f9c44de38bfe277a18fb60dc5bd76b56",
+      "agent_c": "FAIL on prose (B1, B2); the product fix could not be broken"
+    },
+    {
+      "sha": "0089904761914c3054123ae21304b3db6513240c",
+      "agent_c": "PASS",
+      "codex": "FAIL - one blocking sentence, 'matches nothing', in the D6 test comment"
+    }
+  ],
+  "vs_uep_work_measured": {
+    "method": "chunk_note, N=32,000, best of 5, candidate vs 4573b55",
+    "rows": [
+      {
+        "shape": "one line: '<!--'*N",
+        "uep_work_ms": 0.072,
+        "candidate_ms": 0.104,
+        "ratio": 1.4
+      },
+      {
+        "shape": "one line: '<!--'*N + '-->'",
+        "uep_work_ms": 0.071,
+        "candidate_ms": 0.81,
+        "ratio": 11.4
+      },
+      {
+        "shape": "one line: '<!-->'*N",
+        "uep_work_ms": 0.085,
+        "candidate_ms": 1.202,
+        "ratio": 14.1
+      },
+      {
+        "shape": "one line: '<!--a-->'*N",
+        "uep_work_ms": 0.131,
+        "candidate_ms": 2.107,
+        "ratio": 16.1
+      },
+      {
+        "shape": "one line: '-'*N + 'x'",
+        "uep_work_ms": 0.027,
+        "candidate_ms": 0.603,
+        "ratio": 22.1
+      },
+      {
+        "shape": "one line: ' '*N + 'x'",
+        "uep_work_ms": 0.037,
+        "candidate_ms": 1.26,
+        "ratio": 34.0
+      },
+      {
+        "shape": "one line: 'word '*N",
+        "uep_work_ms": 0.092,
+        "candidate_ms": 0.146,
+        "ratio": 1.6
+      },
+      {
+        "shape": "N lines: '<!-- o'",
+        "uep_work_ms": 24.292,
+        "candidate_ms": 45.53,
+        "ratio": 1.9
+      },
+      {
+        "shape": "N lines: 'c -->'",
+        "uep_work_ms": 22.671,
+        "candidate_ms": 49.005,
+        "ratio": 2.2
+      },
+      {
+        "shape": "N lines: '```'",
+        "uep_work_ms": 15.365,
+        "candidate_ms": 18.362,
+        "ratio": 1.2
+      },
+      {
+        "shape": "N lines: '# h'",
+        "uep_work_ms": 71.459,
+        "candidate_ms": 63.521,
+        "ratio": 0.9
+      },
+      {
+        "shape": "N lines: '---'",
+        "uep_work_ms": 15.716,
+        "candidate_ms": 20.037,
+        "ratio": 1.3
+      }
+    ],
+    "summary": "per-line shapes 0.9x-2.2x; single-line shapes up to 34x, every one under 2.2ms absolute"
+  },
+  "repair_1": {
+    "trigger": "Agent C FAIL on 83ad280",
+    "b1": "D6 provenance corrected in the test comment and here",
+    "b2": "the 2x claim withdrawn and replaced by a measured table",
+    "o1": "'8 of them comment' corrected to 7",
+    "o2": "the timing comment's absolute replaced by the two measured margins (about 60,000x above the new cost, about a sixth of the old)",
+    "product_code": "unchanged - src/ byte-identical to 83ad280"
+  },
+  "agent_c": {
+    "first_run": {
+      "sha": "83ad280",
+      "verdict": "FAIL",
+      "could_not_break": [
+        "equivalence: proof, 240,000 differential inputs incl. embedded \\n \\r \\x0b \\x0c \\x85 U+2028/9, 12,093,235 exhaustive strings to length 9",
+        "leakage oracle: 80,000 runs, 162,764 tokens, 0 leaked",
+        "performance claim and the bisect to 44e7588 reproduced",
+        "all 11 new checks falsifiable; the timing check independently live at 11.970s with the spy disabled",
+        "spy restored in try/finally"
+      ]
+    },
+    "second_run": {
+      "sha": "0089904761914c3054123ae21304b3db6513240c",
+      "verdict": "PASS",
+      "blocking": "none",
+      "confirmed": [
+        "src/ byte-identical to 83ad280 and the test file's AST string-identical, so the behavioural verification of 83ad280 transfers",
+        "every clause of the new D6 comment against 4573b55 and 44e7588 across 13 rule shapes; 44e7588's parent is 4573b55",
+        "all 12 rows of vs_uep_work_measured reproduced, plus 17 further single-line shapes - worst ratio 33.1x, worst absolute 2.04ms",
+        "both timing margins (about 61,400x above the new cost; about 1/5.9 of the old)",
+        "P1 patterns, timings and provenance across all 44 commits",
+        "the repair commit corrects 83ad280's unamendable message clearly enough for a reader of the log"
+      ],
+      "observations_non_blocking": [
+        "O1: 'matches nothing' in the test comment and repair commit is a false absolute - the base pattern matches lines wrapped in literal backslashes. 'deletes no rule line at all', the clause that matters, is true. Corrected in this receipt to 'matches no rule line'; the in-tree comment carries the loose form.",
+        "O2: this receipt's quote of the base pattern decoded to the WORKING pattern because of JSON escaping. Corrected above.",
+        "O3: the repair commit message says '13 million exhaustive strings'; Agent C's figure is 12,093,235. The commit message rounds up wrongly and cannot be amended; this receipt carries the exact figure.",
+        "O4: the measured table has 12 rows where the original sweep had 21 shapes; the summary bounds held against Agent C's 17 additional shapes.",
+        "O5: 'Neither is a fault uep/work has' reads slightly strong alone; the two sentences after it make the passage accurate as a whole."
+      ]
+    },
+    "third_run": {
+      "sha": "48752ee8db2ea0e8b8ad78dd784238de237b3533",
+      "verdict": "FAIL",
+      "verified_sound": [
+        "comment-only premise: ast.dump identical to 0089904 AND to 83ad280 for both files; every changed line a '#' comment",
+        "251 / 59 / 19 / 24 / 32, --help exit 0",
+        "the three rewritten sentences exactly true against measurement at 4573b55 across 38 line shapes and four revisions",
+        "no new false statement introduced",
+        "fresh 40,000-input differential vs a797797: 0 differing; 20,000-run leak oracle: 0 leaked; guard and both D6 pins live"
+      ],
+      "blocking": {
+        "id": "B1",
+        "confirmed_by_executor": true,
+        "where": "src/ask-my-brain/ask_my_brain.py:1207-1209, the comment at the top of flush() in chunk_note; introduced at 44e7588 (SB-ASK-006), untouched by either repair",
+        "text": "Both patterns were previously written with doubled backslashes, which made them match a literal backslash and never fire (defect D1).",
+        "false_twice": [
+          "'never fire': the base r\"\\\\n{3,}\" fires on a literal backslash-n run - and CORRUPTS it. Executor reproduced: 'path C:\\\\nnnnotes here' is indexed at uep/work as 'C:' + two newlines + 'otes here'; the candidate keeps it verbatim.",
+          "'Both patterns ... doubled backslashes': the base has r\"[ \\t]+\" with a SINGLE backslash at line 875, and it works there. Only the newline pattern at line 881 was doubled."
+        ],
+        "why_the_sweep_missed_it": "the executor grepped for 'never fired'; this text says 'never fire'. One letter. Agent C was asked to search by meaning and found it with a plain grep.",
+        "severity_note": "comment text only, in the line since SB-ASK-006, survived every earlier review including Agent C's and Codex's. No behaviour implicated."
+      },
+      "receipt_defects": [
+        "R1 two of three line citations stale by one - corrected above by re-derivation",
+        "R2 instances_found undercount - corrected above"
+      ],
+      "non_blocking": "the src sentence \"'=' is kept ... so that a setext underline is still removed, which is the behaviour this line has always been declared to have\" is true as 'declared' (intent, not effect) but is the loosest sentence left; 'still' would be better anchored to 'since SB-ASK-006'"
+    }
+  },
+  "for_owner_decision": [
+    {
+      "id": "P1",
+      "found_by": "Agent C",
+      "severity": "same threat model as CODEX-1",
+      "what": "the heading patterns '^(#{1,6})\\s+(.+?)\\s*$' in chunk_note and '^#\\s+(.+?)\\s*$' in note_title backtrack quadratically through an interior whitespace run",
+      "witness": "'# x' + ' '*N + 'y'",
+      "measured_by_executor": {
+        "4000": "0.075s",
+        "8000": "0.297s",
+        "16000": "1.171s"
+      },
+      "agent_c_32000": "4.87s",
+      "agent_c_64000": "18.9s",
+      "provenance": "identical at uep/work and in every commit back to the import - NOT introduced by this line",
+      "status": "out of scope, not fixed; build_index has no size cap"
+    },
+    {
+      "id": "D6(b)",
+      "what": "'    ---' is deleted by the unmerged line and kept at uep/work",
+      "status": "pinned as approved; whether to repair before merge is the owner's call"
+    }
+  ],
+  "repair_budget": "2 of 2 used. A further FAIL is a hard stop reported to the owner.",
+  "codex": {
+    "first_run": {
+      "sha": "0089904",
+      "verdict": "FAIL",
+      "blocking": "the D6 test comment's 'matches nothing' - the base pattern fullmatches a marker run wrapped in literal backslashes",
+      "passed": [
+        "CODEX-1 fixed; old witness 0.048/0.191/0.778s at 2k/4k/8k, candidate 32,000 openers in about 0.00004s; bounded-prefix adversarial shapes linear",
+        "equivalence argument valid; 30,000 classify_markup and 10,000 chunk_note randomised comparisons against a797797 with no difference",
+        "no content-leakage witness",
+        "product-code scope limited to the approved site",
+        "all six witnesses and both spy checks falsifiable; the timing pin live with ample margin",
+        "both D6 pins correct about Markdown",
+        "the fix-site comment accurate"
+      ],
+      "out_of_scope_observations": [
+        "P1 correctly disclosed",
+        "D6(b) correctly withdrawn from 'pre-existing' and pinned per the approved scope"
+      ],
+      "limitation": "the main suite could not run in its read-only sandbox; four auxiliary suites and --help passed there. Agent C ran all five."
+    }
+  },
+  "repair_2": {
+    "trigger": "Codex FAIL on 0089904",
+    "the_error": "Agent C raised this sentence as non-blocking one run earlier; I corrected the receipt and knowingly left it in the frozen tree",
+    "instances_found": "3 found by the executor; Agent C found a FOURTH (R2). The executor's count was an undercount.",
+    "fixed": [
+      "tests D6 comment ('matches nothing')",
+      "an older test comment ('never fired because it was inert')",
+      "the comment above _RULE_LINE_RE in ask_my_brain.py (same sentence)"
+    ],
+    "also": "'only because nothing is stripped' narrowed to 'no rule line is stripped'",
+    "behaviour": "none - ast.dump of both files identical to 0089904"
+  },
+  "derived_line_citations_note": "re-derived against 48752ee after Agent C R1: repair 2 reflowed two comments and the numbers had not been re-derived. Two of three were stale by one.",
+  "status": "MERGED into uep/work by owner decision 2026-09-17",
+  "hard_stop": {
+    "reason": "at most two evidence-based repair cycles; both used. Agent C's verdict on 48752ee is FAIL. A third repair is not the executor's to take.",
+    "codex": "NOT run on 48752ee - the workflow runs it after Agent C passes. Codex's only verdict on this package is the FAIL on 0089904, whose single blocking sentence is fixed in 48752ee.",
+    "candidate_sha": "48752ee8db2ea0e8b8ad78dd784238de237b3533",
+    "branch": "uep/task-sb-ask-012",
+    "nothing_merged": "uep/work 4573b55, main 3bb0761, no remote",
+    "what_is_verified": "the CODEX-1 fix - by Agent C three times and by Codex once: equivalence proof, >300,000 differential inputs, 12,093,235 exhaustive strings, leak oracles, scaling. No behavioural defect has been found in this package by anyone.",
+    "what_blocks": "one comment sentence in ask_my_brain.py, false in two ways, that predates this package by six packages"
+  },
+  "merge": {
+    "integration_merge_sha": "a8008fe4ceecd60b90bcce268cc4a5107684cd2e",
+    "parents": [
+      "5b998f0",
+      "48752ee"
+    ],
+    "into": "uep/work only",
+    "candidate_sha": "48752ee8db2ea0e8b8ad78dd784238de237b3533",
+    "gate_rule": "'Wording findings do not block', docs commit 5b998f0",
+    "carried": "SB-ASK-006 through SB-ASK-012; src/, tests/ and fixtures/ on the merged tree are identical to the candidate's",
+    "suites_on_merged_tree": "251 / 59 / 19 / 24 / 32, --help exit 0",
+    "waived_not_passed": [
+      "Agent C's last verdict on 48752ee is FAIL, on one comment (WL-01)",
+      "Codex was not run on 48752ee; its PASS-apart-from-wording is on 0089904, which parses identically"
+    ],
+    "untouched": {
+      "main": "3bb0761",
+      "remotes": 0,
+      "home_vault_runtime": "not touched"
+    },
+    "open_after_merge": [
+      "PD-002 (D6)",
+      "PD-003 (heading quadratic)",
+      "D2",
+      "D3/D5",
+      "build_index has no file-size cap",
+      "docs/WORDING_CLEANUP_LOG.md WL-01..WL-15"
+    ]
+  }
+}
