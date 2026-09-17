@@ -147,7 +147,7 @@ def main() -> int:
     # ------------------------------------------------------------------ [fixture-vault]
     check(VAULT.is_dir(), "[fixture-vault] fixtures/vault exists")
     notes = sorted(p.relative_to(VAULT).as_posix() for p in VAULT.rglob("*.md"))
-    check(len(notes) == 18, f"[fixture-vault] the vault holds its 18 notes (got {len(notes)})")
+    check(len(notes) == 19, f"[fixture-vault] the vault holds its 19 notes (got {len(notes)})")
     check(OUTSIDE_NOTE.is_file(),
           "[fixture-vault] the deliberate out-of-vault note is present and scanned below too")
     corpus = "\n".join(p.read_text(encoding="utf-8") for p in
@@ -170,8 +170,8 @@ def main() -> int:
         # -------------------------------------------------------------- [index-build]
         receipt = build(config)
         check("BUILD_STATUS=PASS" in receipt, f"[index-build] the build reports PASS\n{receipt}")
-        check("NOTES_INDEXED=16" in receipt, f"[index-build] 16 notes indexed\n{receipt}")
-        check("CHUNKS_INDEXED=27" in receipt, f"[index-build] 27 chunks indexed\n{receipt}")
+        check("NOTES_INDEXED=17" in receipt, f"[index-build] 17 notes indexed\n{receipt}")
+        check("CHUNKS_INDEXED=30" in receipt, f"[index-build] 30 chunks indexed\n{receipt}")
         check("FILES_SKIPPED=2" in receipt, f"[index-build] 2 files skipped\n{receipt}")
         check(database.is_file(), "[index-build] the database file exists at the configured path")
         check(oct(database.stat().st_mode & 0o777) == "0o640",
@@ -183,7 +183,7 @@ def main() -> int:
         check(metadata["schema_version"] == "1.0.0", "[index-build] the schema version is recorded")
         check(metadata["retrieval"] == "sqlite_fts5_bm25", "[index-build] the retrieval mode is recorded")
         check(metadata["vault_root"] == str(VAULT), "[index-build] the indexed vault root is recorded")
-        check(metadata["notes_indexed"] == "16" and metadata["chunks_indexed"] == "27",
+        check(metadata["notes_indexed"] == "17" and metadata["chunks_indexed"] == "30",
               "[index-build] the receipt and the metadata table agree")
         integrity = rows_of(database, "PRAGMA integrity_check")
         check(list(integrity[0].values())[0] == "ok", "[index-build] SQLite reports the index sound")
@@ -211,7 +211,7 @@ def main() -> int:
               "[exclusion] an excluded prefix contributes no chunk")
         check(not any(".obsidian" in p for p in paths),
               "[exclusion] an excluded path part contributes no chunk")
-        check(len(paths) == 16, f"[exclusion] exactly the 16 permitted notes are indexed (got {len(paths)})")
+        check(len(paths) == 17, f"[exclusion] exactly the 17 permitted notes are indexed (got {len(paths)})")
 
         # -------------------------------------------------------------- [chunking]
         greenhouse = rows_of(
@@ -308,6 +308,19 @@ def main() -> int:
                          "HIDDENONLYTITLE")
         check(orphan[0]["n"] == 0,
               "[chunking] and that comment is unreachable through the index too")
+
+        # note_title's contract, which this package rewrote: the FIRST heading wins, and only
+        # level one counts. Neither was pinned by any fixture, so either could have been altered
+        # silently in the very function being changed.
+        precedence = rows_of(database, "SELECT * FROM chunks WHERE path = ? ORDER BY start_line",
+                             "10 Areas/Title Precedence Note.md")
+        check(len(precedence) == 3,
+              f"[chunking] the title-precedence note yields its three chunks (got {len(precedence)})")
+        check(all(c["title"] == "First Level One Heading Wins" for c in precedence),
+              f"[chunking] the title is the FIRST level-one heading, not the second and not the "
+              f"level-two heading above it (got {[c['title'] for c in precedence]})")
+        check(precedence[0]["heading"] == "Level Two Comes First And Is Not The Title",
+              "[chunking] while the level-two heading is still a chunk HEADING, just not the title")
 
         # D1, repaired by SB-ASK-006. Outside a fenced block, comments and rules are stripped.
         comment_body = rows_of(database, "SELECT body FROM chunks WHERE path = ?",
