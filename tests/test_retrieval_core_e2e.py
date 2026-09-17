@@ -402,10 +402,22 @@ def main() -> int:
             kind = amb.classify_markup([line], 0)[0]["kind"]
             check(kind == "drop", f"[chunking] {line!r} is a thematic break and is dropped (got {kind})")
         for line in ("    ---", "\t---", " \t---", "    * * *", "    ===", "* - *", "- _ -", "- -",
-                     "* *", "= = =", "---x", "- - - x"):
+                     "* *", "_ _", "==", "= = =", "---x", "- - - x", "-\u00a0-\u00a0-"):
             entry = amb.classify_markup([line], 0)[0]
             check(entry["kind"] == "keep" and entry["text"] == line,
                   f"[chunking] {line!r} is not a thematic break and is kept whole (got {entry})")
+        # A break may end only in spaces or tabs. The classifier tidies every kind of trailing
+        # whitespace off a line before the pattern sees it, so without a guard on the line as
+        # written, '---' followed by a non-breaking space read as a break (Codex, on SB-ASK-013).
+        for line in ("---\u00a0", "* * *\u00a0", "===\u00a0", "---\u3000", "--- \u00a0"):
+            entry = amb.classify_markup([line], 0)[0]
+            check(entry["kind"] == "keep" and entry["text"] == line.rstrip(),
+                  f"[chunking] {line!r} ends in whitespace a break may not end in, and is kept "
+                  f"(got {entry})")
+        for line in ("---  ", "---\t", "* * * \t"):
+            kind = amb.classify_markup([line], 0)[0]["kind"]
+            check(kind == "drop",
+                  f"[chunking] while {line!r} ends only in spaces or tabs and is dropped (got {kind})")
         # The pattern sees the line after comments are removed, and each removed comment leaves
         # one space. So a rule after two removed comments begins with four spaces and is kept.
         # Markdown would keep it too, for its own reason: a line that opens with a comment is an

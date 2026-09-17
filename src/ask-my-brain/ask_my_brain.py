@@ -1076,7 +1076,13 @@ def _classify_once(
 
         line = line.rstrip()
 
-        if _RULE_LINE_RE.match(line):
+        # A break may end only in spaces or tabs. The rstrip() at the top of
+        # this loop also removed a non-breaking space and the like, so a line
+        # that ended in one of those is text however its remainder reads.
+        if (
+            raw_line.rstrip(" \t") == raw_line.rstrip()
+            and _RULE_LINE_RE.match(line)
+        ):
             classified.append(
                 {
                     "number": number,
