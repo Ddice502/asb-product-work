@@ -381,8 +381,9 @@ def main() -> int:
 
         # A thematic break is three or more of ONE marker. Written as a character class the
         # pattern deleted any mixture of them, so an ordinary line like '-=_*' was destroyed -
-        # a latent error inherited from the base, where the pattern never fired because it was
-        # inert. Both directions are pinned: mixtures survive, single repeated markers go.
+        # a latent error inherited from the base, where the pattern is written with a doubled
+        # backslash and deletes no rule line. Both directions are pinned: mixtures survive, single
+        # repeated markers go.
         marks = rows_of(database, "SELECT body FROM chunks WHERE path = ?",
                         "10 Areas/Break Markers Note.md")[0]["body"]
         for kept in ("MIXEDMARKS-=_*", "\n-=_*\n", "\n*-*-*-\n", "\n--\n"):
@@ -970,10 +971,9 @@ def main() -> int:
         # and is wrong in both directions. A break's markers may be separated by spaces, which
         # the pattern cannot match, and a break may be indented by at most three spaces, where
         # the pattern accepts any amount. Neither is a fault uep/work has: its rule pattern is
-        # written with a doubled backslash, matches nothing, and deletes no rule line at all. So
-        # the first witness reads the same there only because nothing is stripped, and the second
-        # is a deletion this line of packages introduced at SB-ASK-006, when the pattern was made
-        # to work.
+        # written with a doubled backslash and deletes no rule line at all. So the first witness
+        # reads the same there only because no rule line is stripped, and the second is a deletion
+        # this line of packages introduced at SB-ASK-006, when the pattern was made to work.
         _, spaced = amb.chunk_note(
             "# T\nVisible prose long enough for indexing here ok.\n\n* * *\n\n"
             "After prose long enough for indexing here.\n", "n.md", 3500)

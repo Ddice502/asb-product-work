@@ -892,9 +892,9 @@ def fence_delimiter(
 # A thematic break is three or more of ONE marker, not any mixture of them.
 # Written as a character class, this deleted lines like '-=_*' that are not
 # breaks at all - a latent error inherited from the base, where the pattern
-# never fired because it was inert. '=' is kept as a marker so that a setext
-# underline is still removed, which is the behaviour this line has always
-# been declared to have.
+# is written with a doubled backslash and deletes no rule line. '=' is kept
+# as a marker so that a setext underline is still removed, which is the
+# behaviour this line has always been declared to have.
 _RULE_LINE_RE = re.compile(
     r"^[ \t]*"
     r"(?:\*{3,}|-{3,}|_{3,}|={3,})"
