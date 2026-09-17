@@ -25,7 +25,9 @@ Checkpoints, each independently observable:
     [ask-e2e]              ask() over the real index with only the model stubbed
     [defect-pins]          today's DEFECTIVE behaviour, pinned so a fix cannot pass unnoticed
     [containment]          no network, no writes to fixtures, database confined to the temp dir
-    [doc-hygiene]          no comment or label describes a mechanism the product no longer has
+    [doc-hygiene]          no unmarked line of this suite or fixtures/README.md uses the
+                           vocabulary of a deleted mechanism. NOT full coverage - see the
+                           checkpoint itself for what it does not scan
 
 READ THIS BEFORE TRUSTING [defect-pins]. Every assertion in that one checkpoint states what the
 retrieval core does TODAY and is WRONG. None of them is a requirement, and none may be cited as
@@ -543,9 +545,12 @@ def main() -> int:
         # own note because neither of the two branches that could destroy it fires, and each for a
         # different reason: last_closing_line returns 0 for the note, so the opener is literal from
         # the outset and the truncating branch is never entered at all, while _RULE_LINE_RE IS
-        # applied to the line - it is applied to every non-fenced line - and simply does not match,
-        # because the line still reads '*** <!-- RULEOPENER ...' rather than the bare '***' that
-        # truncating would have left. Verified with a spy on the pattern: one call, no match.
+        # applied to this line and simply does not match it, because the line still reads
+        # '*** <!-- RULEOPENER ...' rather than the bare '***' that truncating would have left.
+        # No claim is made here about which OTHER lines the pattern reaches - two earlier branches
+        # continue past it while recording fenced=False, so "every non-fenced line" would be false,
+        # and the argument does not need it. Verified with a spy on the pattern: it is called once
+        # on this line, and does not match.
         rule_opener = rows_of(database, "SELECT body FROM chunks WHERE path = ?",
                               "10 Areas/Rule Opener Note.md")[0]["body"]
         check("RULEOPENER" in rule_opener,
@@ -941,6 +946,13 @@ def main() -> int:
         "give-back", "given back", "give back", "gives back",   # staleness-guard: SB-ASK-008
         "resumed part way", "resume from", "the resume",        # staleness-guard: SB-ASK-009
     )
+    # These name a fixture that still exists, so they are subtracted before matching. That is a
+    # real exemption and not a subtlety worth hiding: an unmarked line may carry this vocabulary
+    # when it is naming the file. It also means the guard only forces a rename to be reflected
+    # here when the NEW name still carries dead vocabulary - 'Gives Back Fence Note' would fail  # staleness-guard
+    # until this list is updated, 'Handback Fence Note' would not. Both verified. The line above
+    # needs the marker for no reason but this: naming that hypothetical trips the guard. That is
+    # the documented false positive happening to the sentence that documents it.
     fixture_names = ("Give Back Fence Note.md", "Give Back Fence")
     stale = []
     for doc in (Path(__file__), ROOT / "fixtures" / "README.md"):
