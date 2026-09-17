@@ -17,7 +17,7 @@ closes here -->
 LATCHPROSE <!--LATCHSECRET--> after the odd-fence comment.
 
 Two openers on one line: KEEPTWO <!--FIRSTSECRET <!--SECONDSECRET
-and that comment closes here --> TAILTEXT remains on the line.
+and that comment closes here --> FIRSTTAIL --> SECONDTAIL both remain.
 
 ENCLOSEDLINE <!-- ENCLOSEDSECRET --> and then an opener <!-- that never closes.
 

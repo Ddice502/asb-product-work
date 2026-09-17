@@ -147,7 +147,7 @@ def main() -> int:
     # ------------------------------------------------------------------ [fixture-vault]
     check(VAULT.is_dir(), "[fixture-vault] fixtures/vault exists")
     notes = sorted(p.relative_to(VAULT).as_posix() for p in VAULT.rglob("*.md"))
-    check(len(notes) == 24, f"[fixture-vault] the vault holds its 24 notes (got {len(notes)})")
+    check(len(notes) == 25, f"[fixture-vault] the vault holds its 25 notes (got {len(notes)})")
     check(OUTSIDE_NOTE.is_file(),
           "[fixture-vault] the deliberate out-of-vault note is present and scanned below too")
     corpus = "\n".join(p.read_text(encoding="utf-8") for p in
@@ -170,8 +170,8 @@ def main() -> int:
         # -------------------------------------------------------------- [index-build]
         receipt = build(config)
         check("BUILD_STATUS=PASS" in receipt, f"[index-build] the build reports PASS\n{receipt}")
-        check("NOTES_INDEXED=22" in receipt, f"[index-build] 22 notes indexed\n{receipt}")
-        check("CHUNKS_INDEXED=35" in receipt, f"[index-build] 35 chunks indexed\n{receipt}")
+        check("NOTES_INDEXED=23" in receipt, f"[index-build] 23 notes indexed\n{receipt}")
+        check("CHUNKS_INDEXED=36" in receipt, f"[index-build] 36 chunks indexed\n{receipt}")
         check("FILES_SKIPPED=2" in receipt, f"[index-build] 2 files skipped\n{receipt}")
         check(database.is_file(), "[index-build] the database file exists at the configured path")
         check(oct(database.stat().st_mode & 0o777) == "0o640",
@@ -183,7 +183,7 @@ def main() -> int:
         check(metadata["schema_version"] == "1.0.0", "[index-build] the schema version is recorded")
         check(metadata["retrieval"] == "sqlite_fts5_bm25", "[index-build] the retrieval mode is recorded")
         check(metadata["vault_root"] == str(VAULT), "[index-build] the indexed vault root is recorded")
-        check(metadata["notes_indexed"] == "22" and metadata["chunks_indexed"] == "35",
+        check(metadata["notes_indexed"] == "23" and metadata["chunks_indexed"] == "36",
               "[index-build] the receipt and the metadata table agree")
         integrity = rows_of(database, "PRAGMA integrity_check")
         check(list(integrity[0].values())[0] == "ok", "[index-build] SQLite reports the index sound")
@@ -211,7 +211,7 @@ def main() -> int:
               "[exclusion] an excluded prefix contributes no chunk")
         check(not any(".obsidian" in p for p in paths),
               "[exclusion] an excluded path part contributes no chunk")
-        check(len(paths) == 22, f"[exclusion] exactly the 22 permitted notes are indexed (got {len(paths)})")
+        check(len(paths) == 23, f"[exclusion] exactly the 23 permitted notes are indexed (got {len(paths)})")
 
         # -------------------------------------------------------------- [chunking]
         greenhouse = rows_of(
@@ -371,6 +371,18 @@ def main() -> int:
               f"[chunking] and the fence delimiters are still dropped, because the fence was "
               f"classified as a fence (got {gb_body!r})")
 
+        # The restart bound must be len(lines) + 1, not len(lines): a note whose every line is
+        # an unterminated opener needs one pass per line plus a final settling pass. One short and
+        # the last line is returned still truncated at its marker, silently.
+        bound = rows_of(database, "SELECT * FROM chunks WHERE path = ? ORDER BY start_line",
+                        "10 Areas/Bound Exactness Note.md")
+        bound_body = "\n".join(c["body"] for c in bound)
+        for token in ("BOUNDONE", "BOUNDTWO", "BOUNDTHREE", "BOUNDFOUR"):
+            check(token in bound_body, f"[chunking] {token}'s line survives")
+        check("BOUNDFOUR line carrying an opener <!--" in bound_body,
+              f"[chunking] and the LAST line keeps its literal marker, so the bound was large "
+              f"enough to settle every opener (got {bound_body!r})")
+
         # Several unterminated openers, so the classifier restarts more than once. One opener
         # settling must not disturb the ones before it, and the fence after them must still be
         # recognised - the whole point of settling before acting.
@@ -439,6 +451,12 @@ def main() -> int:
         # Text after a closing marker on the SAME line is evidence and must be kept.
         check("TAILAFTERCLOSE" in comment_body,
               "[chunking] text following a closing marker on its own line is kept")
+        check("TAILNOSPACE" in comment_body,
+              f"[chunking] including the character IMMEDIATELY after the marker, with no space to "
+              f"hide an off-by-one in how far the closer is consumed (got {comment_body!r})")
+        check(">TAILNOSPACE" not in comment_body,
+              f"[chunking] and the marker is consumed in full, leaving no fragment of it behind "
+              f"(got {comment_body!r})")
         # The rule pattern needs three or more marks; two dashes are ordinary text.
         check("\n--\n" in comment_body,
               f"[chunking] a two-character dash line is NOT a rule and survives (got {comment_body!r})")
@@ -494,10 +512,14 @@ def main() -> int:
               f"is left behind (got {fc_body!r})")
         check("KEEPTWO" in fc_body,
               "[chunking] while the text before them is kept")
-        check("TAILTEXT" in fc_body,
-              "[chunking] and the text after the closing marker is kept")
-        check("-->" not in fc_body,
-              f"[chunking] no closing marker is left anywhere in the body (got {fc_body!r})")
+        # A comment closes at the FIRST '-->', not the last: a later '-->' on the same line is
+        # ordinary text, and closing at it would delete everything between the two.
+        check("FIRSTTAIL" in fc_body and "SECONDTAIL" in fc_body,
+              f"[chunking] a comment closes at the first marker, so text between that marker and "
+              f"a later one on the same line survives (got {fc_body!r})")
+        check(fc_body.count("-->") == 1,
+              f"[chunking] exactly one '-->' survives - the one that is ordinary text after the "
+              f"comment closed. The marker the comment consumed is gone (got {fc_body!r})")
 
         # Inside a fenced block nothing is stripped: a note documenting markup legitimately
         # contains a comment or a rule there. Three earlier attempts at D1 deleted exactly this.

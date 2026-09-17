@@ -14,7 +14,7 @@ FUSEDLEFT<!-- joined -->FUSEDRIGHT must not run together as one word.
 
 <!-- a marker that opens here
 and runs across several lines
-before it closes here --> TAILAFTERCLOSE continues on that same line.
+before it closes here -->TAILNOSPACE and TAILAFTERCLOSE continue on that line.
 
 The third real sentence closes the note after the spanning marker.
 
