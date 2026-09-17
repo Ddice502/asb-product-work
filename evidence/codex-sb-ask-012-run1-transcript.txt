@@ -1,0 +1,1740 @@
+Reading additional input from stdin...
+OpenAI Codex v0.154.0
+--------
+workdir: /tmp/claude-1000/-home-jro-asb-product-work/3a6ea635-0952-4430-b51f-5ad9bf0bc6ac/scratchpad/codex-012
+model: gpt-5.6-sol
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: low
+reasoning summaries: none
+session id: 01a0af4c-c0ce-7731-9344-63da20c45341
+--------
+user
+You are **Codex**, the independent reviewer for a frozen product candidate in the AI Second Brain
+project. You review only. Do not edit, create or delete any file, do not move any git ref, and do
+not propose to apply a fix yourself - report findings and stop. Agent C has passed this exact SHA
+and is not running; you are the only reviewer active.
+
+## The frozen object
+
+- Package: **SB-ASK-012** - the fix for YOUR finding CODEX-1, plus defect pins for YOUR finding CODEX-2
+- Candidate SHA: 0089904761914c3054123ae21304b3db6513240c
+- Package base: a797797d8283a2d5fadd3bfd9618bb005d041dcc
+- Integration base (`uep/work`): 4573b55d0e9d698a290ee2f7b5326ac87b95c379
+- Your working directory IS a detached checkout of that exact SHA.
+- This package's diff (small - read all of it): ./PACKAGE_DIFF.patch
+- All product-code change relative to the integration base: ./SRC_VS_INTEGRATION_BASE.patch
+- Receipt: ./PACKAGE_RESULT.json
+
+## What you found last time (on 2fed7cb), and what the owner approved
+
+- **CODEX-1 (HIGH)**: `_INLINE_COMMENT_RE = re.compile(r"<!--.*?-->")` was applied by `.sub(" ", line)`
+  to the whole line in `_classify_once`; quadratic in the `<!--` openers on one line with no closer.
+- **CODEX-2 (MEDIUM)**: `_RULE_LINE_RE` keeps `* * *` (a thematic break) and deletes `    ---`
+  (four-space indent, not one).
+- You found NO content-leakage witness.
+
+The owner approved ONE NARROW PACKAGE: fix CODEX-1 in product code; add TESTS (defect pins, not a
+repair) for both CODEX-2 witnesses. Explicitly out of scope: any change to `_RULE_LINE_RE`, a
+file-size cap in `build_index`, ranking, scoring, chunking policy, indexing, database behaviour.
+
+## The fix
+
+In `_classify_once` the pattern is now shown only `line[: last_closer + 3]`, where
+`last_closer = line.rfind("-->")`; the tail is appended unchanged; a line with no `-->` is not shown
+to the pattern at all. Claimed justification: every match ends in `-->`, so none can extend past the
+last one or begin after it, hence the output is identical to substituting over the whole line.
+
+## What to review, in priority order
+
+1. **Is CODEX-1 actually fixed?** Re-run your own witness. Then look for a way the quadratic
+   survives: many openers BEFORE the last closer, a closer at the far end, `<!-->`/`--->` shapes,
+   anything that makes the lazy quantifier fail late inside the bounded prefix.
+2. **Is the fix semantically identical to the old code?** Attack the equivalence claim. Any input
+   where `classify_markup` or `chunk_note` output differs from a797797 is a finding. Extract the old
+   file with `git show a797797:src/ask-my-brain/ask_my_brain.py`.
+3. **Content leakage.** The changed region handles complete comments followed by unclosed openers.
+   Can commented-out text now survive into a chunk body, heading or the note title?
+4. **Scope.** Is there ANY product-code change beyond that one site? Any behaviour change outside
+   the approved scope?
+5. **The new tests.** Six equivalence witnesses, two spy checks, one timing check (2.0s bound), two
+   D6 defect pins. Is any of them unable to fail? Is the timing check flaky or toothless? Are the
+   D6 pins correct about Markdown?
+6. **Prose and receipt.** This line of packages has repeatedly failed review on comments and receipt
+   fields asserting what the code does not do. Check the new code comment, the new test comments,
+   and PACKAGE_RESULT.json. Note the receipt WITHDRAWS an earlier claim: D6's second witness is NOT
+   pre-existing - the rule pattern at the integration base is written with doubled backslashes and
+   strips no rule line, so deleting `    ---` is a behaviour the unmerged line introduced at
+   SB-ASK-006. Verify that. Note also the recorded, out-of-scope finding P1: the heading patterns
+   in `chunk_note` / `note_title` backtrack quadratically through an interior whitespace run and do
+   so identically at the integration base.
+7. Anything else a reviewer should object to before this is merged into the integration branch.
+
+## Constraints
+
+- The main suite writes its temporary database outside the working directory and may not run in
+  your sandbox. If so, say so and review statically or with direct Python calls; do not report an
+  environmental failure as a defect.
+- Do not propose redesigns outside this package's scope; record out-of-scope defects as such.
+- Do not write outside your working directory; do not touch the network.
+
+## Output
+
+A verdict (PASS or FAIL) and a numbered list of findings, each with the exact code or text at
+fault, its location, a concrete witness, observed versus expected, and how you verified it. Separate
+blocking findings from out-of-scope observations. If you find nothing, say so plainly and list what
+you checked.
+2026-09-17T12:17:18.295708Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: "Bearer realm=\"OAuth\", resource_metadata=\"https://mcp.cloudflare.com/.well-known/oauth-protected-resource/mcp\"" })
+warning: Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest.
+codex
+I’ll conduct this as a read-only frozen-SHA review. I’m using the Second Brain acceptance-coordinator skill because this is an evidence-based acceptance decision; I’ll first read its instructions, then verify the SHA, diffs, code, tests, and receipt without modifying anything.
+exec
+/bin/bash -lc "sed -n '1,240p' /home/jro/.agents/skills/synced/b3739465-8229-4f62-8168-599e7753e477_2b1f5040-cc5f-4c6a-bdff-481a5e9cf404/second-brain-acceptance-coordinator/SKILL.md" in /tmp/claude-1000/-home-jro-asb-product-work/3a6ea635-0952-4430-b51f-5ad9bf0bc6ac/scratchpad/codex-012
+ succeeded in 0ms:
+---
+name: "second-brain-acceptance-coordinator"
+description: "Classify a Second Brain V2 specialist agent's mirrored evidence against the project's 10-criterion consolidated-acceptance checklist (intended domain, retrieval relevance, grounding/provenance, permission behavior, queue/resource behavior, failure handling, phone/control surface, owner review, regression, no unauthorized external action). Use when the owner asks whether a specialist (Research, Writing, Travel, Career, Automation, Project Planning, etc.) is ready for acceptance, or to assess existing Phase B evidence. Do not use to run or recommend running a live production test — this Skill only classifies evidence already in evidence-mirror/current."
+---
+
+# Second Brain Acceptance Coordinator
+
+## When to use
+
+The owner asks whether a specialist agent is ready for consolidated acceptance, wants an
+assessment of existing Phase B (or equivalent) evidence, or wants to know what's missing
+before a specialist can be promoted.
+
+## When NOT to use
+
+- Debugging a specific failure trace (use **Second Brain Root Cause Coordinator**).
+- Deciding to actually run a new live test — this Skill only classifies *existing*
+  mirrored evidence and recommends the minimum additional test; it never runs one.
+- Assessing shared-foundation components (Agent Coordinator, System Awareness,
+  Preference Learning) — no equivalent checklist exists for those yet (see
+  `docs/KNOWN_ISSUES.md` KI-043 / `command-center/PENDING_DECISIONS.yaml` PD-002); say so
+  rather than forcing the specialist checklist onto them.
+
+## Project context
+
+This skill operates on the AI Second Brain project workspace at
+`/home/jro/AI-Second-Brain-Development`. `command-center/` is a Cowork-owned
+coordination/derived-state layer — never authoritative. `AGENTS.md` at the project root
+defines the full authority hierarchy; nothing this skill touches outranks it.
+
+## Authoritative inputs
+
+- `evidence-mirror/current/files/<agent-name>/**` — raw closeouts or sanitized receipts
+  for the specialist in question.
+- `docs/TESTING_AND_ACCEPTANCE.md` — the checklist's definition.
+- `docs/KNOWN_ISSUES.md` — prior findings for this component.
+
+## Evidence / freshness requirements
+
+Confirm the read protocol (`evidence-mirror/current` resolves to
+`status.json.current_snapshot_id`) before classifying. If the specialist's directory has
+files marked `changed_review_required` or `unclassified` in the manifest, say so — those
+files are not visible to this Skill by design and their absence should not be silently
+treated as "no evidence exists."
+
+## Allowed operations
+
+- Read `evidence-mirror/current/**` (specialist-agent roots), `docs/TESTING_AND_ACCEPTANCE.md`,
+  `docs/KNOWN_ISSUES.md`.
+- Read multiple specialists' evidence in parallel when evaluating more than one.
+- Produce a classification report (chat output or artifact) — no file writes required by
+  this Skill's core function; it may optionally draft (not apply) a `command-center/DEVELOPMENT_BACKLOG.yaml`
+  candidate item for the recommended next test.
+
+## Prohibited operations
+
+- No SSH, no `home` access, no production vault access, no submitting queue jobs of any
+  kind — this Skill has no live-test capability at all.
+- No writes to `docs/**`, `AGENTS.md`, or `command-center/DEVELOPMENT_BACKLOG.yaml`
+  directly (draft-only, per above).
+- Do not describe or imply steps for executing a live production test — that crosses into
+  Codex / Second Brain Codex Task Builder territory, gated on owner approval.
+
+## Owner-approval boundaries
+
+This Skill requires no approval to run (pure read + classify). Its output — "minimum
+additional test needed" — is a recommendation only; actually running that test requires
+the full **Second Brain Codex Task Builder** + owner-approval flow, entirely
+separate from this Skill.
+
+## The 10 criteria (verbatim from docs/TESTING_AND_ACCEPTANCE.md)
+
+1. intended domain
+2. retrieval relevance
+3. grounding/provenance
+4. permission behavior
+5. queue/resource behavior
+6. failure handling
+7. phone/control surface
+8. owner review
+9. regression
+10. no unauthorized external action
+
+## Expected output structure
+
+For each of the 10 criteria, classify exactly one of: **FULLY EVIDENCED**, **PARTIALLY
+EVIDENCED**, **NOT EVIDENCED**, **NOT APPLICABLE** (state why), **FAILED / CONTRADICTORY
+EVIDENCE**. Then: a plain-language conclusion first, then the minimum additional test
+needed for any genuine gap (not a maximal retest of everything).
+
+## Hard rules — violating any of these is a defect in this Skill's output, not a judgment call
+
+- **Never treat NOT EVIDENCED as FAILED.** Absence of a test is not a failed test.
+- **Never treat a mechanism-safety PASS as proof of output quality.** All safety flags
+  `false` (as required) proves *permission behavior* passed — nothing about output
+  quality. (Writing Agent's Phase B: safety flags all correct, core deliverable still a
+  confirmed defect.)
+- **Never treat grounded-but-irrelevant retrieval as successful retrieval relevance.**
+  Citation coverage passing is a *grounding/provenance* result, not a *retrieval
+  relevance* result. (Writing Agent test 2: Waze sources cited for a welcome-email draft —
+  citation coverage passed, retrieval relevance clearly failed.)
+
+## Stop conditions
+
+- Stop before recommending or describing any live/production test execution step.
+- Stop and say so plainly if the target component has no consolidated-acceptance
+  checklist defined yet (shared-foundation components).
+- Stop if the evidence-mirror read protocol fails — report `UNKNOWN` freshness rather
+  than classifying against a possibly-stale snapshot without saying so.
+
+codex
+The skill’s specialist checklist is not the governing rubric for this frozen product-code package, so I won’t force its 10 criteria onto the review. Its read-only/evidence discipline is compatible; the user-supplied seven priorities remain authoritative.
+exec
+/bin/bash -lc "git rev-parse HEAD && git status --short && wc -l PACKAGE_DIFF.patch SRC_VS_INTEGRATION_BASE.patch PACKAGE_RESULT.json && sed -n '1,260p' PACKAGE_DIFF.patch && sed -n '1,260p' PACKAGE_RESULT.json" in /tmp/claude-1000/-home-jro-asb-product-work/3a6ea635-0952-4430-b51f-5ad9bf0bc6ac/scratchpad/codex-012
+ succeeded in 0ms:
+0089904761914c3054123ae21304b3db6513240c
+?? PACKAGE_DIFF.patch
+?? PACKAGE_RESULT.json
+?? REVIEW_TASK.md
+?? SRC_VS_INTEGRATION_BASE.patch
+  144 PACKAGE_DIFF.patch
+  504 SRC_VS_INTEGRATION_BASE.patch
+  259 PACKAGE_RESULT.json
+  907 total
+diff --git a/src/ask-my-brain/ask_my_brain.py b/src/ask-my-brain/ask_my_brain.py
+index 3559a7b..f8588e5 100755
+--- a/src/ask-my-brain/ask_my_brain.py
++++ b/src/ask-my-brain/ask_my_brain.py
+@@ -1039,11 +1039,23 @@ def _classify_once(
+             continue
+ 
+         # Complete comments on this line go first, so two of them cannot
+-        # merge and text between them survives.
+-        line = _INLINE_COMMENT_RE.sub(
+-            " ",
+-            line,
+-        )
++        # merge and text between them survives. The pattern is only shown the
++        # line up to its last closing marker. Every match ends in a closing
++        # marker, so none can reach past that point or begin after it, and
++        # the result is the same as substituting over the whole line. What
++        # changes is the cost: past the last closing marker each opener made
++        # the pattern scan to the end of the line and fail, which was
++        # quadratic in the openers on one line (Codex, on SB-ASK-009).
++        last_closer = line.rfind("-->")
++
++        if last_closer != -1:
++            line = (
++                _INLINE_COMMENT_RE.sub(
++                    " ",
++                    line[: last_closer + 3],
++                )
++                + line[last_closer + 3:]
++            )
+ 
+         if number not in literal_openers:
+             opening = line.find("<!--")
+diff --git a/tests/test_retrieval_core_e2e.py b/tests/test_retrieval_core_e2e.py
+index 0bbb3d4..34669e6 100644
+--- a/tests/test_retrieval_core_e2e.py
++++ b/tests/test_retrieval_core_e2e.py
+@@ -48,6 +48,9 @@ re-deriving matched terms by string comparison; D3 cannot be fixed by editing qu
+ because deterministic_evidence_strength returns HIGH for any all_terms match however few or generic
+ the terms are, so every change to the term set moves strength as a side effect. Do not read those
+ two pins as requirements.
++
++D6 (thematic breaks are recognised by an approximation that is wrong in both directions) was found
++by Codex reviewing SB-ASK-009, is older than that package, and is pinned OPEN beside them.
+ """
+ from __future__ import annotations
+ 
+@@ -59,6 +62,7 @@ import os
+ import sqlite3
+ import sys
+ import tempfile
++import time
+ from pathlib import Path
+ 
+ ROOT = Path(__file__).resolve().parents[1]
+@@ -420,6 +424,60 @@ def main() -> int:
+         check(nbsp_chunks[0]["start_line"] == 4,
+               f"[chunking] and the span starts after it (got {nbsp_chunks[0]['start_line']})")
+ 
++        # Codex, on SB-ASK-009: substituting complete comments over a whole line was quadratic in
++        # the '<!--' openers on that line, because past the last closing marker every opener made
++        # the pattern scan to the end and fail. The classifier now shows the pattern only the line
++        # up to its last closing marker. Three things are pinned. First, that the text produced is
++        # what it was before: each expected value below was taken from the code as it stood before
++        # the change, not written by hand.
++        for raw, expected in (
++            ("keep <!-- gone --> tail <!--<!--", "keep   tail <!--<!--"),
++            ("a <!-- x --> b <!-- y --> c", "a   b   c"),
++            ("<!-- one --><!-- two -->after", "  after"),
++            ("<!--> not a comment --> x", "  x"),
++            ("<!---->empty comment", " empty comment"),
++            ("lead --> stray closer <!-- opener", "lead --> stray closer <!-- opener"),
++        ):
++            got = amb.classify_markup([raw], 0)[0]["text"]
++            check(got == expected,
++                  f"[chunking] complete comments on {raw!r} are removed exactly as before "
++                  f"(got {got!r})")
++
++        # Second, what the pattern is shown, which is deterministic where a clock is not.
++        class _PatternSpy:
++            def __init__(self, real):
++                self.real, self.seen = real, []
++            def sub(self, repl, string):
++                self.seen.append(string)
++                return self.real.sub(repl, string)
++        real_pattern = amb._INLINE_COMMENT_RE
++        spy = _PatternSpy(real_pattern)
++        amb._INLINE_COMMENT_RE = spy
++        try:
++            amb.classify_markup(["<!--" * 5000], 0)
++            seen_no_closer = list(spy.seen)
++            spy.seen.clear()
++            amb.classify_markup(["<!-- a --> kept " + "<!--" * 5000], 0)
++            seen_one_closer = list(spy.seen)
++        finally:
++            amb._INLINE_COMMENT_RE = real_pattern
++        check(seen_no_closer == [],
++              f"[chunking] a line with no closing marker is never shown to the comment pattern "
++              f"(got {[len(x) for x in seen_no_closer]} characters)")
++        check(seen_one_closer == ["<!-- a -->"],
++              f"[chunking] and otherwise the pattern sees the line only up to its last closing "
++              f"marker (got lengths {[len(x) for x in seen_one_closer]})")
++
++        # Third, the property itself. Where it was measured this took 12.0 seconds before the
++        # change and less than a millisecond after it, so the bound sits about 60,000 times above
++        # the new cost and at about a sixth of the old one.
++        started = time.monotonic()
++        amb.classify_markup(["<!--" * 32000], 0)
++        elapsed = time.monotonic() - started
++        check(elapsed < 2.0,
++              f"[chunking] 32,000 unclosed openers on one line classify in under two seconds "
++              f"(took {elapsed:.3f}s)")
++
+         # A note whose every line is an unterminated opener. Since openers are now decided up
+         # front this settles in a single pass, so these checks no longer pin the restart bound -
+         # they pin that every such opener is literal text and keeps its marker. The bound itself
+@@ -908,6 +966,27 @@ def main() -> int:
+               "[defect-pins] DEFECT D3 PINNED (not a requirement): a contentless question yields "
+               "HIGH-strength evidence and would be answered by the model")
+ 
++        # D6 (MEDIUM, Codex on SB-ASK-009): _RULE_LINE_RE approximates a Markdown thematic break
++        # and is wrong in both directions. A break's markers may be separated by spaces, which
++        # the pattern cannot match, and a break may be indented by at most three spaces, where
++        # the pattern accepts any amount. Neither is a fault uep/work has: its rule pattern is
++        # written with a doubled backslash, matches nothing, and deletes no rule line at all. So
++        # the first witness reads the same there only because nothing is stripped, and the second
++        # is a deletion this line of packages introduced at SB-ASK-006, when the pattern was made
++        # to work.
++        _, spaced = amb.chunk_note(
++            "# T\nVisible prose long enough for indexing here ok.\n\n* * *\n\n"
++            "After prose long enough for indexing here.\n", "n.md", 3500)
++        check("* * *" in "\n".join(c["body"] for c in spaced),
++              "[defect-pins] DEFECT D6 PINNED (not a requirement): a thematic break written with "
++              "spaces between its markers is kept as content")
++        _, indented = amb.chunk_note(
++            "# T\nVisible prose long enough for indexing here ok.\n\n    ---\n\n"
++            "After prose long enough for indexing here.\n", "n.md", 3500)
++        check("---" not in "\n".join(c["body"] for c in indented),
++              "[defect-pins] DEFECT D6 PINNED (not a requirement): a run of markers indented four "
++              "spaces, which is not a thematic break, is deleted as one")
++
+         # -------------------------------------------------------------- [containment]
+         check(len(CONNECTED) >= 2,
+               f"[containment] the code under test opened databases and we observed them (got {CONNECTED})")
+{
+  "package": "SB-ASK-012",
+  "title": "CODEX-1: bound the inline-comment pattern; pin CODEX-2 as D6",
+  "owner_approval": "one narrow package for CODEX-1 plus tests for both CODEX-2 witnesses",
+  "base": "a797797d8283a2d5fadd3bfd9618bb005d041dcc (SB-ASK-011 candidate; Agent C PASS, Codex PASS)",
+  "integration_base": "uep/work 4573b55",
+  "candidate_sha": "0089904761914c3054123ae21304b3db6513240c",
+  "branch": "uep/task-sb-ask-012",
+  "repair_cycles_used": 1,
+  "changed_files": [
+    "src/ask-my-brain/ask_my_brain.py",
+    "tests/test_retrieval_core_e2e.py"
+  ],
+  "src_change": "one site in _classify_once: 5 lines removed, 17 added, 7 of the added lines comment. No other product code touched. Byte-identical between 83ad280 and this candidate.",
+  "tests": [
+    {
+      "command": "python3 -B tests/test_retrieval_core_e2e.py",
+      "exit_code": 0,
+      "last_line": "PASS retrieval_core_e2e: 251 checks"
+    },
+    {
+      "command": "python3 -B tests/test_ask_grounding_integration.py",
+      "exit_code": 0,
+      "last_line": "PASS ask_grounding_integration: 59 checks"
+    },
+    {
+      "command": "python3 -B tests/test_source_references.py",
+      "exit_code": 0,
+      "last_line": "PASS source_references: 19 checks"
+    },
+    {
+      "command": "python3 -B tests/test_weak_evidence.py",
+      "exit_code": 0,
+      "last_line": "PASS weak_evidence: 24 checks"
+    },
+    {
+      "command": "python3 -B tests/test_search_row_adapter.py",
+      "exit_code": 0,
+      "last_line": "PASS search_row_adapter: 32 checks"
+    },
+    {
+      "command": "python3 -B src/ask-my-brain/ask_my_brain.py --help",
+      "exit_code": 0
+    }
+  ],
+  "codex_1": {
+    "defect": "_INLINE_COMMENT_RE.sub over a whole line was quadratic in the '<!--' openers on that line",
+    "fix": "the pattern is shown only line[:last '-->' + 3]; a line with no '-->' is not shown to it at all",
+    "why_it_is_equivalent": "every match ends in '-->', so none can extend past the last one or begin after it",
+    "measured": {
+      "before_32000_openers_one_line": "11.976s",
+      "after_32000_openers_one_line": "0.00003s (best of 5)",
+      "after_256000": "0.0003s"
+    },
+    "differential": "60,000 randomised adversarial notes, classify_markup and chunk_note compared against a797797: 0 differing",
+    "introduced_at": "44e7588 (SB-ASK-006). Absent at uep/work 4573b55; present in every candidate of the unmerged line until this one.",
+    "why_it_was_missed": "my SB-ASK-009 benchmark put one opener per LINE, the shape that package fixed, and I generalised it to 'classification is linear'"
+  },
+  "shape_sweep": {
+    "what": "21 adversarial shapes through chunk_note at N=8,000 and N=32,000",
+    "worst_ratio_for_4x_input": "4.9x",
+    "flagged_superlinear": 0,
+    "vs_uep_work": "WITHDRAWN: 'each within about 2x' was false and contradicted by my own table. See vs_uep_work_measured.",
+    "limit": "a sweep of shapes I thought of. It is NOT a proof that classification is linear, and no such claim is made."
+  },
+  "pins": {
+    "equivalence": "6 witnesses; expected text taken from a797797's output, not written by hand",
+    "spy": "pattern shown nothing for a no-closer line; exactly '<!-- a -->' for a one-closer line",
+    "timing": "32,000-opener line under 2.0s; 11.976s measured before the change"
+  },
+  "mutation_check": {
+    "caught": [
+      "M1 guard removed - caught by the spy check",
+      "M2 pattern not shown the last closer",
+      "M3 first closer instead of last",
+      "M4 text after the last closer dropped",
+      "M5 rule pattern limited to three spaces (fails the indented D6 pin)",
+      "M6 spaced asterisks recognised (fails the spaced D6 pin)"
+    ],
+    "survived": [],
+    "limit": "the suite stops at its first failure, so M1 never reached the timing check. That check's liveness rests on the 11.976s measurement against its 2.0s bound, not on a mutation."
+  },
+  "codex_2_as_D6": {
+    "status": "PINNED, not repaired, as approved",
+    "witness_a": "'* * *' is a thematic break and is kept",
+    "witness_b": "'    ---' is not one and is deleted",
+    "pre_existing": "WITHDRAWN - false for witness (b). uep/work's rule pattern is r\"(?m)^\\\\s*[-=_*]{3,}\\\\s*$\" - doubled backslashes, so it looks for a literal backslash and matches no rule line. It is not strictly inert: Agent C showed it deletes lines such as a marker run wrapped in literal backslashes. '* * *' is kept there only because no rule line is stripped. Deleting '    ---' became live at 44e7588 (SB-ASK-006). Measured: kept at 4573b55, deleted at 44e7588 and at this candidate.",
+    "consequence_for_the_owner": "the 'pin, not repair' scope was approved after I stated both witnesses were pre-existing. Witness (b) is instead a deletion the unmerged line introduces relative to uep/work. Pinned as approved; the repair decision is the owner's."
+  },
+  "unchanged_and_out_of_scope": [
+    "build_index still has no file-size cap",
+    "D2 and D3/D5 remain open and pinned"
+  ],
+  "derived_line_citations": {
+    "fix_site": {
+      "file": "src/ask-my-brain/ask_my_brain.py",
+      "anchor": "last_closer = line.rfind(\"-->\")",
+      "line": 1049
+    },
+    "codex1_checks": {
+      "file": "tests/test_retrieval_core_e2e.py",
+      "anchor": "# Codex, on SB-ASK-009: substituting complete comments",
+      "line": 427
+    },
+    "d6_pins": {
+      "file": "tests/test_retrieval_core_e2e.py",
+      "anchor": "# D6 (MEDIUM, Codex on SB-ASK-009)",
+      "line": 969
+    }
+  },
+  "superseded_candidates": [
+    {
+      "sha": "83ad2808f9c44de38bfe277a18fb60dc5bd76b56",
+      "agent_c": "FAIL on prose (B1, B2); the product fix could not be broken"
+    }
+  ],
+  "vs_uep_work_measured": {
+    "method": "chunk_note, N=32,000, best of 5, candidate vs 4573b55",
+    "rows": [
+      {
+        "shape": "one line: '<!--'*N",
+        "uep_work_ms": 0.072,
+        "candidate_ms": 0.104,
+        "ratio": 1.4
+      },
+      {
+        "shape": "one line: '<!--'*N + '-->'",
+        "uep_work_ms": 0.071,
+        "candidate_ms": 0.81,
+        "ratio": 11.4
+      },
+      {
+        "shape": "one line: '<!-->'*N",
+        "uep_work_ms": 0.085,
+        "candidate_ms": 1.202,
+        "ratio": 14.1
+      },
+      {
+        "shape": "one line: '<!--a-->'*N",
+        "uep_work_ms": 0.131,
+        "candidate_ms": 2.107,
+        "ratio": 16.1
+      },
+      {
+        "shape": "one line: '-'*N + 'x'",
+        "uep_work_ms": 0.027,
+        "candidate_ms": 0.603,
+        "ratio": 22.1
+      },
+      {
+        "shape": "one line: ' '*N + 'x'",
+        "uep_work_ms": 0.037,
+        "candidate_ms": 1.26,
+        "ratio": 34.0
+      },
+      {
+        "shape": "one line: 'word '*N",
+        "uep_work_ms": 0.092,
+        "candidate_ms": 0.146,
+        "ratio": 1.6
+      },
+      {
+        "shape": "N lines: '<!-- o'",
+        "uep_work_ms": 24.292,
+        "candidate_ms": 45.53,
+        "ratio": 1.9
+      },
+      {
+        "shape": "N lines: 'c -->'",
+        "uep_work_ms": 22.671,
+        "candidate_ms": 49.005,
+        "ratio": 2.2
+      },
+      {
+        "shape": "N lines: '```'",
+        "uep_work_ms": 15.365,
+        "candidate_ms": 18.362,
+        "ratio": 1.2
+      },
+      {
+        "shape": "N lines: '# h'",
+        "uep_work_ms": 71.459,
+        "candidate_ms": 63.521,
+        "ratio": 0.9
+      },
+      {
+        "shape": "N lines: '---'",
+        "uep_work_ms": 15.716,
+        "candidate_ms": 20.037,
+        "ratio": 1.3
+      }
+    ],
+    "summary": "per-line shapes 0.9x-2.2x; single-line shapes up to 34x, every one under 2.2ms absolute"
+  },
+  "repair_1": {
+    "trigger": "Agent C FAIL on 83ad280",
+    "b1": "D6 provenance corrected in the test comment and here",
+    "b2": "the 2x claim withdrawn and replaced by a measured table",
+    "o1": "'8 of them comment' corrected to 7",
+    "o2": "the timing comment's absolute replaced by the two measured margins (about 60,000x above the new cost, about a sixth of the old)",
+    "product_code": "unchanged - src/ byte-identical to 83ad280"
+  },
+  "agent_c": {
+    "first_run": {
+      "sha": "83ad280",
+      "verdict": "FAIL",
+      "could_not_break": [
+        "equivalence: proof, 240,000 differential inputs incl. embedded \\n \\r \\x0b \\x0c \\x85 U+2028/9, 12,093,235 exhaustive strings to length 9",
+        "leakage oracle: 80,000 runs, 162,764 tokens, 0 leaked",
+        "performance claim and the bisect to 44e7588 reproduced",
+        "all 11 new checks falsifiable; the timing check independently live at 11.970s with the spy disabled",
+        "spy restored in try/finally"
+      ]
+    },
+    "second_run": {
+      "sha": "0089904761914c3054123ae21304b3db6513240c",
+      "verdict": "PASS",
+      "blocking": "none",
+      "confirmed": [
+        "src/ byte-identical to 83ad280 and the test file's AST string-identical, so the behavioural verification of 83ad280 transfers",
+        "every clause of the new D6 comment against 4573b55 and 44e7588 across 13 rule shapes; 44e7588's parent is 4573b55",
+        "all 12 rows of vs_uep_work_measured reproduced, plus 17 further single-line shapes - worst ratio 33.1x, worst absolute 2.04ms",
+        "both timing margins (about 61,400x above the new cost; about 1/5.9 of the old)",
+        "P1 patterns, timings and provenance across all 44 commits",
+        "the repair commit corrects 83ad280's unamendable message clearly enough for a reader of the log"
+      ],
+      "observations_non_blocking": [
+        "O1: 'matches nothing' in the test comment and repair commit is a false absolute - the base pattern matches lines wrapped in literal backslashes. 'deletes no rule line at all', the clause that matters, is true. Corrected in this receipt to 'matches no rule line'; the in-tree comment carries the loose form.",
+        "O2: this receipt's quote of the base pattern decoded to the WORKING pattern because of JSON escaping. Corrected above.",
+        "O3: the repair commit message says '13 million exhaustive strings'; Agent C's figure is 12,093,235. The commit message rounds up wrongly and cannot be amended; this receipt carries the exact figure.",
+        "O4: the measured table has 12 rows where the original sweep had 21 shapes; the summary bounds held against Agent C's 17 additional shapes.",
+        "O5: 'Neither is a fault uep/work has' reads slightly strong alone; the two sentences after it make the passage accurate as a whole."
+      ]
+    }
+  },
+  "for_owner_decision": [
+    {
+      "id": "P1",
+      "found_by": "Agent C",
+      "severity": "same threat model as CODEX-1",
+      "what": "the heading patterns '^(#{1,6})\\s+(.+?)\\s*$' in chunk_note and '^#\\s+(.+?)\\s*$' in note_title backtrack quadratically through an interior whitespace run",
+      "witness": "'# x' + ' '*N + 'y'",
+      "measured_by_executor": {
+        "4000": "0.075s",
+        "8000": "0.297s",
+        "16000": "1.171s"
+      },
+      "agent_c_32000": "4.87s",
+      "agent_c_64000": "18.9s",
+      "provenance": "identical at uep/work and in every commit back to the import - NOT introduced by this line",
+      "status": "out of scope, not fixed; build_index has no size cap"
+    },
+    {
+      "id": "D6(b)",
+      "what": "'    ---' is deleted by the unmerged line and kept at uep/work",
+      "status": "pinned as approved; whether to repair before merge is the owner's call"
+    }
+  ]
+}
+
+exec
+/bin/bash -lc "git diff --stat a797797d8283a2d5fadd3bfd9618bb005d041dcc..HEAD && git diff --name-status a797797d8283a2d5fadd3bfd9618bb005d041dcc..HEAD && git diff --stat 4573b55d0e9d698a290ee2f7b5326ac87b95c379..HEAD -- src && sed -n '1,560p' SRC_VS_INTEGRATION_BASE.patch" in /tmp/claude-1000/-home-jro-asb-product-work/3a6ea635-0952-4430-b51f-5ad9bf0bc6ac/scratchpad/codex-012
+ succeeded in 0ms:
+ src/ask-my-brain/ask_my_brain.py | 22 ++++++++---
+ tests/test_retrieval_core_e2e.py | 79 ++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 96 insertions(+), 5 deletions(-)
+M	src/ask-my-brain/ask_my_brain.py
+M	tests/test_retrieval_core_e2e.py
+ src/ask-my-brain/ask_my_brain.py | 434 +++++++++++++++++++++++++++++++++++----
+ 1 file changed, 390 insertions(+), 44 deletions(-)
+diff --git a/src/ask-my-brain/ask_my_brain.py b/src/ask-my-brain/ask_my_brain.py
+index b78b066..f8588e5 100755
+--- a/src/ask-my-brain/ask_my_brain.py
++++ b/src/ask-my-brain/ask_my_brain.py
+@@ -574,21 +574,34 @@ def excluded(
+ 
+ 
+ def note_title(
+-    lines: list[str],
++    classified: list[dict],
+     fallback: str,
+-    frontmatter_end: int,
+ ) -> str:
++    """The note's title: its first level-1 heading that is real evidence.
++
++    Derived from CLASSIFIED lines, not the raw ones. A '# ' line inside an
++    HTML comment, or inside a fenced block, is not a heading. Reading the
++    title off the raw lines put commented-out text into chunks.title, and
++    the title is not an inert field: it is indexed in chunks_fts at the
++    highest bm25 column weight, it feeds the coverage reranker's haystack,
++    it is printed as 'Title:' in the evidence block handed to the answer
++    model, and for a note with no other indexable content it becomes the
++    chunk body. That was the last open leg of defect D1.
++
++    Frontmatter needs no special case here: classify_markup has already
++    dropped those lines.
++    """
+ 
+-    for index, line in enumerate(
+-        lines,
+-        start=1,
+-    ):
+-        if index <= frontmatter_end:
++    for entry in classified:
++        if (
++            entry["kind"] != "keep"
++            or entry["fenced"]
++        ):
+             continue
+ 
+         match = re.match(
+             r"^#\s+(.+?)\s*$",
+-            line,
++            entry["text"],
+         )
+ 
+         if match:
+@@ -813,6 +826,344 @@ def provenance_json(
+     )
+ 
+ 
++# A fenced-code delimiter, as Markdown actually defines one: at most three
++# spaces of indent (four makes it an indented code block), a run of at least
++# three backticks or tildes, and an optional info string.
++_FENCE_LINE_RE = re.compile(
++    r"^ {0,3}(?P<marker>`{3,}|~{3,})(?P<info>.*)$"
++)
++
++
++def fence_delimiter(
++    line: str,
++    open_marker,
++):
++    """Is this line a fence delimiter, and does it open or close?
++
++    Returns the marker that is now open ('```', '~~~~', ...), or None when
++    no fence is open, or False when the line is not a delimiter at all and
++    should be treated as ordinary content.
++
++    Treating every run of three backticks as a toggle was wrong in three
++    separate ways, all of which put text where it should not be:
++
++    - a closing fence may not carry an info string, so inside a fence the
++      line '```not-a-closer' is CONTENT. Toggling on it ended the fence
++      early, which both destroyed the real fenced content that followed and
++      let a heading inside the fence become the note's title.
++    - a fence may be four or more backticks, or tildes. Not recognising
++      those meant an author's literal fenced example lost its comments and
++      rules.
++    - a fence may be indented at most three spaces. Accepting deeper
++      indentation meant an indented code block was read as a fence, which
++      protected commented-out text and carried it into the evidence.
++
++    A closing fence must use the same character as its opener and be at
++    least as long.
++    """
++
++    match = _FENCE_LINE_RE.match(line)
++
++    if not match:
++        return False
++
++    marker = match.group("marker")
++    info = match.group("info")
++
++    if open_marker is None:
++        # A backtick fence's info string may not itself contain a backtick.
++        if (
++            marker[0] == "`"
++            and "`" in info
++        ):
++            return False
++
++        return marker
++
++    if (
++        marker[0] == open_marker[0]
++        and len(marker) >= len(open_marker)
++        and info.strip() == ""
++    ):
++        return None
++
++    return False
++
++# A thematic break is three or more of ONE marker, not any mixture of them.
++# Written as a character class, this deleted lines like '-=_*' that are not
++# breaks at all - a latent error inherited from the base, where the pattern
++# never fired because it was inert. '=' is kept as a marker so that a setext
++# underline is still removed, which is the behaviour this line has always
++# been declared to have.
++_RULE_LINE_RE = re.compile(
++    r"^[ \t]*"
++    r"(?:\*{3,}|-{3,}|_{3,}|={3,})"
++    r"[ \t]*$"
++)
++
++_INLINE_COMMENT_RE = re.compile(
++    r"<!--.*?-->"
++)
++
++
++def last_closing_line(
++    lines: list[str],
++    fm_end: int,
++) -> int:
++    """The last line number carrying a comment closing marker, or 0.
++
++    Whether a comment opener ever closes does not depend on fences or on any
++    other classification: once a comment is open every following line is
++    comment text until a '-->' appears, so the opener at line L closes if and
++    only if some line after L carries one. Knowing that before classifying
++    means an opener that cannot close is treated as literal text immediately,
++    with no restart at all.
++
++    Complete comments on the opener's own line are removed before the opener
++    is looked for, so no '-->' can remain after it on that line - which is why
++    only LATER lines matter here.
++    """
++
++    last = 0
++
++    for number, raw_line in enumerate(
++        lines,
++        start=1,
++    ):
++        if number <= fm_end:
++            continue
++
++        if "-->" in raw_line:
++            last = number
++
++    return last
++
++
++def _classify_once(
++    lines: list[str],
++    fm_end: int,
++    literal_openers: set,
++    last_close: int = None,
++) -> tuple:
++    """Classify every line of the note, always starting from the first.
++
++    `literal_openers` holds the line numbers of '<!--' markers already known
++    not to close; those are ordinary text and open nothing.
++
++    An earlier version of this function could resume part way, to avoid
++    rescanning the prefix a restart would otherwise repeat. It was removed.
++    The rescanning was never what made this quadratic - last_closing_line is
++    what made it linear, by deciding openers up front - and over 20,000
++    openers the two measured the same to within run-to-run noise, so the
++    resume was buying nothing. It cost something real, though: it restored
++    the fence marker but not the open-comment state, so a restart landing on
++    a line where a comment had closed mid-line re-read the text before that
++    closing marker as ordinary content. That text was inside a comment. The
++    backstop is only worth having if it is correct, so it starts from the top.
++
++    Returns the classification and the line number of the first opener that
++    reached the end of the note still unclosed (or None).
++    """
++
++    if last_close is None:
++        last_close = last_closing_line(lines, fm_end)
++
++    classified: list[dict] = []
++    fence_marker = None
++    open_at = None
++
++    for number, raw_line in enumerate(
++        lines,
++        start=1,
++    ):
++
++        if number <= fm_end:
++            classified.append(
++                {
++                    "number": number,
++                    "kind": "drop",
++                    "text": "",
++                    "fenced": False,
++                }
++            )
++            continue
++
++        line = raw_line.rstrip()
++
++        # An open comment is resolved BEFORE the fence test. A fence
++        # delimiter inside a comment is comment text, not a delimiter.
++        if open_at is not None:
++            closing = line.find("-->")
++
++            if closing == -1:
++                classified.append(
++                    {
++                        "number": number,
++                        "kind": "drop",
++                        "text": "",
++                        "fenced": False,
++                    }
++                )
++                continue
++
++            open_at = None
++            line = line[closing + 3:]
++
++        else:
++            delimiter = fence_delimiter(
++                line,
++                fence_marker,
++            )
++
++            if delimiter is not False:
++                fence_marker = delimiter
++                classified.append(
++                    {
++                        "number": number,
++                        "kind": "drop",
++                        "text": "",
++                        "fenced": True,
++                    }
++                )
++                continue
++
++        if fence_marker is not None:
++            classified.append(
++                {
++                    "number": number,
++                    "kind": "keep",
++                    "text": line,
++                    "fenced": True,
++                }
++            )
++            continue
++
++        # Complete comments on this line go first, so two of them cannot
++        # merge and text between them survives. The pattern is only shown the
++        # line up to its last closing marker. Every match ends in a closing
++        # marker, so none can reach past that point or begin after it, and
++        # the result is the same as substituting over the whole line. What
++        # changes is the cost: past the last closing marker each opener made
++        # the pattern scan to the end of the line and fail, which was
++        # quadratic in the openers on one line (Codex, on SB-ASK-009).
++        last_closer = line.rfind("-->")
++
++        if last_closer != -1:
++            line = (
++                _INLINE_COMMENT_RE.sub(
++                    " ",
++                    line[: last_closer + 3],
++                )
++                + line[last_closer + 3:]
++            )
++
++        if number not in literal_openers:
++            opening = line.find("<!--")
++
++            # An opener with no closing marker after it can never close, so
++            # it is literal text and there is nothing to discover later.
++            if (
++                opening != -1
++                and number >= last_close
++            ):
++                literal_openers.add(number)
++                opening = -1
++
++            if opening != -1:
++                open_at = number
++                line = line[:opening]
++
++        line = line.rstrip()
++
++        if _RULE_LINE_RE.match(line):
++            classified.append(
++                {
++                    "number": number,
++                    "kind": "drop",
++                    "text": "",
++                    "fenced": False,
++                }
++            )
++            continue
++
++        classified.append(
++            {
++                "number": number,
++                "kind": "keep",
++                "text": line,
++                "fenced": False,
++            }
++        )
++
++    return classified, open_at
++
++
++def classify_markup(
++    lines: list[str],
++    fm_end: int,
++) -> list[dict]:
++    """Classify every line of a note once, before anything is chunked.
++
++    Returns one dict per line, aligned with `lines`, carrying:
++        number   1-based line number
++        kind     'keep' or 'drop'
++        text     the line's content after markup removal ('' when dropped)
++        fenced   True if the line sits inside a fenced block
++
++    Every markup decision here is line-local, so no pattern CAN span lines,
++    whatever it is written as. That is what closed the first three attempts
++    at this defect, each of which let a marker pattern run past its own line
++    and delete the content between two markers.
++
++    A comment may only remove text it actually encloses. An earlier version
++    discovered that after the fact and handed the swallowed lines back. That
++    restored their TEXT but not the STATE the wrong decision had produced:
++    fence tracking had already run with those lines consumed, so a heading
++    textually inside a fence could become the note's title and the fence
++    delimiters reached the evidence.
++
++    So the decision is made before it is acted on. The pass runs, and if a
++    comment opener turns out never to close, that opener is recorded as
++    ordinary text and the whole pass is run again with it. Each restart
++    settles one opener, so this terminates, and the classification that is
++    finally returned was computed with the right answer from the first line
++    - fence state included. There is nothing left to undo.
++    """
++
++    literal_openers: set = set()
++    classified: list[dict] = []
++    last_close = last_closing_line(lines, fm_end)
++
++    # With last_closing_line deciding openers up front, a pass should never
++    # report an unterminated opener and this loop should run exactly once.
++    # It is kept as a correctness backstop: if that decision were ever wrong
++    # in the direction of opening a comment that does not close, the restart
++    # still settles it rather than letting the comment swallow the note.
++    #
++    # Bounded, not merely convergent. Each restart settles one opener and a
++    # note has at most len(lines) of them, so the bound is never reached while
++    # this function is correct. It is written as a bound rather than a
++    # progress check because a progress check only catches the shape of
++    # non-progress it tests for: an earlier version guarded against the same
++    # opener being re-reported, and a change that simply stopped recording
++    # openers still span forever. Indexing a note must always finish, so the
++    # loop cannot depend on the body being right.
++    for _ in range(len(lines) + 1):
++        classified, unterminated = _classify_once(
++            lines,
++            fm_end,
++            literal_openers,
++            last_close,
++        )
++
++        if unterminated is None:
++            break
++
++        literal_openers.add(unterminated)
++
++    return classified
++
++
+ def chunk_note(
+     text: str,
+     relative_path: str,
+@@ -823,12 +1174,18 @@ def chunk_note(
+ 
+     fm_end = frontmatter_end(lines)
+ 
+-    title = note_title(
++    # Classify once, then read the title off the classification. Both the
++    # title and the chunk boundaries have to see markup before they decide.
++    classified = classify_markup(
+         lines,
+-        Path(relative_path).stem,
+         fm_end,
+     )
+ 
++    title = note_title(
++        classified,
++        Path(relative_path).stem,
++    )
++
+     chunks: list[dict] = []
+ 
+     buffer: list[str] = []
+@@ -845,32 +1202,15 @@ def chunk_note(
+         nonlocal end_line
+         nonlocal current_chars
+ 
++        # Comments, rules and fence markers were already removed line by line
++        # by classify_markup, so nothing here can span lines. What is left is
++        # whitespace tidying. Both patterns were previously written with
++        # doubled backslashes, which made them match a literal backslash and
++        # never fire (defect D1).
+         body = "\n".join(
+             buffer
+         ).strip()
+ 
+-        # HTML comments are pipeline metadata / structural markers,
+-        # not useful retrieval evidence.
+-        body = re.sub(
+-            r"<!--[\\s\\S]*?-->",
+-            " ",
+-            body,
+-        )
+-
+-        # Remove standalone Markdown separators and fence markers
+-        # while retaining actual fenced content.
+-        body = re.sub(
+-            r"(?m)^\\s*```[^`]*$",
+-            " ",
+-            body,
+-        )
+-
+-        body = re.sub(
+-            r"(?m)^\\s*[-=_*]{3,}\\s*$",
+-            " ",
+-            body,
+-        )
+-
+         body = re.sub(
+             r"[ \t]+",
+             " ",
+@@ -878,8 +1218,8 @@ def chunk_note(
+         )
+ 
+         body = re.sub(
+-            r"\\n{3,}",
+-            "\\n\\n",
++            r"\n{3,}",
++            "\n\n",
+             body,
+         ).strip()
+ 
+@@ -914,16 +1254,24 @@ def chunk_note(
+         end_line = None
+         current_chars = 0
+ 
+-    for line_number, raw_line in enumerate(
+-        lines,
+-        start=1,
+-    ):
+-        if line_number <= fm_end:
++    for entry in classified:
++        line_number = entry["number"]
++
++        if entry["kind"] == "drop":
+             continue
+ 
+-        heading_match = re.match(
+-            r"^(#{1,6})\s+(.+?)\s*$",
+-            raw_line,
++        line = entry["text"]
++
++        # A '#' line inside a fenced block is a shell, YAML or Python comment,
++        # not a heading. Splitting the chunk there used to strand the rest of
++        # the fence outside its own fence state.
++        heading_match = (
++            None
++            if entry["fenced"]
++            else re.match(
++                r"^(#{1,6})\s+(.+?)\s*$",
++                line,
++            )
+         )
+ 
+         if heading_match:
+@@ -937,8 +1285,6 @@ def chunk_note(
+ 
+             continue
+ 
+-        line = raw_line.rstrip()
+-
+         if len(line) > max_chars:
+             flush()
+ 
+
+codex
+The frozen identity and package boundary match: HEAD is exactly `0089904…`, and the package changes only the single `_classify_once` site plus the stated test file. I’m now stress-testing the old and new implementations directly in memory, including late-failing regex shapes, differential semantics, leakage-oriented cases, and scaling.
+exec
+/bin/bash -lc "python3 -B - <<'PY'
+import importlib.util, subprocess, time, random, string, sys
+from pathlib import Path
+p=Path('src/ask-my-brain/ask_my_brain.py')
+spec=importlib.util.spec_from_file_location('newamb',p); new=importlib.util.module_from_spec(spec); spec.loader.exec_module(new)
+oldsrc=subprocess.check_output(['git','show','a797797d8283a2d5fadd3bfd9618bb005d041dcc:src/ask-my-brain/ask_my_brain.py'],text=True)
+ns={'__name__':'oldamb','__file__':'old.py'}; exec(compile(oldsrc,'old.py','exec'),ns); Old=type('Old',(),ns)
+# reported witness, plus adversarial scaling shapes; best of 3
+shapes={
+'no_closer':lambda n:'<"'!--'"'*n,
+'one_final':lambda n:'<"'!--'"'*n+'-->',
+'complete_then_many_then_final':lambda n:'<"'!--a-->X'"'+'<"'!--'"'*n+'-->',
+'near_open_final':lambda n:'<"'!-->'"'*n+'-->',
+'extra_hyphen':lambda n:'<"'!--'"'+'-'*n+'--->',
+'many_complete':lambda n:'<"'!--a-->'"'*n,
+}
+for name,mk in shapes.items():
+    vals=[]
+    for n in (4000,8000,16000,32000):
+        s=mk(n); best=99
+        for _ in range(3):
+            t=time.perf_counter(); new.classify_markup([s],0); best=min(best,time.perf_counter()-t)
+        vals.append(best)
+    print('TIME',name,' '.join(f'{x:.6f}' for x in vals),'ratio',f'{vals[-1]/max(vals[-2],1e-12):.2f}')
+# Old witness at manageable sizes demonstrate growth
+for n in (2000,4000,8000):
+    s='<"'!--'"'*n; t=time.perf_counter(); Old.classify_markup([s],0); print('OLD_NO_CLOSE',n,f'{time.perf_counter()-t:.6f}')
+# Random differential line sets with markup-heavy alphabet, embedded newline chars too
+rng=random.Random(73191); toks=['<"'!--'"','-->','<"'!-->'"','--->','<"'!---->'"','"'`'"','"'```'"','~~~','# ','* * *','    ---','x',' ','\\t','\\n','\\r','\\v','\\f','\\u2028']
+for i in range(30000):
+    lines=[''.join(rng.choice(toks) for _ in range(rng.randrange(0,18))) for _ in range(rng.randrange(0,8))]
+    fm=rng.randrange(0,len(lines)+1) if lines else 0
+    a=Old.classify_markup(lines,fm); b=new.classify_markup(lines,fm)
+    if a"'!=b:
+        print('"'CLASS_DIFF',i,repr(lines),fm,a,b); raise SystemExit(1)
+    text='\\n'.join(lines)
+    ca=Old.chunk_note(text,'n.md',rng.choice([10,40,3500])); cb=new.chunk_note(text,'n.md',rng.choice([3500])) if False else None
+print('CLASS_DIFF 30000 none')
+# chunk differential separately same max
+for i in range(10000):
+    lines=[''.join(rng.choice(toks) for _ in range(rng.randrange(0,18))) for _ in range(rng.randrange(0,10))]
+    text='\\n'.join(lines); maxc=rng.choice([10,40,3500])
+    a=Old.chunk_note(text,'n.md',maxc); b=new.chunk_note(text,'n.md',maxc)
+    if a"'!=b:
+        print('"'CHUNK_DIFF',i,repr(text),maxc,a,b); raise SystemExit(1)
+print('CHUNK_DIFF 10000 none')
+PY" in /tmp/claude-1000/-home-jro-asb-product-work/3a6ea635-0952-4430-b51f-5ad9bf0bc6ac/scratchpad/codex-012
+ exited 1 in 1ms:
+exec
+/bin/bash -lc "python3 -B - <<'PY'
+import importlib.util, subprocess, time, random
+from pathlib import Path
+p=Path('src/ask-my-brain/ask_my_brain.py').resolve()
+spec=importlib.util.spec_from_file_location('newamb',p); new=importlib.util.module_from_spec(spec); spec.loader.exec_module(new)
+oldsrc=subprocess.check_output(['git','show','a797797d8283a2d5fadd3bfd9618bb005d041dcc:src/ask-my-brain/ask_my_brain.py'],text=True)
+ns={'__name__':'oldamb','__file__':str(p)}; exec(compile(oldsrc,'old.py','exec'),ns); Old=type('Old',(),ns)
+shapes={'no_closer':lambda n:'<"'!--'"'*n,'one_final':lambda n:'<"'!--'"'*n+'-->','complete_many_final':lambda n:'<"'!--a-->X'"'+'<"'!--'"'*n+'-->','near_open_final':lambda n:'<"'!-->'"'*n+'-->','extra_hyphen':lambda n:'<"'!--'"'+'-'*n+'--->','many_complete':lambda n:'<"'!--a-->'"'*n}
+for name,mk in shapes.items():
+ vals=[]
+ for n in (4000,8000,16000,32000):
+  s=mk(n); best=99
+  for _ in range(3):
+   t=time.perf_counter(); new.classify_markup([s],0); best=min(best,time.perf_counter()-t)
+  vals.append(best)
+ print('TIME',name,' '.join(f'{x:.6f}' for x in vals),'ratio',f'{vals[-1]/max(vals[-2],1e-12):.2f}')
+for n in (2000,4000,8000):
+ s='<"'!--'"'*n; t=time.perf_counter(); Old.classify_markup([s],0); print('OLD_NO_CLOSE',n,f'{time.perf_counter()-t:.6f}')
+rng=random.Random(73191); toks=['<"'!--'"','-->','<"'!-->'"','--->','<"'!---->'"','"'`'"','"'```'"','~~~','# ','* * *','    ---','x',' ','\\t','\\n','\\r','\\v','\\f','\\u2028']
+for i in range(30000):
+ lines=[''.join(rng.choice(toks) for _ in range(rng.randrange(18))) for _ in range(rng.randrange(8))]; fm=rng.randrange(len(lines)+1) if lines else 0
+ a=Old.classify_markup(lines,fm); b=new.classify_markup(lines,fm)
+ if a"'!=b: print('"'CLASS_DIFF',i,repr(lines),fm,a,b); raise SystemExit(1)
+print('CLASS_DIFF 30000 none')
+for i in range(10000):
+ lines=[''.join(rng.choice(toks) for _ in range(rng.randrange(18))) for _ in range(rng.randrange(10))]; text='\\n'.join(lines); maxc=rng.choice([10,40,3500])
+ a=Old.chunk_note(text,'n.md',maxc); b=new.chunk_note(text,'n.md',maxc)
+ if a"'!=b: print('"'CHUNK_DIFF',i,repr(text),maxc,a,b); raise SystemExit(1)
+print('CHUNK_DIFF 10000 none')
+PY" in /tmp/claude-1000/-home-jro-asb-product-work/3a6ea635-0952-4430-b51f-5ad9bf0bc6ac/scratchpad/codex-012
+ succeeded in 2038ms:
+TIME no_closer 0.000007 0.000009 0.000017 0.000039 ratio 2.26
+TIME one_final 0.000139 0.000263 0.000391 0.000765 ratio 1.96
+TIME complete_many_final 0.000102 0.000200 0.000378 0.000737 ratio 1.95
+TIME near_open_final 0.000210 0.000426 0.000866 0.001720 ratio 1.99
+TIME extra_hyphen 0.000025 0.000049 0.000095 0.000185 ratio 1.94
+TIME many_complete 0.000246 0.000480 0.000988 0.001957 ratio 1.98
+OLD_NO_CLOSE 2000 0.048106
+OLD_NO_CLOSE 4000 0.191272
+OLD_NO_CLOSE 8000 0.778063
+CLASS_DIFF 30000 none
+CHUNK_DIFF 10000 none
+
+exec
+/bin/bash -lc 'python3 -B tests/test_retrieval_core_e2e.py; python3 -B tests/test_ask_grounding_integration.py; python3 -B tests/test_source_references.py; python3 -B tests/test_weak_evidence.py; python3 -B tests/test_search_row_adapter.py; python3 -B src/ask-my-brain/ask_my_brain.py --help >/dev/null' in /tmp/claude-1000/-home-jro-asb-product-work/3a6ea635-0952-4430-b51f-5ad9bf0bc6ac/scratchpad/codex-012
+ succeeded in 206ms:
+  ok  HIGH strength is unchanged
+  ok  LOW strength is unchanged
+  ok  the empty case is unchanged
+  ok  search still exists: no accepted retrieval function was removed
+  ok  execute_match still exists: no accepted retrieval function was removed
+  ok  query_terms still exists: no accepted retrieval function was removed
+  ok  build_index still exists: no accepted retrieval function was removed
+  ok  chunk_note still exists: no accepted retrieval function was removed
+  ok  fts_token still exists: no accepted retrieval function was removed
+  ok  resolve_scope still exists: no accepted retrieval function was removed
+  ok  provenance_for_path still exists: no accepted retrieval function was removed
+  ok  retrieval_authority_for_path still exists: no accepted retrieval function was removed
+  ok  ask_my_brain imports render_source_references
+  ok  ask_my_brain imports format_source_references
+  ok  ask_my_brain imports evidence_verdict
+  ok  [imports] ask_my_brain imports adapt_search_rows (KI-154)
+  ok  both modules are imported by name
+  ok  [imports] the adapter module is imported by name
+  ok  the renderer is imported, not copied into ask_my_brain.py
+  ok  [imports] the adapter is imported, not copied
+  ok  [imports] render_ask_output(source_rows, answer_text, model) exists
+  ok  [sufficient-composition] render_ask_output returns a string
+  ok  [row-adaptation] the chunk shown is the row's start_line, so adapt_search_rows was applied
+--- got ---
+ANSWER:
+The tiles arrive on Monday. [S1]
+
+Evidence strength: HIGH
+
+SOURCES:
+[1] Kitchen — 20 Projects/Kitchen.md (chunk 40)
+
+MODEL=qwen2.5:7b
+EVIDENCE_CHUNKS=1
+  ok  [row-adaptation] no raw key or error leaks into the output
+  ok  [row-adaptation] the snippet comes from body
+  ok  the SOURCES block uses the renderer's format
+--- got ---
+ANSWER:
+The tiles arrive on Monday. [S1]
+
+Evidence strength: HIGH
+
+SOURCES:
+[1] Kitchen — 20 Projects/Kitchen.md (chunk 40)
+
+MODEL=qwen2.5:7b
+EVIDENCE_CHUNKS=1
+  ok  [reference-rendering] the block is formatted lines, never a printed dict
+  ok  the answer block is printed
+  ok  the generated answer is printed
+  ok  a SOURCES section is printed
+  ok  Sources come AFTER the grounded answer
+  ok  the existing machine-readable trailer is preserved unchanged
+  ok  a grounded answer has Sources, not Related notes
+  ok  [sufficient-composition] the trailer follows the Sources block
+  ok  [sufficient-composition] render_ask_output returns a string
+  ok  both notes are cited
+  ok  [sufficient-composition] render_ask_output returns a string
+  ok  the references are shown as Related notes
+  ok  the Related notes use the renderer
+--- got ---
+ANSWER:
+The only evidence I found is a single low-confidence source, which is too weak to answer this question confidently.
+
+Related notes:
+[1] Home — 10 Areas/Home.md (chunk 3)
+
+ANSWER_SUPPRESSED=1
+EVIDENCE_STATUS=WEAK
+  ok  a suppressed answer has Related notes, not Sources
+  ok  the suppression is machine-readable
+  ok  weak evidence is reported as WEAK
+  ok  no model line is printed when no model ran
+  ok  the owner is told why there is no answer
+  ok  no generated answer text appears
+  ok  [sufficient-composition] render_ask_output returns a string
+  ok  the existing no-evidence contract is preserved
+  ok  there are no references to relate to
+  ok  the model is NOT called when the evidence is too weak
+  ok  the model is not called with no evidence
+  ok  [model-suppression] ask() prints the composed no-evidence output
+  ok  the model is called once for sufficient evidence (got 1)
+  ok  [ask-end-to-end] ask() prints the composed sufficient output
+  ok  the system prompt still tells the model the evidence is untrusted data
+  ok  the system prompt still demands the evidence-strength line
+  ok  the system prompt still demands citations
+  ok  the user prompt still carries the question and the evidence block
+  ok  LOW evidence corroborated by two notes is still answered
+  ok  [ask-end-to-end] ask() prints the composed suppressed output
+PASS ask_grounding_integration: 59 checks
+  ok  render_source_references returns a list
+  ok  one reference per distinct note (got 2)
+  ok  references keep first-appearance order (got ['20 Projects/Kitchen.md', '10 Areas/Home.md'])
+  ok  references are numbered from 1 (got [1, 2])
+  ok  all chunks of a note are collected and sorted (got [1, 3])
+  ok  a single-chunk note carries its one chunk (got [0])
+  ok  a repeated chunk index appears once (got [1, 3])
+  ok  the reference carries the note title
+  ok  the snippet is the first chunk's text with whitespace collapsed (got 'the tiles arrive Monday')
+  ok  a snippet is bounded at 200 characters plus an ellipsis (got 201)
+  ok  a truncated snippet ends with an ellipsis
+  ok  no evidence yields no references
+  ok  a row without a path is skipped
+  ok  a row without a title falls back to its path (got '10 Areas/x.md')
+  ok  first line (got '[1] Kitchen — 20 Projects/Kitchen.md (chunks 1, 3)')
+  ok  a single chunk reads 'chunk', not 'chunks' (got '[2] Home — 10 Areas/Home.md (chunk 0)')
+  ok  one line per reference (got 2)
+  ok  no references render as an empty string, never as a heading with nothing under it
+  ok  the input rows are not mutated
+PASS source_references: 19 checks
+  ok  evidence_verdict returns a dict
+  ok  the verdict carries 'sufficient'
+  ok  the verdict carries 'reason'
+  ok  the verdict carries 'message'
+  ok  no evidence is never sufficient
+  ok  the reason is machine-readable (got 'no_evidence')
+  ok  an insufficient verdict carries a message for the owner
+  ok  the message says the problem is evidence (got "I could not find any evidence in your notes to answer this question, so I can't answer it.")
+  ok  LOW strength from one note is not sufficient
+  ok  the reason distinguishes weak from absent (got 'weak_evidence')
+  ok  a weak verdict carries a message
+  ok  LOW strength corroborated by two distinct notes is sufficient
+  ok  the reason records why (got 'low_but_corroborated')
+  ok  a sufficient verdict carries no refusal message
+  ok  two chunks of the SAME note are not two notes
+  ok  MEDIUM strength is sufficient (got {'sufficient': True, 'reason': 'sufficient', 'message': ''})
+  ok  HIGH strength is sufficient (got {'sufficient': True, 'reason': 'sufficient', 'message': ''})
+  ok  an unrecognised strength '' fails closed
+  ok  an unrecognised strength None fails closed
+  ok  an unrecognised strength 'probably fine' fails closed
+  ok  an unrecognised strength 'low' fails closed
+  ok  failing closed still honours corroboration: unknown strength behaves exactly as LOW
+  ok  rows with no path do not count as notes
+  ok  the input rows are not mutated
+PASS weak_evidence: 24 checks
+  ok  one adapted row per search row, in order (got 3)
+  ok  order is preserved
+  ok  snippet is the chunk body, untouched (got '  the  tiles arrive Monday ')
+  ok  chunk_index is the chunk's start_line (got 40)
+  ok  every row gets its own start_line as chunk_index
+  ok  the real column 'id' is carried through unchanged
+  ok  the real column 'path' is carried through unchanged
+  ok  the real column 'title' is carried through unchanged
+  ok  the real column 'heading' is carried through unchanged
+  ok  the real column 'body' is carried through unchanged
+  ok  the real column 'start_line' is carried through unchanged
+  ok  the real column 'end_line' is carried through unchanged
+  ok  the real column 'match_mode' is carried through unchanged
+  ok  the real column 'matched_terms' is carried through unchanged
+  ok  the real column 'term_coverage' is carried through unchanged
+  ok  the real column 'retrieval_quality' is carried through unchanged
+  ok  the real column 'authority_bonus' is carried through unchanged
+  ok  the real column 'score' is carried through unchanged
+  ok  the real column 'provenance' is carried through unchanged
+  ok  the input rows are not mutated
+  ok  no rows adapt to no rows
+  ok  a row missing start_line gets chunk_index 0, not an exception
+  ok  a row missing body gets an empty snippet
+  ok  the renderer sees two distinct notes (got 2)
+  ok  a note's chunks are its start_lines, sorted (got [12, 40])
+  ok  the first selected chunk's body becomes the snippet (got 'the tiles arrive Monday')
+  ok  the rendered line is complete (got '[1] Kitchen — 20 Projects/Kitchen.md (chunks 12, 40)')
+  ok  the adapter does not contain 'import sqlite3'
+  ok  the adapter does not contain 'import urllib'
+  ok  the adapter does not contain 'import requests'
+  ok  the adapter does not contain 'import ask_my_brain'
+  ok  the adapter does not contain '/AI/'
+PASS search_row_adapter: 32 checks
+
+exec
+/bin/bash -lc "git show 4573b55d0e9d698a290ee2f7b5326ac87b95c379:src/ask-my-brain/ask_my_brain.py | rg -n -C 3 'RULE|\\\\\\\\s\\*\\[-=_\\*\\]' && python3 -B - <<'PY'
+import re
+p=re.compile(r'(?m)"'^'"\\\\s*[-=_*]{3,}\\\\s*"'$'"')
+for s in ['---','    ---',r'\\---\\',r'\\sss---\\ss']:
+ print(repr(s), bool(p.match(s)), repr(p.sub(' ',s)))
+PY
+nl -ba tests/test_retrieval_core_e2e.py | sed -n '44,70p;420,495p;960,1000p'
+nl -ba src/ask-my-brain/ask_my_brain.py | sed -n '1035,1070p'" in /tmp/claude-1000/-home-jro-asb-product-work/3a6ea635-0952-4430-b51f-5ad9bf0bc6ac/scratchpad/codex-012
+ succeeded in 0ms:
+866-        )
+867-
+868-        body = re.sub(
+869:            r"(?m)^\\s*[-=_*]{3,}\\s*$",
+870-            " ",
+871-            body,
+872-        )
+  File "<stdin>", line 3
+    for s in ['---','    ---',r'\---\',r'\sss---\ss']:
+                                          ^
+SyntaxError: unexpected character after line continuation character
+    44	
+    45	D2 (accented content is indexed but unreachable through search) and D3 (a question made only of
+    46	stopwords is answered at HIGH) remain OPEN and remain pinned. D2 needs the reranker to stop
+    47	re-deriving matched terms by string comparison; D3 cannot be fixed by editing query_terms at all,
+    48	because deterministic_evidence_strength returns HIGH for any all_terms match however few or generic
+    49	the terms are, so every change to the term set moves strength as a side effect. Do not read those
+    50	two pins as requirements.
+    51	
+    52	D6 (thematic breaks are recognised by an approximation that is wrong in both directions) was found
+    53	by Codex reviewing SB-ASK-009, is older than that package, and is pinned OPEN beside them.
+    54	"""
+    55	from __future__ import annotations
+    56	
+    57	import atexit
+    58	import contextlib
+    59	import importlib.util
+    60	import io
+    61	import os
+    62	import sqlite3
+    63	import sys
+    64	import tempfile
+    65	import time
+    66	from pathlib import Path
+    67	
+    68	ROOT = Path(__file__).resolve().parents[1]
+    69	AMB = ROOT / "src/ask-my-brain/ask_my_brain.py"
+    70	VAULT = ROOT / "fixtures/vault"
+   420	        nbsp_body = "\n".join(c["body"] for c in nbsp_chunks)
+   421	        check("---" not in nbsp_body,
+   422	              f"[chunking] so the closing marker is dropped as frontmatter, not kept as content "
+   423	              f"(got {nbsp_body!r})")
+   424	        check(nbsp_chunks[0]["start_line"] == 4,
+   425	              f"[chunking] and the span starts after it (got {nbsp_chunks[0]['start_line']})")
+   426	
+   427	        # Codex, on SB-ASK-009: substituting complete comments over a whole line was quadratic in
+   428	        # the '<!--' openers on that line, because past the last closing marker every opener made
+   429	        # the pattern scan to the end and fail. The classifier now shows the pattern only the line
+   430	        # up to its last closing marker. Three things are pinned. First, that the text produced is
+   431	        # what it was before: each expected value below was taken from the code as it stood before
+   432	        # the change, not written by hand.
+   433	        for raw, expected in (
+   434	            ("keep <!-- gone --> tail <!--<!--", "keep   tail <!--<!--"),
+   435	            ("a <!-- x --> b <!-- y --> c", "a   b   c"),
+   436	            ("<!-- one --><!-- two -->after", "  after"),
+   437	            ("<!--> not a comment --> x", "  x"),
+   438	            ("<!---->empty comment", " empty comment"),
+   439	            ("lead --> stray closer <!-- opener", "lead --> stray closer <!-- opener"),
+   440	        ):
+   441	            got = amb.classify_markup([raw], 0)[0]["text"]
+   442	            check(got == expected,
+   443	                  f"[chunking] complete comments on {raw!r} are removed exactly as before "
+   444	                  f"(got {got!r})")
+   445	
+   446	        # Second, what the pattern is shown, which is deterministic where a clock is not.
+   447	        class _PatternSpy:
+   448	            def __init__(self, real):
+   449	                self.real, self.seen = real, []
+   450	            def sub(self, repl, string):
+   451	                self.seen.append(string)
+   452	                return self.real.sub(repl, string)
+   453	        real_pattern = amb._INLINE_COMMENT_RE
+   454	        spy = _PatternSpy(real_pattern)
+   455	        amb._INLINE_COMMENT_RE = spy
+   456	        try:
+   457	            amb.classify_markup(["<!--" * 5000], 0)
+   458	            seen_no_closer = list(spy.seen)
+   459	            spy.seen.clear()
+   460	            amb.classify_markup(["<!-- a --> kept " + "<!--" * 5000], 0)
+   461	            seen_one_closer = list(spy.seen)
+   462	        finally:
+   463	            amb._INLINE_COMMENT_RE = real_pattern
+   464	        check(seen_no_closer == [],
+   465	              f"[chunking] a line with no closing marker is never shown to the comment pattern "
+   466	              f"(got {[len(x) for x in seen_no_closer]} characters)")
+   467	        check(seen_one_closer == ["<!-- a -->"],
+   468	              f"[chunking] and otherwise the pattern sees the line only up to its last closing "
+   469	              f"marker (got lengths {[len(x) for x in seen_one_closer]})")
+   470	
+   471	        # Third, the property itself. Where it was measured this took 12.0 seconds before the
+   472	        # change and less than a millisecond after it, so the bound sits about 60,000 times above
+   473	        # the new cost and at about a sixth of the old one.
+   474	        started = time.monotonic()
+   475	        amb.classify_markup(["<!--" * 32000], 0)
+   476	        elapsed = time.monotonic() - started
+   477	        check(elapsed < 2.0,
+   478	              f"[chunking] 32,000 unclosed openers on one line classify in under two seconds "
+   479	              f"(took {elapsed:.3f}s)")
+   480	
+   481	        # A note whose every line is an unterminated opener. Since openers are now decided up
+   482	        # front this settles in a single pass, so these checks no longer pin the restart bound -
+   483	        # they pin that every such opener is literal text and keeps its marker. The bound itself
+   484	        # is unreachable in correct code and cannot be pinned at the output level, so it is
+   485	        # declared as a backstop in the receipt rather than claimed as tested.
+   486	        bound = rows_of(database, "SELECT * FROM chunks WHERE path = ? ORDER BY start_line",
+   487	                        "10 Areas/Bound Exactness Note.md")
+   488	        bound_body = "\n".join(c["body"] for c in bound)
+   489	        for token in ("BOUNDONE", "BOUNDTWO", "BOUNDTHREE", "BOUNDFOUR"):
+   490	            check(token in bound_body, f"[chunking] {token}'s line survives")
+   491	        check("BOUNDFOUR line carrying an opener <!--" in bound_body,
+   492	              f"[chunking] and the LAST line keeps its literal marker, like every other "
+   493	              f"(got {bound_body!r})")
+   494	
+   495	        # Several unterminated openers followed by a fence. Since SB-ASK-009 decides openers up
+   960	        # no-useful-terms fallback and is answered at full confidence.
+   961	        check("the" in amb.STOPWORDS and amb.query_terms("the") == ["the"],
+   962	              "[defect-pins] DEFECT D3 PINNED (not a requirement): a stopword survives as a search "
+   963	              "term through the no-useful-terms fallback")
+   964	        stopword_rows = amb.search(config, "the", 5)
+   965	        check(stopword_rows and amb.deterministic_evidence_strength(stopword_rows) == "HIGH",
+   966	              "[defect-pins] DEFECT D3 PINNED (not a requirement): a contentless question yields "
+   967	              "HIGH-strength evidence and would be answered by the model")
+   968	
+   969	        # D6 (MEDIUM, Codex on SB-ASK-009): _RULE_LINE_RE approximates a Markdown thematic break
+   970	        # and is wrong in both directions. A break's markers may be separated by spaces, which
+   971	        # the pattern cannot match, and a break may be indented by at most three spaces, where
+   972	        # the pattern accepts any amount. Neither is a fault uep/work has: its rule pattern is
+   973	        # written with a doubled backslash, matches nothing, and deletes no rule line at all. So
+   974	        # the first witness reads the same there only because nothing is stripped, and the second
+   975	        # is a deletion this line of packages introduced at SB-ASK-006, when the pattern was made
+   976	        # to work.
+   977	        _, spaced = amb.chunk_note(
+   978	            "# T\nVisible prose long enough for indexing here ok.\n\n* * *\n\n"
+   979	            "After prose long enough for indexing here.\n", "n.md", 3500)
+   980	        check("* * *" in "\n".join(c["body"] for c in spaced),
+   981	              "[defect-pins] DEFECT D6 PINNED (not a requirement): a thematic break written with "
+   982	              "spaces between its markers is kept as content")
+   983	        _, indented = amb.chunk_note(
+   984	            "# T\nVisible prose long enough for indexing here ok.\n\n    ---\n\n"
+   985	            "After prose long enough for indexing here.\n", "n.md", 3500)
+   986	        check("---" not in "\n".join(c["body"] for c in indented),
+   987	              "[defect-pins] DEFECT D6 PINNED (not a requirement): a run of markers indented four "
+   988	              "spaces, which is not a thematic break, is deleted as one")
+   989	
+   990	        # -------------------------------------------------------------- [containment]
+   991	        check(len(CONNECTED) >= 2,
+   992	              f"[containment] the code under test opened databases and we observed them (got {CONNECTED})")
+   993	        def bare(target: str) -> str:
+   994	            """open_database connects through a file: URI, so compare the plain path."""
+   995	            return target[5:].split("?", 1)[0] if target.startswith("file:") else target
+   996	
+   997	        outside = [c for c in CONNECTED if not bare(c).startswith(work)]
+   998	        check(outside == [],
+   999	              f"[containment] every database the code opened was inside the temp dir (outside: {outside})")
+  1000	        check(any(bare(c) == str(database) for c in CONNECTED),
+  1035	                    "text": line,
+  1036	                    "fenced": True,
+  1037	                }
+  1038	            )
+  1039	            continue
+  1040	
+  1041	        # Complete comments on this line go first, so two of them cannot
+  1042	        # merge and text between them survives. The pattern is only shown the
+  1043	        # line up to its last closing marker. Every match ends in a closing
+  1044	        # marker, so none can reach past that point or begin after it, and
+  1045	        # the result is the same as substituting over the whole line. What
+  1046	        # changes is the cost: past the last closing marker each opener made
+  1047	        # the pattern scan to the end of the line and fail, which was
+  1048	        # quadratic in the openers on one line (Codex, on SB-ASK-009).
+  1049	        last_closer = line.rfind("-->")
+  1050	
+  1051	        if last_closer != -1:
+  1052	            line = (
+  1053	                _INLINE_COMMENT_RE.sub(
+  1054	                    " ",
+  1055	                    line[: last_closer + 3],
+  1056	                )
+  1057	                + line[last_closer + 3:]
+  1058	            )
+  1059	
+  1060	        if number not in literal_openers:
+  1061	            opening = line.find("<!--")
+  1062	
+  1063	            # An opener with no closing marker after it can never close, so
+  1064	            # it is literal text and there is nothing to discover later.
+  1065	            if (
+  1066	                opening != -1
+  1067	                and number >= last_close
+  1068	            ):
+  1069	                literal_openers.add(number)
+  1070	                opening = -1
+
+exec
+/bin/bash -lc "python3 -B - <<'PY'
+import re
+p=re.compile(r'(?m)"'^'"\\\\s*[-=_*]{3,}\\\\s*"'$'"')
+for s in ['---','    ---','\\\\---\\\\','\\\\sss---\\\\ss']:
+ print(repr(s), bool(p.fullmatch(s)), repr(p.sub(' ',s)))
+PY
+# Confirm package patch is exactly the actual base-to-head diff.
+git diff --no-ext-diff --binary a797797d8283a2d5fadd3bfd9618bb005d041dcc..HEAD | cmp - PACKAGE_DIFF.patch; echo PATCH_CMP_EXIT="'$?
+# Inspect commit subjects and parent chain relevant to receipt provenance.
+git log --oneline --decorate -8 HEAD
+git show -s --format='"'%H %P %s' 44e7588" in /tmp/claude-1000/-home-jro-asb-product-work/3a6ea635-0952-4430-b51f-5ad9bf0bc6ac/scratchpad/codex-012
+ succeeded in 0ms:
+'---' False '---'
+'    ---' False '    ---'
+'\\---\\' True ' '
+'\\sss---\\ss' True ' '
+PATCH_CMP_EXIT=0
+0089904 (HEAD, tag: sb-ask-012-candidate, uep/task-sb-ask-012) SB-ASK-012 repair 1: D6's second witness is not pre-existing, and neither was my 2x claim true
+83ad280 SB-ASK-012: show the comment pattern only the line up to its last closer
+a797797 (tag: sb-ask-011-candidate, uep/task-sb-ask-011) SB-ASK-011 repair 1: word the check as the subtraction it performs
+8bd3781 SB-ASK-011: delete the claim instead of adding a second one next to it
+16bbf63 (tag: sb-ask-010-candidate, uep/task-sb-ask-010) SB-ASK-010 repair 2: drop the universal instead of re-qualifying it
+c836784 SB-ASK-010 repair 1: the rule pattern is applied, it just never matches
+a837dcb SB-ASK-010: check for stale text instead of remembering to look for it
+2fed7cb (tag: sb-ask-009-candidate, uep/task-sb-ask-009) SB-ASK-009 repair 2: stop describing the resume I deleted
+44e75883e35efdae3b3a6fc55f368eee50348910 4573b55d0e9d698a290ee2f7b5326ac87b95c379 SB-ASK-006: repair D1 by making markup handling line-local and fence-aware
+
+codex
+Verdict: FAIL
+
+## Blocking finding
+
+1. The D6 test comment makes a known-false absolute claim.
+
+   - Location: [tests/test_retrieval_core_e2e.py:973](/tmp/claude-1000/-home-jro-asb-product-work/3a6ea635-0952-4430-b51f-5ad9bf0bc6ac/scratchpad/codex-012/tests/test_retrieval_core_e2e.py:973)
+   - Faulty text: `written with a doubled backslash, matches nothing`
+   - Concrete witness: At integration base `4573b55`, the pattern is `r"(?m)^\\s*[-=_*]{3,}\\s*$"`. It matches the literal-backslash string `\---\` and replaces it with a space.
+   - Observed: `fullmatch("\\---\\")` is true; substitution produces `" "`.
+   - Expected: The comment must not claim the pattern “matches nothing.” The narrower adjacent claim—that it matches no actual Markdown rule line and therefore does not delete `---` or `    ---`—is correct.
+   - Verification: Inspected the pattern with `git show 4573b55:src/ask-my-brain/ask_my_brain.py` and executed it directly against `---`, `    ---`, `\---\`, and `\sss---\ss`.
+   - Receipt issue: `PACKAGE_RESULT.json` itself acknowledges this exact false statement under `agent_c.second_run.observations_non_blocking`, but leaves the known-false assertion in the frozen test source. Given the explicit requirement to scrutinize prose claims, this blocks acceptance.
+
+## Out-of-scope observations
+
+2. P1 remains present and out of scope.
+
+   - Location: the heading patterns in `chunk_note` and `note_title`.
+   - Witness: `"# x" + " " * N + "y"`.
+   - Behavior: lazy heading capture followed by trailing whitespace matching backtracks quadratically through the interior whitespace run.
+   - Provenance: recorded as identical at integration base and candidate; it was not introduced by SB-ASK-012.
+   - Status: correctly disclosed in the receipt, not a package-scope violation.
+
+3. D6(b) is an unmerged-line regression, correctly withdrawn from the “pre-existing” claim.
+
+   - Witness: `    ---`.
+   - Integration base: retained because the doubled-backslash rule regex does not recognize it.
+   - Candidate: deleted by `_RULE_LINE_RE`.
+   - Provenance: `44e7588` is directly parented by integration base `4573b55`; that commit made the behavior live.
+   - Status: pinned rather than repaired, matching the owner-approved scope.
+
+## Checks that passed
+
+- HEAD exactly equals `0089904761914c3054123ae21304b3db6513240c`.
+- `PACKAGE_DIFF.patch` is byte-identical to the actual `a797797..HEAD` diff.
+- Product-code scope is limited to the approved `_classify_once` site.
+- CODEX-1 is fixed:
+  - Old no-closer witness scaled approximately 4× for each 2× input: 0.048s, 0.191s, 0.778s at 2k/4k/8k openers.
+  - Candidate handled 32,000 openers in about 0.00004s.
+  - Adversarial bounded-prefix shapes—including a far-end closer, many openers before it, `<!-->` repetitions, `--->`, and many complete comments—scaled linearly.
+- Semantic equivalence:
+  - 30,000 randomized `classify_markup` comparisons against `a797797`: no differences.
+  - 10,000 randomized `chunk_note` comparisons: no differences.
+  - The equivalence argument is valid: a complete regex match cannot end beyond the final `-->`, and the untouched suffix contains no possible match terminator.
+- No content-leakage witness was found; old/new differential testing included complete comments followed by unclosed openers, fences, headings, embedded line characters, and malformed marker shapes.
+- All six equivalence checks and both spy checks are falsifiable.
+- The 2.0-second timing pin is live and has ample margin; the old implementation demonstrably exhibits quadratic growth.
+- Both D6 pins correctly describe Markdown: thematic-break markers may be space-separated, while four-space indentation makes `---` indented code rather than a thematic break.
+- The code comment at the fix site accurately describes both equivalence and cost.
+- Four auxiliary suites and `--help` passed. The main E2E suite could not create a temporary directory under the read-only sandbox; this is an environmental limitation, not a product defect.
+tokens used
+43,834
+Verdict: FAIL
+
+## Blocking finding
+
+1. The D6 test comment makes a known-false absolute claim.
+
+   - Location: [tests/test_retrieval_core_e2e.py:973](/tmp/claude-1000/-home-jro-asb-product-work/3a6ea635-0952-4430-b51f-5ad9bf0bc6ac/scratchpad/codex-012/tests/test_retrieval_core_e2e.py:973)
+   - Faulty text: `written with a doubled backslash, matches nothing`
+   - Concrete witness: At integration base `4573b55`, the pattern is `r"(?m)^\\s*[-=_*]{3,}\\s*$"`. It matches the literal-backslash string `\---\` and replaces it with a space.
+   - Observed: `fullmatch("\\---\\")` is true; substitution produces `" "`.
+   - Expected: The comment must not claim the pattern “matches nothing.” The narrower adjacent claim—that it matches no actual Markdown rule line and therefore does not delete `---` or `    ---`—is correct.
+   - Verification: Inspected the pattern with `git show 4573b55:src/ask-my-brain/ask_my_brain.py` and executed it directly against `---`, `    ---`, `\---\`, and `\sss---\ss`.
+   - Receipt issue: `PACKAGE_RESULT.json` itself acknowledges this exact false statement under `agent_c.second_run.observations_non_blocking`, but leaves the known-false assertion in the frozen test source. Given the explicit requirement to scrutinize prose claims, this blocks acceptance.
+
+## Out-of-scope observations
+
+2. P1 remains present and out of scope.
+
+   - Location: the heading patterns in `chunk_note` and `note_title`.
+   - Witness: `"# x" + " " * N + "y"`.
+   - Behavior: lazy heading capture followed by trailing whitespace matching backtracks quadratically through the interior whitespace run.
+   - Provenance: recorded as identical at integration base and candidate; it was not introduced by SB-ASK-012.
+   - Status: correctly disclosed in the receipt, not a package-scope violation.
+
+3. D6(b) is an unmerged-line regression, correctly withdrawn from the “pre-existing” claim.
+
+   - Witness: `    ---`.
+   - Integration base: retained because the doubled-backslash rule regex does not recognize it.
+   - Candidate: deleted by `_RULE_LINE_RE`.
+   - Provenance: `44e7588` is directly parented by integration base `4573b55`; that commit made the behavior live.
+   - Status: pinned rather than repaired, matching the owner-approved scope.
+
+## Checks that passed
+
+- HEAD exactly equals `0089904761914c3054123ae21304b3db6513240c`.
+- `PACKAGE_DIFF.patch` is byte-identical to the actual `a797797..HEAD` diff.
+- Product-code scope is limited to the approved `_classify_once` site.
+- CODEX-1 is fixed:
+  - Old no-closer witness scaled approximately 4× for each 2× input: 0.048s, 0.191s, 0.778s at 2k/4k/8k openers.
+  - Candidate handled 32,000 openers in about 0.00004s.
+  - Adversarial bounded-prefix shapes—including a far-end closer, many openers before it, `<!-->` repetitions, `--->`, and many complete comments—scaled linearly.
+- Semantic equivalence:
+  - 30,000 randomized `classify_markup` comparisons against `a797797`: no differences.
+  - 10,000 randomized `chunk_note` comparisons: no differences.
+  - The equivalence argument is valid: a complete regex match cannot end beyond the final `-->`, and the untouched suffix contains no possible match terminator.
+- No content-leakage witness was found; old/new differential testing included complete comments followed by unclosed openers, fences, headings, embedded line characters, and malformed marker shapes.
+- All six equivalence checks and both spy checks are falsifiable.
+- The 2.0-second timing pin is live and has ample margin; the old implementation demonstrably exhibits quadratic growth.
+- Both D6 pins correctly describe Markdown: thematic-break markers may be space-separated, while four-space indentation makes `---` indented code rather than a thematic break.
+- The code comment at the fix site accurately describes both equivalence and cost.
+- Four auxiliary suites and `--help` passed. The main E2E suite could not create a temporary directory under the read-only sandbox; this is an environmental limitation, not a product defect.

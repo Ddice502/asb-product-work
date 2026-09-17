@@ -1,0 +1,1199 @@
+Reading additional input from stdin...
+OpenAI Codex v0.154.0
+--------
+workdir: /tmp/claude-1000/-home-jro-asb-product-work/3a6ea635-0952-4430-b51f-5ad9bf0bc6ac/scratchpad/codex-011r2
+model: gpt-5.6-sol
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: low
+reasoning summaries: none
+session id: 01a0adfd-ce45-7c01-a1e4-95f243781ee9
+--------
+user
+You are **Codex**, the independent reviewer for a frozen product candidate in the AI Second Brain
+project. You review only. Do not edit, create or delete any file, do not move any git ref, and do
+not propose to apply a fix yourself - report findings and stop. Agent C is not running.
+
+## The frozen object
+
+- Package: **SB-ASK-011 repair 1**, documentation and test only
+- Candidate SHA: a797797d8283a2d5fadd3bfd9618bb005d041dcc
+- Superseded: 8bd3781b81d03b3f0097b55498363bb048ed162b, which YOU failed
+- Base SHA (integration base `uep/work`): 4573b55d0e9d698a290ee2f7b5326ac87b95c379
+- Your working directory IS a detached checkout of that exact SHA.
+- Full base->candidate diff: ./CANDIDATE_DIFF.patch
+- Receipt: ./PACKAGE_RESULT.json
+
+## Binding constraint
+
+Documentation and test only. `git diff 2fed7cb5d1b95b3de2719790fe7769664c977871 HEAD -- src/`
+must be empty. If any src/ byte differs, that is the most important finding you can report.
+
+## What you found last time, and what changed
+
+You failed 8bd3781 on one finding: the `[doc-hygiene]` check label said `outside a fixture's own
+name`, while the code performs a case-sensitive, unbounded `str.replace` of two literal strings.
+Your counterexamples: `The NotGive Back Fencepost mechanism is current.` is exempted though it does
+not name the fixture, and the fixture's name lowercased is flagged though it does. You also noted
+the receipt repeated the claim as "matching the code".
+
+The repair rewords the label, the checkpoint index and the block comment to describe **the
+subtraction the code performs** rather than the intent behind it. The receipt field is superseded.
+
+## What to review
+
+1. The binding constraint: no src/ change.
+2. **Is the new wording exactly true of the code?** The label now reads: `no unmarked line of this
+   suite or fixtures/README.md carries the vocabulary of a deleted mechanism, once the two
+   fixture-name strings are subtracted from it`. Attack it. Is there any input for which that
+   sentence is false? Check "unmarked", "the two fixture-name strings", "subtracted", and whether
+   the label is byte-consistent with the checkpoint index near the top of the file.
+3. **The new block comment.** It claims the subtraction is a plain case-sensitive `str.replace`,
+   not a judgement about whether the words name the file, neither case-insensitive nor bounded to
+   whole words; that it exempts `NotGive Back Fencepost`; and that the fixture's own name
+   lowercased is flagged. Verify each clause. Also verify the surviving claim that a rename only
+   has to be reflected in the list when the new name still carries dead vocabulary.
+4. **Did the repair introduce any new false statement anywhere?** This line of packages has failed
+   five consecutive reviews on prose asserting what the code does not do. That is the risk here.
+5. The receipt: does every claim match the diff? Are the `derived_line_citations` anchors unique
+   and correctly numbered in THIS candidate?
+6. Anything else a reviewer should object to: a test that cannot fail, a claim that cannot be
+   checked, a containment risk.
+
+## Output
+
+A verdict (PASS or FAIL) and a numbered list of findings, each with the exact text at fault, its
+location, what the code actually does, and how you verified it. If you find nothing, say so plainly
+and list what you checked.
+2026-09-17T06:11:27.151874Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: "Bearer realm=\"OAuth\", resource_metadata=\"https://mcp.cloudflare.com/.well-known/oauth-protected-resource/mcp\"" })
+codex
+I’ll inspect the frozen diff, receipt, relevant test code, and the exact base-to-candidate `src/` comparison. I’ll make no filesystem or git changes.
+exec
+/bin/bash -lc "git status --short --branch && git rev-parse HEAD && git diff --name-status 4573b55d0e9d698a290ee2f7b5326ac87b95c379 a797797d8283a2d5fadd3bfd9618bb005d041dcc && git diff --exit-code 2fed7cb5d1b95b3de2719790fe7769664c977871 HEAD -- src/; printf 'SRC_DIFF_EXIT=%s\\n' \""'$?" && sed -n '"'1,240p' CANDIDATE_DIFF.patch && printf '\\nPACKAGE_RESULT\\n' && sed -n '1,260p' PACKAGE_RESULT.json" in /tmp/claude-1000/-home-jro-asb-product-work/3a6ea635-0952-4430-b51f-5ad9bf0bc6ac/scratchpad/codex-011r2
+ succeeded in 0ms:
+## HEAD (no branch)
+?? CANDIDATE_DIFF.patch
+?? PACKAGE_RESULT.json
+?? REVIEW_TASK.md
+a797797d8283a2d5fadd3bfd9618bb005d041dcc
+M	fixtures/README.md
+A	fixtures/vault/10 Areas/Backtick Info Note.md
+A	fixtures/vault/10 Areas/Bound Exactness Note.md
+A	fixtures/vault/10 Areas/Break Markers Note.md
+A	fixtures/vault/10 Areas/Comment Fence Note.md
+M	fixtures/vault/10 Areas/Comment Marker Note.md
+A	fixtures/vault/10 Areas/Commented Title Note.md
+A	fixtures/vault/10 Areas/Fence Closer Note.md
+A	fixtures/vault/10 Areas/Fence Shapes Note.md
+A	fixtures/vault/10 Areas/Fenced Markup Note.md
+A	fixtures/vault/10 Areas/Give Back Fence Note.md
+A	fixtures/vault/10 Areas/Hidden Title Only.md
+A	fixtures/vault/10 Areas/Multi Opener Note.md
+A	fixtures/vault/10 Areas/Rule Opener Note.md
+A	fixtures/vault/10 Areas/Title Precedence Note.md
+M	src/ask-my-brain/ask_my_brain.py
+M	tests/test_retrieval_core_e2e.py
+SRC_DIFF_EXIT=0
+diff --git a/fixtures/README.md b/fixtures/README.md
+index 65d536e..fcbe3de 100644
+--- a/fixtures/README.md
++++ b/fixtures/README.md
+@@ -12,7 +12,7 @@ database, no model, and no vault of the owner's anywhere in the picture. Every n
+ place and date in it was made up for this fixture.
+ 
+ Each note exists to exercise one named retrieval behaviour, and the tests name the note they depend
+-on. Notes are deliberately small so a failure points at one behaviour. The vault holds 13 notes:
++on. Notes are deliberately small so a failure points at one behaviour. The vault holds 26 notes:
+ 
+ | note | exercises |
+ | --- | --- |
+@@ -23,14 +23,27 @@ on. Notes are deliberately small so a failure points at one behaviour. The vault
+ | `10 Areas/Second Brain Current Status.md` | `authority: current_project_status` + `status: current`, the one combination that earns the ±0.35 authority bonus |
+ | `10 Areas/Second Brain Older Status.md` | the same subject without authority frontmatter, so the bonus is what decides the ranking |
+ | `10 Areas/Long Line Note.md` | a single line longer than `max_chunk_chars`, for the long-line split |
+-| `10 Areas/Comment Marker Note.md` | an HTML comment between real sentences. The stripper does **not** work (finding D1); this note pins that defect |
++| `10 Areas/Comment Marker Note.md` | comment shapes outside a fence: one between sentences, two on one line with text between and either side, one between two words with no spaces (the replacement is a space, not nothing), one spanning several lines and closing mid-line with text after it; plus a two-dash line that is NOT a rule, and a run of blank lines. All markers must go and every sentence kept (was defect D1, repaired by SB-ASK-006) |
++| `10 Areas/Comment Fence Note.md` | a terminated comment containing a fence delimiter, which must still be removed in full, and an unterminated marker in prose, which must remove nothing at all. Resolving the fence before the comment state makes the first leak and the second swallow the note |
++| `10 Areas/Commented Title Note.md` | a heading inside an HTML comment and a heading inside a fence, both before the note's real heading. Neither may become the title: the title is indexed at the highest bm25 column weight and is printed as `Title:` in the evidence block |
++| `10 Areas/Title Precedence Note.md` | a level-two heading, then two level-one headings. The title must be the FIRST level-one heading: neither the level-two heading above it nor the second level-one heading below it |
++| `10 Areas/Hidden Title Only.md` | a note whose ONLY heading is inside a comment. The title falls back to the filename stem, and the no-signal fallback chunk therefore carries the filename rather than the comment |
++| `10 Areas/Rule Opener Note.md` | an unterminated comment opener on a line that is otherwise a horizontal rule, with nothing else open. Neither branch that could destroy the line fires, and each for a different reason: last_closing_line returns 0, so the opener is literal from the outset and the truncating branch is never entered, while the rule pattern is applied to the line and simply does not match it, because the line still carries its prose rather than the bare `***` that truncating would have left |
++| `10 Areas/Fence Shapes Note.md` | three ways a fence delimiter is not simply "three backticks": a three-backtick line carrying an info string is content, not a closer; a tilde run is a fence too; four spaces of indent makes an indented code block, not a fence. Fences of four or more backticks are covered by `Fence Closer Note.md`, not here |
++| `10 Areas/Break Markers Note.md` | mixtures of break characters, which are not thematic breaks and must survive, beside runs of a single marker, which are stripped |
++| `10 Areas/Bound Exactness Note.md` | every line an unterminated opener. Pins that each is treated as literal text and keeps its marker. Since SB-ASK-009 decides openers up front this settles in one pass, so it no longer exercises the restart bound |
++| `10 Areas/Multi Opener Note.md` | three unterminated openers followed by a fence. Each must be literal text and the fence must still be recognised afterwards. Since SB-ASK-009 decides openers up front this settles in one pass and no longer exercises a restart |
++| `10 Areas/Give Back Fence Note.md` | an unterminated comment opener followed by a fence containing a heading, and deliberately no real heading of its own. The fence must not have been swallowed: the fenced heading must not become the title, and the delimiters must still be dropped |
++| `10 Areas/Fence Closer Note.md` | a four-backtick fence that a three-backtick line must not close, and a tilde fence that a backtick line must not close. Relaxing either rule ends the fence early and strips what was inside it |
++| `10 Areas/Backtick Info Note.md` | a backtick line whose info string contains a backtick, which opens no fence |
++| `10 Areas/Fenced Markup Note.md` | a fenced block containing a heading-like line, an HTML comment and a rule, all of which must survive verbatim, beside a comment and a rule OUTSIDE the fence which must be stripped. The heading-like line must not split the chunk |
+ | `10 Areas/Diacritics Note.md` | accented characters. FTS5 indexes them correctly but `search()` cannot reach them (finding D2); this note pins that defect |
+ | `10 Areas/Bare Note.md` | no headings and no frontmatter: title falls back to the filename stem |
+ | `10 Areas/Empty Signal Note.md` | frontmatter only, below the readable-signal threshold |
+ | `90 Archive/Old Greenhouse Notes.md` | lives under an excluded prefix and must never be indexed |
+ | `.obsidian/workspace.md` | lives under an excluded path part and must never be indexed |
+ 
+-Indexing this vault yields 11 notes and 21 chunks, with 2 files skipped.
++Indexing this vault yields 24 notes and 37 chunks, with 2 files skipped.
+ `tests/test_retrieval_core_e2e.py` asserts those numbers, so adding or editing a note here means
+ updating them: a fixture change cannot pass unnoticed.
+ 
+diff --git a/fixtures/vault/10 Areas/Backtick Info Note.md b/fixtures/vault/10 Areas/Backtick Info Note.md
+new file mode 100644
+index 0000000..4dae673
+--- /dev/null
++++ b/fixtures/vault/10 Areas/Backtick Info Note.md	
+@@ -0,0 +1,8 @@
++# Backtick Info Note
++
++Prose before, long enough to clear the readable signal gate for this note.
++
++``` info`with`ticks
++<!-- BTICKINFOMARKER must be stripped because no fence opened -->
++
++Final prose line long enough to end the span on real text here.
+diff --git a/fixtures/vault/10 Areas/Bound Exactness Note.md b/fixtures/vault/10 Areas/Bound Exactness Note.md
+new file mode 100644
+index 0000000..0244e98
+--- /dev/null
++++ b/fixtures/vault/10 Areas/Bound Exactness Note.md	
+@@ -0,0 +1,4 @@
++BOUNDONE line carrying an opener <!--
++BOUNDTWO line carrying an opener <!--
++BOUNDTHREE line carrying an opener <!--
++BOUNDFOUR line carrying an opener <!--
+diff --git a/fixtures/vault/10 Areas/Break Markers Note.md b/fixtures/vault/10 Areas/Break Markers Note.md
+new file mode 100644
+index 0000000..1099f97
+--- /dev/null
++++ b/fixtures/vault/10 Areas/Break Markers Note.md	
+@@ -0,0 +1,15 @@
++# Break Markers Note
++
++Prose before the markers, long enough to clear the readable signal gate.
++
++MIXEDMARKS-=_* is not a thematic break and must survive
++-=_*
++*-*-*-
++--
++
++---
++***
++___
++===
++
++Final prose line long enough to end the span on real text here.
+diff --git a/fixtures/vault/10 Areas/Comment Fence Note.md b/fixtures/vault/10 Areas/Comment Fence Note.md
+new file mode 100644
+index 0000000..33fdd98
+--- /dev/null
++++ b/fixtures/vault/10 Areas/Comment Fence Note.md	
+@@ -0,0 +1,24 @@
++# Comment Fence Note
++
++Prose before the comment, long enough to clear the readable signal gate.
++
++<!-- SECRETMARKER begins here
++```
++SECRETMARKER inside a fence inside the comment
++```
++and the comment ends here -->
++
++Prose after the comment, which must survive intact and be indexed.
++
++<!-- an odd number of fence delimiters inside a comment
++```
++closes here -->
++
++LATCHPROSE <!--LATCHSECRET--> after the odd-fence comment.
++
++Two openers on one line: KEEPTWO <!--FIRSTSECRET <!--SECONDSECRET
++and that comment closes here --> FIRSTTAIL --> SECONDTAIL both remain.
++
++ENCLOSEDLINE <!-- ENCLOSEDSECRET --> and then an opener <!-- that never closes.
++
++ORPHAN_TAIL is the last sentence and it must not be swallowed.
+diff --git a/fixtures/vault/10 Areas/Comment Marker Note.md b/fixtures/vault/10 Areas/Comment Marker Note.md
+index 38b05d5..5af8813 100644
+--- a/fixtures/vault/10 Areas/Comment Marker Note.md	
++++ b/fixtures/vault/10 Areas/Comment Marker Note.md	
+@@ -5,3 +5,20 @@ The first real sentence in this note is ordinary retrievable evidence.
+ <!-- pipeline marker: synthetic fixture metadata, not human evidence -->
+ 
+ The second real sentence in this note is also ordinary retrievable evidence.
++
++Alpha <!-- one --> BRIDGE_TEXT <!-- two --> omega on a single line here.
++
++FUSEDLEFT<!-- joined -->FUSEDRIGHT must not run together as one word.
++
++--
++
++<!-- a marker that opens here
++and runs across several lines
++before it closes here -->TAILNOSPACE and TAILAFTERCLOSE continue on that line.
++
++The third real sentence closes the note after the spanning marker.
++
++
++
++
++The fourth real sentence follows a run of blank lines that must collapse.
+diff --git a/fixtures/vault/10 Areas/Commented Title Note.md b/fixtures/vault/10 Areas/Commented Title Note.md
+new file mode 100644
+index 0000000..6feda84
+--- /dev/null
++++ b/fixtures/vault/10 Areas/Commented Title Note.md	
+@@ -0,0 +1,11 @@
++<!--
++# HIDDENTITLE must never become the title
++-->
++
++```
++# FENCEDTITLE must never become the title either
++```
++
++# Commented Title Note
++
++Prose long enough to clear the readable signal gate for this note here.
+diff --git a/fixtures/vault/10 Areas/Fence Closer Note.md b/fixtures/vault/10 Areas/Fence Closer Note.md
+new file mode 100644
+index 0000000..cc5062c
+--- /dev/null
++++ b/fixtures/vault/10 Areas/Fence Closer Note.md	
+@@ -0,0 +1,17 @@
++# Fence Closer Note
++
++Prose before the fences, long enough to clear the readable signal gate here.
++
++````
++SHORTCLOSER content stays fenced
++```
++<!-- SHORTCLOSERMARKER survives: a three-tick closer is too short -->
++````
++
++~~~
++WRONGCHAR content stays fenced
++```
++<!-- WRONGCHARMARKER survives: a backtick line cannot close a tilde fence -->
++~~~
++
++Final prose line long enough to end the span on real text here.
+diff --git a/fixtures/vault/10 Areas/Fence Shapes Note.md b/fixtures/vault/10 Areas/Fence Shapes Note.md
+new file mode 100644
+index 0000000..74c5575
+--- /dev/null
++++ b/fixtures/vault/10 Areas/Fence Shapes Note.md	
+@@ -0,0 +1,20 @@
++# Fence Shapes Note
++
++Prose before the fences, long enough to clear the readable signal gate here.
++
++```text
++ordinary fenced prelude
++```NOTACLOSER because a closing fence carries no info string
++# INFENCEHEADING must not become the title
++<!-- INFENCEMARKER is literal example text -->
++```
++
++~~~
++<!-- TILDEMARKER is literal example text too -->
++~~~
++
++    ```text
++<!-- INDENTEDMARKER must be stripped: four spaces is code, not a fence -->
++    ```
++
++Final prose line long enough to end the span on real text here.
+diff --git a/fixtures/vault/10 Areas/Fenced Markup Note.md b/fixtures/vault/10 Areas/Fenced Markup Note.md
+new file mode 100644
+index 0000000..064f80a
+--- /dev/null
++++ b/fixtures/vault/10 Areas/Fenced Markup Note.md	
+@@ -0,0 +1,26 @@
++# Fenced Markup Note
++
++Prose before the fence that is long enough to clear the readable signal gate.
++
++```bash
++set -euo pipefail
++# rotate the credential before the deploy
++ROTATE_TOKEN=placeholder
++---
++<!-- the rule above is part of the printed banner -->
++echo done
++```
++
++Prose between the fence and the rule, also long enough to be indexed here.
++
++<!-- a pipeline marker outside the fence, which must be stripped -->
++
++---
++
++Prose after the rule, which must survive and must end the span.
++
++````
++QUADSECRET <!-- QUADMARKER --> sits inside a four-backtick fence.
++````
++
+
+PACKAGE_RESULT
+{
+  "package": "SB-ASK-011",
+  "title": "Documentation-only cleanup: delete the duplicated claim, make the guard label exact",
+  "owner_approval": "one documentation-only cleanup package, no product-code changes allowed, then Agent C and Codex once",
+  "base": "16bbf6392bc9161d4de4774beb6f95f962882c73 (SB-ASK-010 candidate, Agent C FAIL on B1/B2, text only)",
+  "candidate_sha": "a797797d8283a2d5fadd3bfd9618bb005d041dcc",
+  "branch": "uep/task-sb-ask-011",
+  "repair_cycles_used": 1,
+  "product_code_unchanged": "git diff 16bbf63..HEAD -- src/ is 0 bytes. Across the whole line from 2fed7cb it is also 0 bytes.",
+  "changed_files": [
+    "tests/test_retrieval_core_e2e.py"
+  ],
+  "method_note": "every failure in this line of packages has come from NEW prose written during a repair, so this one is deletions and derived facts. B1 is closed by deleting a sentence with no replacement. The line citations below are ANCHOR STRINGS with numbers derived from the frozen file, not typed - that is the structural fix for B2, which was wrong twice because hand-written numbers were computed before later edits shifted the file.",
+  "closes": [
+    {
+      "id": "B1",
+      "what": "tests:943-944 asserted a fixture rename 'will need the name list below updated', contradicted nine lines below by the correction SB-ASK-010 added instead of removing",
+      "fix": "the clause is deleted. Nothing replaces it.",
+      "reproduced_on_this_candidate": {
+        "rename to a name still carrying dead vocabulary, list left stale": "FAIL, 4 hits",
+        "rename to a name carrying none, list left stale": "PASS 240"
+      },
+      "mechanism_note": "third occurrence of one mechanism - fix the named site, leave the duplicate. The SB-ASK-010 receipt diagnosed it for O-A and repeated it in the same commit."
+    },
+    {
+      "id": "B2",
+      "what": "the SB-ASK-010 receipt claimed its citations were rebased onto the candidate; three of four were the previous commit's numbering",
+      "fix": "citations are now anchor strings, resolved against the frozen file and asserted unique at freeze time. Numbers are derived, not asserted.",
+      "scope": "evidence file only - no repository content was ever affected"
+    },
+    {
+      "id": "O1",
+      "what": "the check label and checkpoint index claimed no unmarked line 'uses the vocabulary of a deleted mechanism', which the fixture-name subtraction makes literally false - three lines here and one in the README carry 'Give Back' unmarked and pass",
+      "fix": "superseded by repair 1. 'outside a fixture's own name' was the fifth wording of this clause and still described intent rather than mechanism. The label and index now say 'once the two fixture-name strings are subtracted from it', which is what the code does."
+    },
+    {
+      "id": "O3",
+      "what": "the SB-ASK-010 receipt cited 'cafe resume pinata' as an instance of Agent C's FP1; it is not blocked, since none of the three resume tokens occurs in it",
+      "fix": "corrected in that receipt; the in-repo prose never carried the example"
+    },
+    {
+      "id": "O4",
+      "what": "the block quoted two literal rename examples, tripping the guard on its own sentence, then spent three lines calling that the most direct evidence the guard blocks legitimate text",
+      "fix": "restated without the literal names. The marker is gone with it; three markers remain, all earned - one genuine history, two the token list itself.",
+      "agent_c_point_accepted": "that instance was avoidable and partly self-inflicted; Agent C's original FP1 (a check label naming a literal test input) is the stronger case because it cannot be paraphrased away"
+    }
+  ],
+  "not_fixed_deliberately": [
+    {
+      "id": "O2",
+      "what": "the block's taxonomy names past-tense history and non-historical exemptions but not the token-list markers as a third category",
+      "why": "self-evident from where those markers sit, and given this package line's record another sentence here is a worse risk than the gap"
+    }
+  ],
+  "derived_line_citations": {
+    "inline_comment_passage": {
+      "anchor": "# A complete comment sharing a line with a surviving opener must stay removed.",
+      "line": 536,
+      "occurrences": 1
+    },
+    "rule_opener_passage": {
+      "anchor": "# An opener on a line that is otherwise a horizontal rule must keep its text.",
+      "line": 545,
+      "occurrences": 1
+    },
+    "rule_opener_label": {
+      "anchor": "[chunking] an unterminated opener on a rule line keeps its text",
+      "line": 558,
+      "occurrences": 1
+    },
+    "give_back_fixture_label": {
+      "anchor": "[chunking] the Give Back Fence fixture is ONE chunk",
+      "line": 362,
+      "occurrences": 1
+    },
+    "doc_hygiene_label": {
+      "anchor": "[doc-hygiene] no unmarked line of this suite",
+      "line": 974,
+      "occurrences": 1
+    },
+    "guard_block_start": {
+      "anchor": "# ------------------------------------------------------------------ [doc-hygiene]",
+      "line": 933,
+      "occurrences": 1
+    },
+    "fixture_names_list": {
+      "anchor": "fixture_names = (",
+      "line": 960,
+      "occurrences": 1
+    },
+    "nbsp_witness_start": {
+      "anchor": "# Two places compare a line number against fm_end",
+      "line": 401,
+      "occurrences": 1
+    }
+  },
+  "tests": [
+    {
+      "command": "python3 -B tests/test_retrieval_core_e2e.py",
+      "exit_code": 0,
+      "last_line": "PASS retrieval_core_e2e: 240 checks"
+    },
+    {
+      "command": "python3 -B tests/test_ask_grounding_integration.py",
+      "exit_code": 0,
+      "last_line": "PASS ask_grounding_integration: 59 checks"
+    },
+    {
+      "command": "python3 -B tests/test_source_references.py",
+      "exit_code": 0,
+      "last_line": "PASS source_references: 19 checks"
+    },
+    {
+      "command": "python3 -B tests/test_weak_evidence.py",
+      "exit_code": 0,
+      "last_line": "PASS weak_evidence: 24 checks"
+    },
+    {
+      "command": "python3 -B tests/test_search_row_adapter.py",
+      "exit_code": 0,
+      "last_line": "PASS search_row_adapter: 32 checks"
+    },
+    {
+      "command": "--help",
+      "exit_code": 0
+    }
+  ],
+  "superseded_candidates": [
+    {
+      "sha": "8bd3781b81d03b3f0097b55498363bb048ed162b",
+      "agent_c": "PASS - first candidate in this line where the prose survived a clause-by-clause attack (12 clauses, 12 true)",
+      "codex": "FAIL - the fixture-name exemption clause, which Agent C had filed as non-blocking O-A"
+    }
+  ],
+  "repair_1": {
+    "trigger": "Codex FAIL on 8bd3781, converging independently on Agent C's O-A",
+    "claim_at_fault": "the check label and checkpoint index said 'outside a fixture's own name'",
+    "what_the_code_does": "a case-sensitive str.replace of two literal strings - not a judgement about whether the words name the file, not case-insensitive, not bounded to whole words",
+    "counterexamples_reproduced": {
+      "exempts a line that is NOT naming the fixture": "'The NotGive Back Fencepost mechanism is current.' -> no hits",
+      "flags a line that IS naming it": "the fixture's own name lowercased -> 'give back'"
+    },
+    "fix": "the label, the checkpoint index and the block comment are worded as the subtraction rather than the intent, because four attempts to word the intent were each wrong in a different way",
+    "self_trip_handled": "writing the counterexample tripped the guard, since quoting the lowercased name is what it flags. The fact is stated without the literal string rather than exempted with a marker - the O4 lesson applied rather than repeated. Three markers remain, none added.",
+    "also": "Codex's point that the receipt's O1 'matching the code' was itself the false claim is accepted and that field is superseded above"
+  },
+  "derived_line_citations_note": "re-derived against this candidate at freeze time; all anchors still unique"
+}
+
+codex
+The binding `src/` comparison is clean. One nuance already visible: the candidate contains older `src/` changes relative to the stated integration base, but the explicitly binding baseline (`2fed7cb…`) confirms zero product-code change across this package line; I’m now checking whether every new prose claim precisely matches the implemented guard.
+exec
+/bin/bash -lc "git show --stat --oneline HEAD && git diff 8bd3781b81d03b3f0097b55498363bb048ed162b HEAD -- tests/test_retrieval_core_e2e.py && nl -ba tests/test_retrieval_core_e2e.py | sed -n '900,1005p' && git diff 4573b55d0e9d698a290ee2f7b5326ac87b95c379 HEAD -- tests/test_retrieval_core_e2e.py | sed -n '1,260p'" in /tmp/claude-1000/-home-jro-asb-product-work/3a6ea635-0952-4430-b51f-5ad9bf0bc6ac/scratchpad/codex-011r2
+ succeeded in 0ms:
+a797797 SB-ASK-011 repair 1: word the check as the subtraction it performs
+ tests/test_retrieval_core_e2e.py | 24 ++++++++++++++++--------
+ 1 file changed, 16 insertions(+), 8 deletions(-)
+diff --git a/tests/test_retrieval_core_e2e.py b/tests/test_retrieval_core_e2e.py
+index e2f254a..0bbb3d4 100644
+--- a/tests/test_retrieval_core_e2e.py
++++ b/tests/test_retrieval_core_e2e.py
+@@ -26,8 +26,9 @@ Checkpoints, each independently observable:
+     [defect-pins]          today's DEFECTIVE behaviour, pinned so a fix cannot pass unnoticed
+     [containment]          no network, no writes to fixtures, database confined to the temp dir
+     [doc-hygiene]          no unmarked line of this suite or fixtures/README.md carries the
+-                           vocabulary of a deleted mechanism outside a fixture's own name. NOT
+-                           full coverage - see the checkpoint itself for what it does not scan
++                           vocabulary of a deleted mechanism, once the two fixture-name strings
++                           are subtracted from it. NOT full coverage - see the checkpoint itself
++                           for what it does not scan
+ 
+ READ THIS BEFORE TRUSTING [defect-pins]. Every assertion in that one checkpoint states what the
+ retrieval core does TODAY and is WRONG. None of them is a requirement, and none may be cited as
+@@ -945,11 +946,17 @@ def main() -> int:
+         "give-back", "given back", "give back", "gives back",   # staleness-guard: SB-ASK-008
+         "resumed part way", "resume from", "the resume",        # staleness-guard: SB-ASK-009
+     )
+-    # These name a fixture that still exists, so they are subtracted before matching. That is a
+-    # real exemption and not a subtlety worth hiding: an unmarked line may carry this vocabulary
+-    # when it is naming the file, which is why the check below says "outside a fixture's own name".
+-    # It also means a rename only has to be reflected here when the new name still carries dead
+-    # vocabulary; one that does not, does not. Both directions verified.
++    # These name a fixture that still exists, and are subtracted from each line before matching.
++    # The subtraction is a plain case-sensitive str.replace of these two literal strings, not a
++    # judgement about whether the words are naming the file, and it is neither case-insensitive nor
++    # bounded to whole words. So it exempts a line that is not naming the fixture at all -
++    # 'NotGive Back Fencepost' passes - and does not exempt one that is, when the case differs:
++    # the fixture's own name lowercased is flagged. Both verified. The check below is worded as the
++    # subtraction it performs rather than as the intent behind it, because four attempts to word it
++    # as the intent were each wrong in a different way.
++    #
++    # A rename only has to be reflected here when the new name still carries dead vocabulary; one
++    # that does not, does not. Both directions verified.
+     fixture_names = ("Give Back Fence Note.md", "Give Back Fence")
+     stale = []
+     for doc in (Path(__file__), ROOT / "fixtures" / "README.md"):
+@@ -965,7 +972,8 @@ def main() -> int:
+                     stale.append(f"{doc.name}:{number} {token!r}")
+     check(stale == [],
+           f"[doc-hygiene] no unmarked line of this suite or fixtures/README.md carries the "
+-          f"vocabulary of a deleted mechanism outside a fixture's own name (got {stale})")
++          f"vocabulary of a deleted mechanism, once the two fixture-name strings are subtracted "
++          f"from it (got {stale})")
+ 
+     check(snapshot_fixtures() == before,
+           "[containment] every fixture file is byte-for-byte and mtime unchanged")
+   900	
+   901	        # D3 (MEDIUM): a question of pure stopwords falls through query_terms' deliberate
+   902	        # no-useful-terms fallback and is answered at full confidence.
+   903	        check("the" in amb.STOPWORDS and amb.query_terms("the") == ["the"],
+   904	              "[defect-pins] DEFECT D3 PINNED (not a requirement): a stopword survives as a search "
+   905	              "term through the no-useful-terms fallback")
+   906	        stopword_rows = amb.search(config, "the", 5)
+   907	        check(stopword_rows and amb.deterministic_evidence_strength(stopword_rows) == "HIGH",
+   908	              "[defect-pins] DEFECT D3 PINNED (not a requirement): a contentless question yields "
+   909	              "HIGH-strength evidence and would be answered by the model")
+   910	
+   911	        # -------------------------------------------------------------- [containment]
+   912	        check(len(CONNECTED) >= 2,
+   913	              f"[containment] the code under test opened databases and we observed them (got {CONNECTED})")
+   914	        def bare(target: str) -> str:
+   915	            """open_database connects through a file: URI, so compare the plain path."""
+   916	            return target[5:].split("?", 1)[0] if target.startswith("file:") else target
+   917	
+   918	        outside = [c for c in CONNECTED if not bare(c).startswith(work)]
+   919	        check(outside == [],
+   920	              f"[containment] every database the code opened was inside the temp dir (outside: {outside})")
+   921	        check(any(bare(c) == str(database) for c in CONNECTED),
+   922	              "[containment] the configured database is among the paths actually opened")
+   923	        read_handles = [c for c in CONNECTED if c.startswith("file:")]
+   924	        check(read_handles and all("mode=ro" in c for c in read_handles),
+   925	              f"[containment] every read handle the code opened is read-only (got {set(read_handles)})")
+   926	        strays = [str(p) for p in ROOT.rglob("*.db")] + [str(p) for p in ROOT.rglob("*.sqlite*")]
+   927	        check(strays == [], f"[containment] no database file was left in the repository (got {strays})")
+   928	        restore_sqlite()
+   929	        check(amb.sqlite3.connect is REAL_SQLITE_CONNECT,
+   930	              "[containment] the suite leaves sqlite3.connect as it found it, compared against a "
+   931	              "reference captured before the spy existed")
+   932	
+   933	    # ------------------------------------------------------------------ [doc-hygiene]
+   934	    # Four cycles running, this suite and the fixture README described mechanisms the product no
+   935	    # longer has - a give-back removed by SB-ASK-008, a resume removed by SB-ASK-009 - and one of  # staleness-guard
+   936	    # them was a check label PRINTED ON EVERY PASSING RUN. Each time the named instances were
+   937	    # corrected and the unnamed ones survived. Remembering is what failed, so this checks instead.
+   938	    #
+   939	    # What it does NOT do, so that passing is not mistaken for coverage: it reads two files, this
+   940	    # one and fixtures/README.md, and matches a fixed list of substrings. It does not scan src/,
+   941	    # where the mechanism prose actually lives, nor the other four suites, nor the fixture notes
+   942	    # themselves. It has no notion of tense - it fails on any unmarked hit - so a stale statement
+   943	    # that avoids this vocabulary passes, and the marker below can exempt a line that is not
+   944	    # historical at all. It catches the words these four cycles actually went stale in.
+   945	    dead_mechanisms = (
+   946	        "give-back", "given back", "give back", "gives back",   # staleness-guard: SB-ASK-008
+   947	        "resumed part way", "resume from", "the resume",        # staleness-guard: SB-ASK-009
+   948	    )
+   949	    # These name a fixture that still exists, and are subtracted from each line before matching.
+   950	    # The subtraction is a plain case-sensitive str.replace of these two literal strings, not a
+   951	    # judgement about whether the words are naming the file, and it is neither case-insensitive nor
+   952	    # bounded to whole words. So it exempts a line that is not naming the fixture at all -
+   953	    # 'NotGive Back Fencepost' passes - and does not exempt one that is, when the case differs:
+   954	    # the fixture's own name lowercased is flagged. Both verified. The check below is worded as the
+   955	    # subtraction it performs rather than as the intent behind it, because four attempts to word it
+   956	    # as the intent were each wrong in a different way.
+   957	    #
+   958	    # A rename only has to be reflected here when the new name still carries dead vocabulary; one
+   959	    # that does not, does not. Both directions verified.
+   960	    fixture_names = ("Give Back Fence Note.md", "Give Back Fence")
+   961	    stale = []
+   962	    for doc in (Path(__file__), ROOT / "fixtures" / "README.md"):
+   963	        for number, raw in enumerate(doc.read_text(encoding="utf-8").splitlines(), start=1):
+   964	            if "staleness-guard" in raw:
+   965	                continue
+   966	            probe = raw
+   967	            for name in fixture_names:
+   968	                probe = probe.replace(name, "")
+   969	            lowered = probe.lower()
+   970	            for token in dead_mechanisms:
+   971	                if token in lowered:
+   972	                    stale.append(f"{doc.name}:{number} {token!r}")
+   973	    check(stale == [],
+   974	          f"[doc-hygiene] no unmarked line of this suite or fixtures/README.md carries the "
+   975	          f"vocabulary of a deleted mechanism, once the two fixture-name strings are subtracted "
+   976	          f"from it (got {stale})")
+   977	
+   978	    check(snapshot_fixtures() == before,
+   979	          "[containment] every fixture file is byte-for-byte and mtime unchanged")
+   980	    check(not database.exists(),
+   981	          "[containment] the temporary index is gone once the suite finishes")
+   982	
+   983	    print(f"PASS retrieval_core_e2e: {CHECKS} checks")
+   984	    return 0
+   985	
+   986	
+   987	if __name__ == "__main__":
+   988	    sys.exit(main())
+diff --git a/tests/test_retrieval_core_e2e.py b/tests/test_retrieval_core_e2e.py
+index ca7996c..0bbb3d4 100644
+--- a/tests/test_retrieval_core_e2e.py
++++ b/tests/test_retrieval_core_e2e.py
+@@ -25,6 +25,10 @@ Checkpoints, each independently observable:
+     [ask-e2e]              ask() over the real index with only the model stubbed
+     [defect-pins]          today's DEFECTIVE behaviour, pinned so a fix cannot pass unnoticed
+     [containment]          no network, no writes to fixtures, database confined to the temp dir
++    [doc-hygiene]          no unmarked line of this suite or fixtures/README.md carries the
++                           vocabulary of a deleted mechanism, once the two fixture-name strings
++                           are subtracted from it. NOT full coverage - see the checkpoint itself
++                           for what it does not scan
+ 
+ READ THIS BEFORE TRUSTING [defect-pins]. Every assertion in that one checkpoint states what the
+ retrieval core does TODAY and is WRONG. None of them is a requirement, and none may be cited as
+@@ -33,18 +37,17 @@ unpinned defect can be fixed or worsened silently. When a defect is repaired, it
+ failure is the signal to delete the pin, not to revert the fix. Every other checkpoint in this file
+ asserts behaviour that is correct and must stay correct.
+ 
+-One of those four is now repaired, by SB-ASK-005, and its pin has been replaced by assertions of
+-the CORRECT behaviour:
++Two of those four are now repaired and their pins replaced by assertions of the CORRECT behaviour:
+ 
+-    D4  a chunk span covers its text, not the blank lines around it  -> [chunking]
++    D4  a chunk span covers its text, not the blank lines around it   -> [chunking]  (SB-ASK-005)
++    D1  markup is stripped outside fenced blocks and only there       -> [chunking]  (SB-ASK-006)
+ 
+-D1 (HTML comments are never stripped from indexed evidence), D2 (accented content is indexed but
+-unreachable through search) and D3 (a question made only of stopwords is answered at HIGH) all
+-remain OPEN and remain pinned. Two packages have now tried and been withdrawn: D1 needs fence-aware
+-chunking, D2 needs the reranker to stop re-deriving matched terms by string comparison, and D3
+-cannot be fixed by editing query_terms at all, because deterministic_evidence_strength returns HIGH
+-for any all_terms match however few or generic the terms are, so every change to the term set moves
+-strength as a side effect. Do not read those three pins as requirements.
++D2 (accented content is indexed but unreachable through search) and D3 (a question made only of
++stopwords is answered at HIGH) remain OPEN and remain pinned. D2 needs the reranker to stop
++re-deriving matched terms by string comparison; D3 cannot be fixed by editing query_terms at all,
++because deterministic_evidence_strength returns HIGH for any all_terms match however few or generic
++the terms are, so every change to the term set moves strength as a side effect. Do not read those
++two pins as requirements.
+ """
+ from __future__ import annotations
+ 
+@@ -148,7 +151,7 @@ def main() -> int:
+     # ------------------------------------------------------------------ [fixture-vault]
+     check(VAULT.is_dir(), "[fixture-vault] fixtures/vault exists")
+     notes = sorted(p.relative_to(VAULT).as_posix() for p in VAULT.rglob("*.md"))
+-    check(len(notes) == 13, f"[fixture-vault] the vault holds its 13 notes (got {len(notes)})")
++    check(len(notes) == 26, f"[fixture-vault] the vault holds its 26 notes (got {len(notes)})")
+     check(OUTSIDE_NOTE.is_file(),
+           "[fixture-vault] the deliberate out-of-vault note is present and scanned below too")
+     corpus = "\n".join(p.read_text(encoding="utf-8") for p in
+@@ -171,8 +174,8 @@ def main() -> int:
+         # -------------------------------------------------------------- [index-build]
+         receipt = build(config)
+         check("BUILD_STATUS=PASS" in receipt, f"[index-build] the build reports PASS\n{receipt}")
+-        check("NOTES_INDEXED=11" in receipt, f"[index-build] 11 notes indexed\n{receipt}")
+-        check("CHUNKS_INDEXED=21" in receipt, f"[index-build] 21 chunks indexed\n{receipt}")
++        check("NOTES_INDEXED=24" in receipt, f"[index-build] 24 notes indexed\n{receipt}")
++        check("CHUNKS_INDEXED=37" in receipt, f"[index-build] 37 chunks indexed\n{receipt}")
+         check("FILES_SKIPPED=2" in receipt, f"[index-build] 2 files skipped\n{receipt}")
+         check(database.is_file(), "[index-build] the database file exists at the configured path")
+         check(oct(database.stat().st_mode & 0o777) == "0o640",
+@@ -184,7 +187,7 @@ def main() -> int:
+         check(metadata["schema_version"] == "1.0.0", "[index-build] the schema version is recorded")
+         check(metadata["retrieval"] == "sqlite_fts5_bm25", "[index-build] the retrieval mode is recorded")
+         check(metadata["vault_root"] == str(VAULT), "[index-build] the indexed vault root is recorded")
+-        check(metadata["notes_indexed"] == "11" and metadata["chunks_indexed"] == "21",
++        check(metadata["notes_indexed"] == "24" and metadata["chunks_indexed"] == "37",
+               "[index-build] the receipt and the metadata table agree")
+         integrity = rows_of(database, "PRAGMA integrity_check")
+         check(list(integrity[0].values())[0] == "ok", "[index-build] SQLite reports the index sound")
+@@ -212,7 +215,7 @@ def main() -> int:
+               "[exclusion] an excluded prefix contributes no chunk")
+         check(not any(".obsidian" in p for p in paths),
+               "[exclusion] an excluded path part contributes no chunk")
+-        check(len(paths) == 11, f"[exclusion] exactly the 11 permitted notes are indexed (got {len(paths)})")
++        check(len(paths) == 24, f"[exclusion] exactly the 24 permitted notes are indexed (got {len(paths)})")
+ 
+         # -------------------------------------------------------------- [chunking]
+         greenhouse = rows_of(
+@@ -277,6 +280,357 @@ def main() -> int:
+         check(all(len(c["body"]) <= maximum for c in long_line),
+               f"[chunking] no chunk exceeds the configured maximum of {maximum}")
+ 
++        # The TITLE is the last leg of D1, repaired by SB-ASK-007. It is not an inert field:
++        # chunks_fts indexes it at the highest bm25 column weight, it feeds the coverage
++        # reranker's haystack, it is printed as "Title:" in the evidence block handed to the
++        # answer model, and for a note with no other content it becomes the chunk body. Deriving
++        # it from the raw lines let a heading inside a comment or a fence become the title.
++        titled = rows_of(database, "SELECT * FROM chunks WHERE path = ? ORDER BY start_line",
++                         "10 Areas/Commented Title Note.md")
++        check(titled, "[chunking] the commented-title note is indexed")
++        check(all(c["title"] == "Commented Title Note" for c in titled),
++              f"[chunking] the title is the note's first REAL heading, not one inside a comment "
++              f"or a fence (got {[c['title'] for c in titled]})")
++        all_titles = [r["title"] for r in rows_of(database, "SELECT DISTINCT title FROM chunks")]
++        check(not any("HIDDENTITLE" in x or "FENCEDTITLE" in x for x in all_titles),
++              f"[chunking] no commented or fenced heading becomes any note's title (got {all_titles})")
++        hidden = rows_of(database, "SELECT count(*) AS n FROM chunks_fts WHERE chunks_fts MATCH ?",
++                         "HIDDENTITLE")
++        check(hidden[0]["n"] == 0,
++              "[chunking] and a commented heading is not reachable through the index at all")
++
++        # A note whose ONLY heading is commented out falls back to its filename, and the
++        # no-signal fallback chunk therefore carries the filename rather than the comment.
++        only = rows_of(database, "SELECT * FROM chunks WHERE path = ?", "10 Areas/Hidden Title Only.md")
++        check(len(only) == 1 and only[0]["title"] == "Hidden Title Only",
++              f"[chunking] a note whose only heading is commented falls back to its filename stem "
++              f"(got {[(c['title'], c['body']) for c in only]})")
++        check("HIDDENONLYTITLE" not in only[0]["body"],
++              f"[chunking] so the fallback chunk body carries the filename, not the comment "
++              f"(got {only[0]['body']!r})")
++        orphan = rows_of(database, "SELECT count(*) AS n FROM chunks_fts WHERE chunks_fts MATCH ?",
++                         "HIDDENONLYTITLE")
++        check(orphan[0]["n"] == 0,
++              "[chunking] and that comment is unreachable through the index too")
++
++        # note_title's contract, which this package rewrote: the FIRST heading wins, and only
++        # level one counts. Neither was pinned by any fixture, so either could have been altered
++        # silently in the very function being changed.
++        precedence = rows_of(database, "SELECT * FROM chunks WHERE path = ? ORDER BY start_line",
++                             "10 Areas/Title Precedence Note.md")
++        check(len(precedence) == 3,
++              f"[chunking] the title-precedence note yields its three chunks (got {len(precedence)})")
++        check(all(c["title"] == "First Level One Heading Wins" for c in precedence),
++              f"[chunking] the title is the FIRST level-one heading, not the second and not the "
++              f"level-two heading above it (got {[c['title'] for c in precedence]})")
++        check(precedence[0]["heading"] == "Level Two Comes First And Is Not The Title",
++              "[chunking] while the level-two heading is still a chunk HEADING, just not the title")
++
++        # A fence delimiter is not just "three backticks". Treating it as a toggle failed three
++        # ways at once, each putting text where it should not be: a closing fence carries no info
++        # string, so inside a fence '```NOTACLOSER...' is CONTENT and toggling on it ended the
++        # fence early - destroying the real fenced content and letting a fenced heading become the
++        # title; a fence may be four or more backticks, or tildes; and a fence is indented at most
++        # three spaces, so four spaces is an indented code block and NOT a fence.
++        shapes = rows_of(database, "SELECT * FROM chunks WHERE path = ? ORDER BY start_line",
++                         "10 Areas/Fence Shapes Note.md")
++        check(len(shapes) == 1, f"[chunking] the fence-shapes note is one chunk (got {len(shapes)})")
++        shapes_body = shapes[0]["body"]
++        check(shapes[0]["title"] == "Fence Shapes Note",
++              f"[chunking] a heading inside a fence that a false closer would have ended does not "
++              f"become the title (got {shapes[0]['title']!r})")
++        check("INFENCEHEADING" in shapes_body and "NOTACLOSER" in shapes_body,
++              f"[chunking] a three-backtick line WITH an info string is fenced content, not a "
++              f"closing delimiter (got {shapes_body!r})")
++        check("INFENCEMARKER" in shapes_body,
++              "[chunking] so the comment after it is still inside the fence and survives")
++        check("TILDEMARKER" in shapes_body,
++              f"[chunking] a tilde fence is a fence, so its comment survives (got {shapes_body!r})")
++        check("INDENTEDMARKER" not in shapes_body,
++              f"[chunking] while four spaces before backticks is an indented code block and NOT a "
++              f"fence, so the comment there is stripped like any other (got {shapes_body!r})")
++
++        # An unterminated comment opener must not have swallowed the fence that follows it.
++        # The previous design discovered that after the fact and handed the lines back, which
++        # restored their TEXT but not the STATE: fence tracking had already run with the lines
++        # consumed, so a heading textually inside the fence became the note's TITLE - the highest
++        # weighted index column, printed verbatim to the model - and the fence delimiters reached
++        # the evidence. Deciding before acting is what closes it.
++        giveback = rows_of(database, "SELECT * FROM chunks WHERE path = ? ORDER BY start_line",
++                           "10 Areas/Give Back Fence Note.md")
++        check(len(giveback) == 1,
++              f"[chunking] the Give Back Fence fixture is ONE chunk: the fence was never swallowed, "
++              f"so no heading inside it split anything (got {len(giveback)})")
++        gb_body = giveback[0]["body"]
++        check(giveback[0]["title"] == "Give Back Fence Note",
++              f"[chunking] a heading inside a fence that an unterminated opener appeared to "
++              f"swallow does NOT become the title (got {giveback[0]['title']!r})")
++        check(giveback[0]["heading"] == "",
++              f"[chunking] nor a chunk heading (got {giveback[0]['heading']!r})")
++        check("GIVEBACKHEADING" in gb_body and "GIVEBACKCONTENT" in gb_body,
++              f"[chunking] while both lines survive as fenced content (got {gb_body!r})")
++        check("an unterminated opener that must not swallow" in gb_body,
++              "[chunking] and the unterminated opener is kept as the literal text it is")
++        check("```" not in gb_body,
++              f"[chunking] and the fence delimiters are still dropped, because the fence was "
++              f"classified as a fence (got {gb_body!r})")
++
++        # A thematic break is three or more of ONE marker. Written as a character class the
++        # pattern deleted any mixture of them, so an ordinary line like '-=_*' was destroyed -
++        # a latent error inherited from the base, where the pattern never fired because it was
++        # inert. Both directions are pinned: mixtures survive, single repeated markers go.
++        marks = rows_of(database, "SELECT body FROM chunks WHERE path = ?",
++                        "10 Areas/Break Markers Note.md")[0]["body"]
++        for kept in ("MIXEDMARKS-=_*", "\n-=_*\n", "\n*-*-*-\n", "\n--\n"):
++            check(kept in marks,
++                  f"[chunking] {kept!r} is not a thematic break and survives (got {marks!r})")
++        for dropped in ("\n---\n", "\n***\n", "\n___\n", "\n===\n"):
++            check(dropped not in marks,
++                  f"[chunking] {dropped!r} is a run of one marker and is stripped (got {marks!r})")
++
++        # Whether a comment opener ever closes is decided before classifying, from whether any
++        # later line carries a closing marker. That is what makes the classifier linear instead
++        # of restarting over the whole note per opener.
++        check(amb.last_closing_line(["a", "b <!-- x", "c -->", "d"], 0) == 3,
++              "[chunking] the last closing marker's line is found")
++        check(amb.last_closing_line(["a", "<!-- x", "b"], 0) == 0,
++              "[chunking] and a note with no closing marker reports none")
++        check(amb.last_closing_line(["-->", "a"], 1) == 0,
++              "[chunking] a marker inside frontmatter does not count")
++
++        # Two places compare a line number against fm_end, and only ONE of them is insensitive to
++        # which comparison it uses. In last_closing_line it cannot matter: frontmatter_end only
++        # ever returns a line whose .strip() is exactly '---', and such a line cannot contain a
++        # closing marker. In the classifier it matters, because the two functions disagree about
++        # what whitespace is - frontmatter_end accepts anything str.strip() removes, while the
++        # rule pattern anchors on [ \t]* only. SB-ASK-009's receipt claimed both comparisons were
++        # equivalent by construction; Agent C showed the second is killable, so it is pinned here
++        # instead of asserted. A non-breaking space before the closing marker is the witness.
++        nbsp_fm = "---\ntitle: N\n\u00a0---\nPROSE line long enough to be indexed as evidence.\n"
++        check(amb.frontmatter_end(nbsp_fm.splitlines()) == 3,
++              "[chunking] frontmatter ends on a closing line indented with a non-breaking space")
++        check(amb._RULE_LINE_RE.match("\u00a0---") is None,
++              "[chunking] but the rule pattern does NOT match that same line, which is why the "
++              "classifier's own comparison has to include it rather than rely on the rule branch")
++        _, nbsp_chunks = amb.chunk_note(nbsp_fm, "n.md", 3500)
++        nbsp_body = "\n".join(c["body"] for c in nbsp_chunks)
++        check("---" not in nbsp_body,
++              f"[chunking] so the closing marker is dropped as frontmatter, not kept as content "
++              f"(got {nbsp_body!r})")
++        check(nbsp_chunks[0]["start_line"] == 4,
++              f"[chunking] and the span starts after it (got {nbsp_chunks[0]['start_line']})")
++
++        # A note whose every line is an unterminated opener. Since openers are now decided up
++        # front this settles in a single pass, so these checks no longer pin the restart bound -
++        # they pin that every such opener is literal text and keeps its marker. The bound itself
++        # is unreachable in correct code and cannot be pinned at the output level, so it is
++        # declared as a backstop in the receipt rather than claimed as tested.
++        bound = rows_of(database, "SELECT * FROM chunks WHERE path = ? ORDER BY start_line",
++                        "10 Areas/Bound Exactness Note.md")
++        bound_body = "\n".join(c["body"] for c in bound)
++        for token in ("BOUNDONE", "BOUNDTWO", "BOUNDTHREE", "BOUNDFOUR"):
++            check(token in bound_body, f"[chunking] {token}'s line survives")
++        check("BOUNDFOUR line carrying an opener <!--" in bound_body,
++              f"[chunking] and the LAST line keeps its literal marker, like every other "
++              f"(got {bound_body!r})")
++
++        # Several unterminated openers followed by a fence. Since SB-ASK-009 decides openers up
++        # front this settles in one pass, so it no longer exercises a restart either; what it
++        # pins is that every opener is literal text and that the fence after them is still
++        # recognised - the whole point of settling before acting.
++        multi = rows_of(database, "SELECT * FROM chunks WHERE path = ? ORDER BY start_line",
++                        "10 Areas/Multi Opener Note.md")
++        check(len(multi) == 1, f"[chunking] the multi-opener note is one chunk (got {len(multi)})")
++        multi_body = multi[0]["body"]
++        for token in ("MULTIONE", "MULTITWO", "MULTITHREE"):
++            check(token in multi_body,
++                  f"[chunking] {token}'s line survives with its literal marker: settling one "
++                  f"opener does not disturb the others (got {multi_body!r})")
++        check(multi[0]["title"] == "Multi Opener Note",
++              f"[chunking] and the heading inside the fence below them is still not the title "
++              f"(got {multi[0]['title']!r})")
++        check("MULTIFENCEDHEADING" in multi_body and "MULTIFENCEDCONTENT" in multi_body,
++              "[chunking] while both fenced lines survive as fenced content")
++        check("```" not in multi_body,
++              f"[chunking] and the delimiters are dropped, so the fence was classified as a "
++              f"fence after every opener had settled (got {multi_body!r})")
++
+
+exec
+/bin/bash -lc "git log --oneline --decorate --graph -12 HEAD && git show -s --format='%H%n%P%n%s' HEAD && git rev-parse 16bbf6392bc9161d4de4774beb6f95f962882c73 && git diff --name-status 16bbf6392bc9161d4de4774beb6f95f962882c73 HEAD && git diff --name-status 8bd3781b81d03b3f0097b55498363bb048ed162b HEAD && python3 - <<'PY'
+from pathlib import Path
+import json
+p=Path('tests/test_retrieval_core_e2e.py')
+lines=p.read_text().splitlines()
+r=json.loads(Path('PACKAGE_RESULT.json').read_text())
+for k,v in r['derived_line_citations'].items():
+ a=v['anchor']; hits=[i+1 for i,x in enumerate(lines) if a in x]
+ print(k, 'claimed',v['line'],v['occurrences'],'actual',hits)
+PY
+python3 -B tests/test_retrieval_core_e2e.py
+python3 -B tests/test_ask_grounding_integration.py
+python3 -B tests/test_source_references.py
+python3 -B tests/test_weak_evidence.py
+python3 -B tests/test_search_row_adapter.py" in /tmp/claude-1000/-home-jro-asb-product-work/3a6ea635-0952-4430-b51f-5ad9bf0bc6ac/scratchpad/codex-011r2
+ succeeded in 155ms:
+  ok  HIGH strength is unchanged
+  ok  LOW strength is unchanged
+  ok  the empty case is unchanged
+  ok  search still exists: no accepted retrieval function was removed
+  ok  execute_match still exists: no accepted retrieval function was removed
+  ok  query_terms still exists: no accepted retrieval function was removed
+  ok  build_index still exists: no accepted retrieval function was removed
+  ok  chunk_note still exists: no accepted retrieval function was removed
+  ok  fts_token still exists: no accepted retrieval function was removed
+  ok  resolve_scope still exists: no accepted retrieval function was removed
+  ok  provenance_for_path still exists: no accepted retrieval function was removed
+  ok  retrieval_authority_for_path still exists: no accepted retrieval function was removed
+  ok  ask_my_brain imports render_source_references
+  ok  ask_my_brain imports format_source_references
+  ok  ask_my_brain imports evidence_verdict
+  ok  [imports] ask_my_brain imports adapt_search_rows (KI-154)
+  ok  both modules are imported by name
+  ok  [imports] the adapter module is imported by name
+  ok  the renderer is imported, not copied into ask_my_brain.py
+  ok  [imports] the adapter is imported, not copied
+  ok  [imports] render_ask_output(source_rows, answer_text, model) exists
+  ok  [sufficient-composition] render_ask_output returns a string
+  ok  [row-adaptation] the chunk shown is the row's start_line, so adapt_search_rows was applied
+--- got ---
+ANSWER:
+The tiles arrive on Monday. [S1]
+
+Evidence strength: HIGH
+
+SOURCES:
+[1] Kitchen — 20 Projects/Kitchen.md (chunk 40)
+
+MODEL=qwen2.5:7b
+EVIDENCE_CHUNKS=1
+  ok  [row-adaptation] no raw key or error leaks into the output
+  ok  [row-adaptation] the snippet comes from body
+  ok  the SOURCES block uses the renderer's format
+--- got ---
+ANSWER:
+The tiles arrive on Monday. [S1]
+
+Evidence strength: HIGH
+
+SOURCES:
+[1] Kitchen — 20 Projects/Kitchen.md (chunk 40)
+
+MODEL=qwen2.5:7b
+EVIDENCE_CHUNKS=1
+  ok  [reference-rendering] the block is formatted lines, never a printed dict
+  ok  the answer block is printed
+  ok  the generated answer is printed
+  ok  a SOURCES section is printed
+  ok  Sources come AFTER the grounded answer
+  ok  the existing machine-readable trailer is preserved unchanged
+  ok  a grounded answer has Sources, not Related notes
+  ok  [sufficient-composition] the trailer follows the Sources block
+  ok  [sufficient-composition] render_ask_output returns a string
+  ok  both notes are cited
+  ok  [sufficient-composition] render_ask_output returns a string
+  ok  the references are shown as Related notes
+  ok  the Related notes use the renderer
+--- got ---
+ANSWER:
+The only evidence I found is a single low-confidence source, which is too weak to answer this question confidently.
+
+Related notes:
+[1] Home — 10 Areas/Home.md (chunk 3)
+
+ANSWER_SUPPRESSED=1
+EVIDENCE_STATUS=WEAK
+  ok  a suppressed answer has Related notes, not Sources
+  ok  the suppression is machine-readable
+  ok  weak evidence is reported as WEAK
+  ok  no model line is printed when no model ran
+  ok  the owner is told why there is no answer
+  ok  no generated answer text appears
+  ok  [sufficient-composition] render_ask_output returns a string
+  ok  the existing no-evidence contract is preserved
+  ok  there are no references to relate to
+  ok  the model is NOT called when the evidence is too weak
+  ok  the model is not called with no evidence
+  ok  [model-suppression] ask() prints the composed no-evidence output
+  ok  the model is called once for sufficient evidence (got 1)
+  ok  [ask-end-to-end] ask() prints the composed sufficient output
+  ok  the system prompt still tells the model the evidence is untrusted data
+  ok  the system prompt still demands the evidence-strength line
+  ok  the system prompt still demands citations
+  ok  the user prompt still carries the question and the evidence block
+  ok  LOW evidence corroborated by two notes is still answered
+  ok  [ask-end-to-end] ask() prints the composed suppressed output
+PASS ask_grounding_integration: 59 checks
+  ok  render_source_references returns a list
+  ok  one reference per distinct note (got 2)
+  ok  references keep first-appearance order (got ['20 Projects/Kitchen.md', '10 Areas/Home.md'])
+  ok  references are numbered from 1 (got [1, 2])
+  ok  all chunks of a note are collected and sorted (got [1, 3])
+  ok  a single-chunk note carries its one chunk (got [0])
+  ok  a repeated chunk index appears once (got [1, 3])
+  ok  the reference carries the note title
+  ok  the snippet is the first chunk's text with whitespace collapsed (got 'the tiles arrive Monday')
+  ok  a snippet is bounded at 200 characters plus an ellipsis (got 201)
+  ok  a truncated snippet ends with an ellipsis
+  ok  no evidence yields no references
+  ok  a row without a path is skipped
+  ok  a row without a title falls back to its path (got '10 Areas/x.md')
+  ok  first line (got '[1] Kitchen — 20 Projects/Kitchen.md (chunks 1, 3)')
+  ok  a single chunk reads 'chunk', not 'chunks' (got '[2] Home — 10 Areas/Home.md (chunk 0)')
+  ok  one line per reference (got 2)
+  ok  no references render as an empty string, never as a heading with nothing under it
+  ok  the input rows are not mutated
+PASS source_references: 19 checks
+  ok  evidence_verdict returns a dict
+  ok  the verdict carries 'sufficient'
+  ok  the verdict carries 'reason'
+  ok  the verdict carries 'message'
+  ok  no evidence is never sufficient
+  ok  the reason is machine-readable (got 'no_evidence')
+  ok  an insufficient verdict carries a message for the owner
+  ok  the message says the problem is evidence (got "I could not find any evidence in your notes to answer this question, so I can't answer it.")
+  ok  LOW strength from one note is not sufficient
+  ok  the reason distinguishes weak from absent (got 'weak_evidence')
+  ok  a weak verdict carries a message
+  ok  LOW strength corroborated by two distinct notes is sufficient
+  ok  the reason records why (got 'low_but_corroborated')
+  ok  a sufficient verdict carries no refusal message
+  ok  two chunks of the SAME note are not two notes
+  ok  MEDIUM strength is sufficient (got {'sufficient': True, 'reason': 'sufficient', 'message': ''})
+  ok  HIGH strength is sufficient (got {'sufficient': True, 'reason': 'sufficient', 'message': ''})
+  ok  an unrecognised strength '' fails closed
+  ok  an unrecognised strength None fails closed
+  ok  an unrecognised strength 'probably fine' fails closed
+  ok  an unrecognised strength 'low' fails closed
+  ok  failing closed still honours corroboration: unknown strength behaves exactly as LOW
+  ok  rows with no path do not count as notes
+  ok  the input rows are not mutated
+PASS weak_evidence: 24 checks
+  ok  one adapted row per search row, in order (got 3)
+  ok  order is preserved
+  ok  snippet is the chunk body, untouched (got '  the  tiles arrive Monday ')
+  ok  chunk_index is the chunk's start_line (got 40)
+  ok  every row gets its own start_line as chunk_index
+  ok  the real column 'id' is carried through unchanged
+  ok  the real column 'path' is carried through unchanged
+  ok  the real column 'title' is carried through unchanged
+  ok  the real column 'heading' is carried through unchanged
+  ok  the real column 'body' is carried through unchanged
+  ok  the real column 'start_line' is carried through unchanged
+  ok  the real column 'end_line' is carried through unchanged
+  ok  the real column 'match_mode' is carried through unchanged
+  ok  the real column 'matched_terms' is carried through unchanged
+  ok  the real column 'term_coverage' is carried through unchanged
+  ok  the real column 'retrieval_quality' is carried through unchanged
+  ok  the real column 'authority_bonus' is carried through unchanged
+  ok  the real column 'score' is carried through unchanged
+  ok  the real column 'provenance' is carried through unchanged
+  ok  the input rows are not mutated
+  ok  no rows adapt to no rows
+  ok  a row missing start_line gets chunk_index 0, not an exception
+  ok  a row missing body gets an empty snippet
+  ok  the renderer sees two distinct notes (got 2)
+  ok  a note's chunks are its start_lines, sorted (got [12, 40])
+  ok  the first selected chunk's body becomes the snippet (got 'the tiles arrive Monday')
+  ok  the rendered line is complete (got '[1] Kitchen — 20 Projects/Kitchen.md (chunks 12, 40)')
+  ok  the adapter does not contain 'import sqlite3'
+  ok  the adapter does not contain 'import urllib'
+  ok  the adapter does not contain 'import requests'
+  ok  the adapter does not contain 'import ask_my_brain'
+  ok  the adapter does not contain '/AI/'
+PASS search_row_adapter: 32 checks
+
+exec
+/bin/bash -lc "git diff 4573b55d0e9d698a290ee2f7b5326ac87b95c379 a797797d8283a2d5fadd3bfd9618bb005d041dcc | cmp -s - CANDIDATE_DIFF.patch; printf 'PATCH_MATCH=%s\\n' \""'$?"; python3 - <<'"'PY'
+from pathlib import Path
+p=Path('tests/test_retrieval_core_e2e.py')
+dead=(\"give-back\", \"given back\", \"give back\", \"gives back\", \"resumed part way\", \"resume from\", \"the resume\")
+names=(\"Give Back Fence Note.md\", \"Give Back Fence\")
+for label,raw in [
+ ('not-name overlap', 'The NotGive Back Fencepost mechanism is current.'),
+ ('lowercase own name', \"give back fence note.md\"),
+ ('case-exact full name', 'Give Back Fence Note.md'),
+ ('marker-containing', 'x staleness-guard x give back'),
+]:
+ if 'staleness-guard' in raw: hits=[]
+ else:
+  probe=raw
+  for n in names: probe=probe.replace(n,'')
+  low=probe.lower(); hits=[t for t in dead if t in low]
+ print(label, repr(raw), hits)
+# Compare the prose fragments after joining whitespace/punctuation convention.
+lines=p.read_text().splitlines()
+idx=' '.join(x.strip() for x in lines[26:31])
+label=' '.join(x.strip() for x in lines[973:976])
+print('INDEX=',idx)
+print('LABEL=',label)
+# Actual unmarked hits and their markers.
+for doc in (p,Path('fixtures/README.md')):
+ for no,raw in enumerate(doc.read_text().splitlines(),1):
+  if 'staleness-guard' in raw: continue
+  probe=raw
+  for n in names: probe=probe.replace(n,'')
+  low=probe.lower()
+  hits=[t for t in dead if t in low]
+  if hits: print('STALE',doc,no,hits,raw)
+PY
+# ensure receipt content itself isn't contradicted by commit/file list assumptions
+git diff --numstat 16bbf6392bc9161d4de4774beb6f95f962882c73 HEAD
+git diff --numstat 8bd3781b81d03b3f0097b55498363bb048ed162b HEAD" in /tmp/claude-1000/-home-jro-asb-product-work/3a6ea635-0952-4430-b51f-5ad9bf0bc6ac/scratchpad/codex-011r2
+ succeeded in 0ms:
+PATCH_MATCH=0
+not-name overlap 'The NotGive Back Fencepost mechanism is current.' []
+lowercase own name 'give back fence note.md' ['give back']
+case-exact full name 'Give Back Fence Note.md' []
+marker-containing 'x staleness-guard x give back' []
+INDEX= [containment]          no network, no writes to fixtures, database confined to the temp dir [doc-hygiene]          no unmarked line of this suite or fixtures/README.md carries the vocabulary of a deleted mechanism, once the two fixture-name strings are subtracted from it. NOT full coverage - see the checkpoint itself for what it does not scan
+LABEL= f"[doc-hygiene] no unmarked line of this suite or fixtures/README.md carries the " f"vocabulary of a deleted mechanism, once the two fixture-name strings are subtracted " f"from it (got {stale})")
+19	14	tests/test_retrieval_core_e2e.py
+16	8	tests/test_retrieval_core_e2e.py
+
+codex
+PASS
+
+No findings.
+
+1. Binding constraint: `git diff 2fed7cb5d1b95b3de2719790fe7769664c977871 HEAD -- src/` returned no differences. HEAD is exactly `a797797d8283a2d5fadd3bfd9618bb005d041dcc`.
+
+2. New label and checkpoint index: both state that no unmarked line in the suite or `fixtures/README.md` carries the deleted-mechanism vocabulary after subtracting the two fixture-name strings. This matches the implementation at lines 962–972:
+
+   - Lines containing `staleness-guard` are skipped.
+   - Exactly two strings from `fixture_names` are removed.
+   - Removal uses sequential, case-sensitive `str.replace`.
+   - Token matching occurs afterward on the lowercased remainder.
+   - The index and runtime label are byte-consistent apart from formatting and the runtime diagnostic suffix.
+
+3. Block comment: every material clause is accurate.
+
+   - `NotGive Back Fencepost` produces no hit because replacing `Give Back Fence` removes that substring even though it is not functioning as a filename.
+   - The lowercase fixture name produces a `give back` hit.
+   - Replacement is case-sensitive and unbounded by word boundaries.
+   - A rename retaining dead vocabulary requires the exemption list to change; one containing none does not.
+   - These results were independently reproduced using the guard’s exact operations.
+
+4. No new false statement was found in the repair’s 16 added and 8 removed lines. The guard is capable of failing: an unmarked residual token is appended to `stale`, and `check(stale == [])` then fails.
+
+5. Receipt verification:
+
+   - `CANDIDATE_DIFF.patch` exactly matches `git diff 4573b55… a797797…`.
+   - The receipt’s changed-file claim is correct relative to its declared SB-ASK-011 package base, `16bbf639…`: only `tests/test_retrieval_core_e2e.py` changed.
+   - All eight `derived_line_citations` occur exactly once and have the stated candidate line numbers: 536, 545, 558, 362, 974, 933, 960, and 401.
+   - The candidate and superseded SHA information is accurate.
+   - The four smaller reported test suites reproduced their stated PASS counts. The main retrieval suite could not be rerun to completion in this reviewer sandbox because no writable temporary directory is available; it reached temporary-directory creation before failing for that environmental reason, not an assertion failure.
+
+6. Containment review: the repair commit changes only the test file. No fixture, product-code, or git-ref mutation was introduced.
+tokens used
+31,859
+PASS
+
+No findings.
+
+1. Binding constraint: `git diff 2fed7cb5d1b95b3de2719790fe7769664c977871 HEAD -- src/` returned no differences. HEAD is exactly `a797797d8283a2d5fadd3bfd9618bb005d041dcc`.
+
+2. New label and checkpoint index: both state that no unmarked line in the suite or `fixtures/README.md` carries the deleted-mechanism vocabulary after subtracting the two fixture-name strings. This matches the implementation at lines 962–972:
+
+   - Lines containing `staleness-guard` are skipped.
+   - Exactly two strings from `fixture_names` are removed.
+   - Removal uses sequential, case-sensitive `str.replace`.
+   - Token matching occurs afterward on the lowercased remainder.
+   - The index and runtime label are byte-consistent apart from formatting and the runtime diagnostic suffix.
+
+3. Block comment: every material clause is accurate.
+
+   - `NotGive Back Fencepost` produces no hit because replacing `Give Back Fence` removes that substring even though it is not functioning as a filename.
+   - The lowercase fixture name produces a `give back` hit.
+   - Replacement is case-sensitive and unbounded by word boundaries.
+   - A rename retaining dead vocabulary requires the exemption list to change; one containing none does not.
+   - These results were independently reproduced using the guard’s exact operations.
+
+4. No new false statement was found in the repair’s 16 added and 8 removed lines. The guard is capable of failing: an unmarked residual token is appended to `stale`, and `check(stale == [])` then fails.
+
+5. Receipt verification:
+
+   - `CANDIDATE_DIFF.patch` exactly matches `git diff 4573b55… a797797…`.
+   - The receipt’s changed-file claim is correct relative to its declared SB-ASK-011 package base, `16bbf639…`: only `tests/test_retrieval_core_e2e.py` changed.
+   - All eight `derived_line_citations` occur exactly once and have the stated candidate line numbers: 536, 545, 558, 362, 974, 933, 960, and 401.
+   - The candidate and superseded SHA information is accurate.
+   - The four smaller reported test suites reproduced their stated PASS counts. The main retrieval suite could not be rerun to completion in this reviewer sandbox because no writable temporary directory is available; it reached temporary-directory creation before failing for that environmental reason, not an assertion failure.
+
+6. Containment review: the repair commit changes only the test file. No fixture, product-code, or git-ref mutation was introduced.

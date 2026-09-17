@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.second-brain/schemas/production-result.schema.json",
+  "title": "Production Second-Brain Audit Result",
+  "type": "object",
+  "required": ["schema_version", "auditor_version", "mode", "status", "run_id", "snapshot_id", "overall_status", "finding_count", "local_ai_status", "report_path", "portable_review_path", "automatic_source_fixes_applied", "automatic_deletions_performed"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "auditor_version": {"const": "1.0.0"},
+    "mode": {"const": "production_advisory"},
+    "status": {"const": "completed"},
+    "run_id": {"type": "string"},
+    "snapshot_id": {"type": "string"},
+    "overall_status": {"enum": ["healthy", "warning", "critical"]},
+    "finding_count": {"type": "integer", "minimum": 0},
+    "local_ai_status": {"type": "string"},
+    "report_path": {"const": "/Obsidian/90 System/Second-Brain Audit Review.md"},
+    "portable_review_path": {"type": "string"},
+    "automatic_source_fixes_applied": {"const": false},
+    "automatic_deletions_performed": {"const": false}
+  }
+}

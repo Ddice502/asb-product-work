@@ -1,0 +1,279 @@
+{
+  "package_id": "SB-ASK-002",
+  "purpose": "Synthetic fixture vault plus end-to-end verification of the Ask My Brain retrieval core, which no test in this target had ever executed.",
+  "base_sha": "2119d6c9da5ad5f14aef61904b0167e7027dff7d",
+  "candidate_sha": "3a230091e158a022832338b31a6a4f3fb0586be9",
+  "branch": "uep/task-sb-ask-002",
+  "status": "MERGED",
+  "changed_files": [
+    "fixtures/README.md",
+    "fixtures/outside-the-vault.md",
+    "fixtures/vault/.obsidian/workspace.md",
+    "fixtures/vault/10 Areas/Bare Note.md",
+    "fixtures/vault/10 Areas/Comment Marker Note.md",
+    "fixtures/vault/10 Areas/Diacritics Note.md",
+    "fixtures/vault/10 Areas/Empty Signal Note.md",
+    "fixtures/vault/10 Areas/Long Line Note.md",
+    "fixtures/vault/10 Areas/Saw Care.md",
+    "fixtures/vault/10 Areas/Second Brain Current Status.md",
+    "fixtures/vault/10 Areas/Second Brain Older Status.md",
+    "fixtures/vault/10 Areas/Workshop Inventory.md",
+    "fixtures/vault/20 Projects/Greenhouse Rebuild.md",
+    "fixtures/vault/20 Projects/Kiln Shed.md",
+    "fixtures/vault/90 Archive/Old Greenhouse Notes.md",
+    "tests/test_retrieval_core_e2e.py"
+  ],
+  "product_source_modified": false,
+  "product_source_diff": "none: src/ is byte-identical to the base",
+  "tests": [
+    {
+      "command": "python3 -B tests/test_retrieval_core_e2e.py",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -B tests/test_ask_grounding_integration.py",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -B tests/test_source_references.py",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -B tests/test_weak_evidence.py",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -B tests/test_search_row_adapter.py",
+      "exit_code": 0
+    }
+  ],
+  "repair_cycles_used": 2,
+  "agent_c_required": true,
+  "codex_required": false,
+  "codex_rationale": "None of the handoff's high-risk criteria are met: the package modifies no product source, handles no real data, performs no import/export, mutates no vault, touches no credentials, permissions, network or external API, and performs no schema/database/index migration or promotion behaviour. It adds deterministic tests and synthetic fixtures only. The owner may still require Codex at the merge gate.",
+  "defects_found_not_fixed": [
+    {
+      "id": "D1",
+      "severity": "HIGH",
+      "confirmed": true,
+      "summary": "chunk_note's cleanup regexes are written with doubled backslashes, so r\"<!--[\\\\s\\\\S]*?-->\" matches a character class of {backslash,s,S} rather than any character. HTML comments are therefore NOT stripped and pipeline metadata is indexed as retrieval evidence and shown to the model. The fence, separator and blank-line-collapse patterns carry the same defect.",
+      "why_not_fixed": "Repairing it changes chunking behaviour, which this package is explicitly forbidden to alter."
+    },
+    {
+      "id": "D2",
+      "severity": "HIGH",
+      "confirmed": true,
+      "summary": "Content containing accented characters is indexed and matchable by FTS5, but unreachable through search(): query_terms uses r'[A-Za-z0-9]+' and the coverage reranker uses r'[^a-z0-9]+', so an accented word is shredded ('cafe resume pinata' accented -> ['caf','sum','pi','ata']; the ASCII spelling survives as ['cafe','resume','pinata'] but then never equals the accented body token). Both spellings return zero rows for content FTS5 can find.",
+      "why_not_fixed": "Repairing it changes retrieval/scoring behaviour, which this package is explicitly forbidden to alter.",
+      "corrected_by": "F3, in SB-ASK-003: the earlier wording attributed the shredding to the ASCII input."
+    },
+    {
+      "id": "D3",
+      "severity": "MEDIUM",
+      "confirmed": true,
+      "summary": "A question made entirely of stopwords ('the') falls through query_terms' deliberate no-useful-terms fallback, matches as all_terms with coverage 1.0, and yields deterministic_evidence_strength == HIGH, so the model is called and the answer is labelled HIGH for a contentless question.",
+      "why_not_fixed": "The fallback is deliberate; changing it or the strength contract is a product policy decision, not an in-package repair."
+    },
+    {
+      "id": "D4",
+      "severity": "LOW",
+      "confirmed": true,
+      "summary": "A chunk's recorded line span can open AND close on the blank lines surrounding its text, so a printed citation range can be one line wide at each end. Found by strengthening the line-span assertion during repair 1.",
+      "why_not_fixed": "Repairing it changes chunking behaviour, which this package is forbidden to alter."
+    }
+  ],
+  "reproducers": "evidence/SB-ASK-002-defect-reproducers.py (read-only, run from the repository root)",
+  "known_limitations": [
+    "The suite pins exact fixture counts (13 notes, 11 indexed, 21 chunks, 2 skipped), exact chunk spans and exact row counts at the coverage boundary. Editing a fixture means updating them; that is intentional.",
+    "_path_within_vault cannot be reached from the suite: it guards resolve_scope's predicate, which only ever sees paths that came out of the index. Mutating it to return True survives. Declared rather than hidden.",
+    "bm25 field weights and the prefix-match minimum length are ranking internals nothing pins; mutating them survives.",
+    "Domain scoping is not exercised: it needs a domain-policy file this target does not hold. include_paths, exclude_paths and the policy errors are covered.",
+    "ask() is exercised end to end with ollama_chat stubbed; no model, and therefore no real answer text, is verified.",
+    "Incremental or changed-file rebuild, and behaviour against a missing or corrupt database, are untested.",
+    "check() exits on first failure, so one break masks later checkpoints. Acceptable for a gate; relevant when triaging."
+  ],
+  "rollback": "merged: revert the isolated merge SHA 1b489afa809c0045a6495e3bf4dbbb29cc7e7de5 on uep/work (git revert -m 1). The candidate branch and tag remain for re-merge.",
+  "superseded_candidates": [
+    {
+      "sha": "7c16f60cd7fad2741ca68dff985535470a273254",
+      "verdict": "Agent C FAIL",
+      "reason": "14 of 30 mutations to the retrieval core left the suite green; three assertions were vacuous, including a tautology asserting on a path the test itself constructed"
+    },
+    {
+      "sha": "101fad7f38fb8b2cd152f7c042a1ca5326cb6490",
+      "verdict": "Agent C FAIL",
+      "reason": "the receipt claimed the [0.30,0.35) coverage band was empty for this vault; it is not, so the 0.35 top-candidate gate had zero coverage. A second tautology (amb.sqlite3.connect is sqlite3.connect) could not fail."
+    }
+  ],
+  "repair_1": {
+    "trigger": "Agent C FAIL on 7c16f60",
+    "changes": [
+      "containment observed via a sqlite3.connect spy instead of asserted on a self-built path",
+      "fixture renamed so a note's heading differs from its filename stem, making the title assertion falsifiable",
+      "new fixtures/outside-the-vault.md: an escape target that really carries authority and provenance frontmatter",
+      "include_paths tested with a genuinely folder-spanning question; scoped halves asserted disjoint",
+      "added partial_terms, fractional coverage, rank order, per-row provenance, real line spans, historical-intent penalty, coverage floor at its exact boundary, diacritic folding at the index layer",
+      "[defect-pins] checkpoint added: D1/D2/D3 pinned as DEFECTS with labels that cannot be read as requirements",
+      "fixtures/README.md corrected (note count, authority attribution, overstated coverage)"
+    ],
+    "checks": "76 -> 131"
+  },
+  "mutation_testing": {
+    "method": "mutations applied to a throwaway copy of ask_my_brain.py outside the repository; the suite run against each; unmutated control asserted green",
+    "executor_sweep_on_this_candidate": {
+      "mutations": 21,
+      "caught": 21,
+      "survived": 0
+    },
+    "agent_c_sweep_on_previous_candidate": {
+      "mutations": 30,
+      "caught": 26,
+      "survived": 4
+    },
+    "specifically_reclosed": [
+      "the 0.35 top-candidate gate alone",
+      "chunk start_line shifted by one",
+      "a leaked sqlite3 spy (restore deleted)"
+    ]
+  },
+  "repair_2": {
+    "trigger": "Agent C FAIL on 101fad7",
+    "changes": [
+      "pinned the 0.35 top-candidate gate with two questions in the [0.30,0.35) band, verified to isolate it",
+      "replaced the sqlite3 restore tautology with a comparison against a reference captured before the spy existed, plus an atexit guard against a check() exit leaking the spy",
+      "pinned D4 with exact chunk spans, which also catches an off-by-one in start_line or end_line",
+      "moved the accented-term index assertion out of [defect-pins] into [index-build]",
+      "corrected the tokenizer assertion's stated reason (unicode61 folds by default at remove_diacritics 1)",
+      "documented fixtures/outside-the-vault.md in the README, brought it under the synthetic-content scan, narrowed the 'nothing written' claim to what is checked"
+    ],
+    "checks": "131 -> 139",
+    "false_claim_corrected": "known_limitations previously asserted the [0.30,0.35) band was empty. It is not: 52 questions land in it. That limitation is withdrawn and the gate is now covered."
+  },
+  "agent_c": {
+    "verdict": "PASS",
+    "sha_verified": "3a230091e158a022832338b31a6a4f3fb0586be9",
+    "checkout": "isolated detached worktree; git status and git clean -nd both empty after the run",
+    "src_untouched_confirmed": true,
+    "tests_observed": [
+      {
+        "command": "python3 -B tests/test_retrieval_core_e2e.py",
+        "exit_code": 0,
+        "checks": 139
+      },
+      {
+        "command": "python3 -B tests/test_ask_grounding_integration.py",
+        "exit_code": 0,
+        "checks": 59
+      },
+      {
+        "command": "python3 -B tests/test_source_references.py",
+        "exit_code": 0,
+        "checks": 19
+      },
+      {
+        "command": "python3 -B tests/test_weak_evidence.py",
+        "exit_code": 0,
+        "checks": 24
+      },
+      {
+        "command": "python3 -B tests/test_search_row_adapter.py",
+        "exit_code": 0,
+        "checks": 32
+      }
+    ],
+    "mutation_sweep": {
+      "mutations": 34,
+      "caught": 25,
+      "survived": 9,
+      "fair_score": "22 of 25 once 3 behaviourally-equivalent mutants and 3 declared limitations are excluded",
+      "prior_rounds": [
+        "16/30 on 7c16f60",
+        "26/30 on 101fad7"
+      ]
+    },
+    "blockers_closed": [
+      "Blocker 1 (the 0.35 top-candidate gate had zero coverage): CLOSED. Lowering the gate to the 0.30 floor, and removing it outright, both now fail the suite on the new pinned band questions.",
+      "Blocker 2 (the sqlite3 restore tautology): CLOSED. Four probes confirm the assertion is now falsifiable, the explicit restore is required, and the atexit guard is load-bearing - without it an early check() exit really does leak the spy."
+    ],
+    "residual_findings_non_blocking": [
+      "F1",
+      "F2",
+      "F3",
+      "F4"
+    ]
+  },
+  "owner_disposition_needed": [
+    {
+      "id": "F1",
+      "severity": "MEDIUM",
+      "verified_by_executor": true,
+      "summary": "tests/test_retrieval_core_e2e.py lines 385-388 still carry the false sentence repair 2 removed from the receipt: that no question over these fixtures lands in [0.30, 0.35) and the two gates cannot be told apart. It sits ten lines above the two checks that disprove it, and points at a limitation since deleted.",
+      "fix": "strike those four comment lines; no assertion changes",
+      "why_not_done": "the repair budget is exhausted (2 of 2) and any edit changes the candidate SHA, voiding the Agent C PASS",
+      "resolved_by": "SB-ASK-003"
+    },
+    {
+      "id": "F2",
+      "severity": "LOW",
+      "verified_by_executor": false,
+      "summary": "Three unpinned behaviours change real retrieval output while the suite stays green: the row coverage floor loosened 0.30->0.20, phrase_bonus zeroed, all_terms_bonus zeroed. The receipt's ranking-internals limitation names only two of at least five such internals.",
+      "fix": "broaden that limitation to the reranker's additive bonuses and candidate-pool internals, or pin them in a follow-up package",
+      "status": "still open: the reranker's additive bonuses and candidate-pool internals remain unpinned"
+    },
+    {
+      "id": "F3",
+      "severity": "LOW",
+      "verified_by_executor": true,
+      "summary": "This receipt's D2 summary says 'cafe resume pinata' -> ['caf','sum','pi','ata']. Verified: the ASCII input actually yields ['cafe','resume','pinata']; the shredding happens on the accented input, which is what the suite asserts. An accent-stripping artifact in an ASCII receipt. The substantive D2 defect is real and correctly pinned.",
+      "fix": "correct the example in this field",
+      "resolved_by": "SB-ASK-003"
+    },
+    {
+      "id": "F4",
+      "severity": "LOW",
+      "verified_by_executor": true,
+      "summary": "tests/test_retrieval_core_e2e.py lines 296-297: a check strictly entailed by the exact-equality check one line above, so it cannot fail. Unlike the two earlier tautologies it manufactures no coverage - the adjacent check fully covers the behaviour - but it is dead weight.",
+      "fix": "delete it or make it a comment",
+      "resolved_by": "SB-ASK-003"
+    }
+  ],
+  "merge": {
+    "approved_by": "owner, 2026-09-16",
+    "scope": "isolated product integration branch uep/work ONLY; not merged or promoted to main, home, vault, runtime, or any live service",
+    "integration_branch": "uep/work",
+    "merge_sha": "1b489afa809c0045a6495e3bf4dbbb29cc7e7de5",
+    "merged_candidate_sha": "3a230091e158a022832338b31a6a4f3fb0586be9",
+    "candidate_is_ancestor": true,
+    "merge_strategy": "--no-ff",
+    "files_changed_by_merge": 16,
+    "insertions": 744,
+    "product_source_changed": "none",
+    "tests_on_integration_line": [
+      {
+        "command": "python3 -B tests/test_retrieval_core_e2e.py",
+        "exit_code": 0
+      },
+      {
+        "command": "python3 -B tests/test_ask_grounding_integration.py",
+        "exit_code": 0
+      },
+      {
+        "command": "python3 -B tests/test_source_references.py",
+        "exit_code": 0
+      },
+      {
+        "command": "python3 -B tests/test_weak_evidence.py",
+        "exit_code": 0
+      },
+      {
+        "command": "python3 -B tests/test_search_row_adapter.py",
+        "exit_code": 0
+      }
+    ],
+    "candidate_branch_preserved": "uep/task-sb-ask-002 (tag sb-ask-002-candidate)",
+    "main_untouched_at": "3bb076131f7475ed2aa042988dc692562ad5460d",
+    "remotes": "none configured",
+    "status_vocabulary_note": "'MERGED' extends the handoff's documented status enum, which has no post-merge value.",
+    "outstanding": "F1-F4 in owner_disposition_needed are unresolved and now live on the integration line."
+  }
+}

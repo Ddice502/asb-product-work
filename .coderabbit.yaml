@@ -1,0 +1,46 @@
+# yaml-language-server: $schema=https://www.coderabbit.ai/integrations/schema.v2.json
+reviews:
+  profile: assertive
+  request_changes_workflow: true
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - main
+
+  path_instructions:
+    - path: "**"
+      instructions: |
+        Review changes in repository context, not as isolated edited lines.
+
+        For changed public functions, API routes, schemas, database models,
+        migrations, events, job payloads, environment variables, configuration
+        values, authentication/authorization rules, and external integrations:
+
+        - Identify affected callers, consumers, and dependent modules.
+        - Verify backward compatibility or require a documented migration.
+        - Check validation, error behavior, retry behavior, idempotency,
+          concurrency, restart safety, and data integrity where relevant.
+        - Flag missing unit, integration, contract, or end-to-end test coverage
+          for material behavior changes.
+        - Block plausible security, authorization, data-loss, corruption,
+          duplication, compatibility, or destructive-operation defects.
+        - Do not approve solely because edited code appears locally correct.
+
+    - path: "**/*migration*"
+      instructions: |
+        Treat migrations as high risk. Check forward migration safety, populated
+        database behavior, defaults, nullability, constraints, indexes, data
+        backfills, rollback path, and data-loss or corruption risk.
+
+    - path: "**/*docker*"
+      instructions: |
+        Check ports, volumes, secret handling, health checks, startup ordering,
+        restart behavior, least privilege, persistent data, network exposure,
+        upgrades, and rollback implications.
+
+    - path: ".github/**"
+      instructions: |
+        Check that CI runs the relevant format, lint, typecheck, test, build,
+        security, and integration validation commands. Flag workflows that can
+        pass without validating changed code.

@@ -1,0 +1,20 @@
+# Engineering Guardrails
+
+1. All development happens inside `/home/jro/asb-product-work`.
+2. Product work uses isolated candidate branches/worktrees; never edit `main`.
+3. No development process may access home, vault, real notes, real inbox data,
+   databases, credentials, `.env` files, runtime state, or home services.
+4. Never merge a candidate into the isolated product integration line without
+   an explicit owner decision. Never deploy, activate, restart services, sync
+   remotes, or promote work to home without a separate explicit owner release
+   decision.
+5. Keep every package within approved paths and its stated product scope.
+6. Run deterministic tests and preserve true command/exit results.
+7. Ordinary defects are repaired within the package budget; do not ask the
+   owner for routine retry approval.
+8. Candidate verification and any required independent review happen against
+   one frozen candidate SHA. Agent C verifies first; the independent reviewer
+   runs only afterward and never concurrently with Agent C.
+9. Preserve evidence and the candidate branch on a hard stop.
+10. Do not create delivery/orchestration tooling unless the owner explicitly
+    reopens that work after a product release.

@@ -1,0 +1,311 @@
+{
+  "package_id": "SB-ASK-004",
+  "purpose": "Repair D3 and D4 only, re-cut from a clean base after SB-ASK-003 was withdrawn. No D1 or D2 content.",
+  "base_sha": "4d69f6dda871bc7baf1b9fac723f0168c9f0c9d2",
+  "candidate_sha": "1aa987f60954995e08d94afe665654e44687bee2",
+  "branch": "uep/task-sb-ask-004",
+  "status": "ESCALATED",
+  "changed_files": [
+    "src/ask-my-brain/ask_my_brain.py",
+    "tests/test_retrieval_core_e2e.py"
+  ],
+  "source_diff": "two hunks in src/ask-my-brain/ask_my_brain.py and nothing else",
+  "tests": [
+    {
+      "command": "python3 -B tests/test_retrieval_core_e2e.py",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -B tests/test_ask_grounding_integration.py",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -B tests/test_source_references.py",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -B tests/test_weak_evidence.py",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -B tests/test_search_row_adapter.py",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -B src/ask-my-brain/ask_my_brain.py --help",
+      "exit_code": 0
+    }
+  ],
+  "repair_cycles_used": 2,
+  "agent_c_required": true,
+  "codex_required": true,
+  "codex_rationale": "D3 changes user-visible answer policy on the path that feeds the answer model, so the high-risk criteria are met. Codex also caught, on the withdrawn SB-ASK-003, two classes of defect that Agent C had passed; on this package's history that is worth the round trip even though the diff is small.",
+  "relationship_to_sb_ask_003": {
+    "withdrawn_candidate": "8163e1ef8f9830810589d485ba9dd6a7aa518234 (branch uep/task-sb-ask-003, tag sb-ask-003-candidate, preserved)",
+    "why_withdrawn": "repair budget exhausted with D1 and D2 still defective; Agent C confirmed fenced content was still being deleted across chunk boundaries and that the fold still let the reranker claim coverage the index never found",
+    "what_this_package_takes": "only the D3 and D4 source changes, re-applied by hand to a clean base rather than cherry-picked, so no D1 or D2 code, fixture or assertion travels with them",
+    "verified_absent": "the source diff contains no fold_text, no unicodedata, no NFD/NFKD, no comment or fence or separator pattern change, and no tokenization-class change"
+  },
+  "defects_repaired": [
+    {
+      "id": "D3",
+      "severity": "MEDIUM",
+      "fix": "narrowed query_terms' no-useful-terms fallback so it no longer falls back to the stopwords themselves, while still falling back to meta-words that can be subjects",
+      "effect": "a question made only of stopwords yields no terms, retrieves nothing, and ask() prints the fixed no-evidence response. A question whose only content words are meta-words still searches for them.",
+      "owner_visible_policy_change": true
+    },
+    {
+      "id": "D4",
+      "severity": "LOW",
+      "fix": "start_line and end_line advance only on lines that carry text",
+      "effect": "a citation's line range covers its text and not the blank lines around it"
+    }
+  ],
+  "defects_still_open_and_still_pinned": [
+    {
+      "id": "D1",
+      "severity": "HIGH",
+      "summary": "HTML comments are never stripped from indexed evidence, so pipeline metadata reaches the answer model",
+      "why_not_here": "SB-ASK-003 showed a correct repair needs fence-aware chunking: cleanup runs on a buffer whose boundaries were decided by a chunker that knows nothing about markup, so a fenced block already cut in half cannot be protected by any regex. That is a design change and needs its own approved package plus a re-index."
+    },
+    {
+      "id": "D2",
+      "severity": "HIGH",
+      "summary": "accented content is indexed and matchable by FTS5 but unreachable through search()",
+      "why_not_here": "SB-ASK-003 showed that any fold short of bit-exact with unicode61 diverges somewhere, in both directions. The likely correct repair is for the reranker to take matched terms from what FTS5 returned instead of re-deriving them by string comparison, which removes the need to agree with unicode61 at all. Also a design change."
+    }
+  ],
+  "regression_sweep": {
+    "method": "mutations applied to a throwaway copy outside the repository; unmutated control asserted green",
+    "mutations": 8,
+    "caught": 8,
+    "survived": 0,
+    "includes": [
+      "D3 fallback restored, two variants",
+      "D4 span guard removed",
+      "D4 start_line and end_line off-by-ones",
+      "D4 end_line stops advancing",
+      "a repair of D1 must FAIL its pin - confirmed caught",
+      "a repair of D2 must FAIL its pin - confirmed caught"
+    ]
+  },
+  "unchanged": [
+    "index counts: 11 notes indexed, 21 chunks, 2 skipped",
+    "every coverage-boundary row count",
+    "the system and user prompt contract",
+    "the MODEL= / EVIDENCE_CHUNKS= trailer",
+    "ranking, scoring, authority, scope and the database schema",
+    "the D1 and D2 defect pins, which remain live"
+  ],
+  "known_limitations": [
+    "REINDEX REQUIRED FOR EFFECT: start_line and end_line are persisted at index time and search does not recompute them, so an index built before this commit keeps its blank-padded spans indefinitely and D4 has no effect until the index is rebuilt. The schema version is unchanged at 1.0.0 and nothing rejects a stale index, so the release procedure has to guarantee the rebuild. Chunk BODIES are unchanged, so the stale-index effect is limited to printed citation ranges. Raised by Codex.",
+    "D3 is a user-visible policy change. Measured on the base over the 18 questions enumerated in d3_measurement: 13 returned rows and NINE returned HIGH-strength evidence built from nothing. On THIS candidate the five that are stopwords - the, this, an, it, that - return nothing, and 'root cause', 'proof' and 'the problem' RETRIEVE NORMALLY again after repair 2. An earlier revision of this entry said those three 'return nothing now'; that was true of the superseded candidate fbacbc6 and is false of this one. See finding F1 below for what this candidate does instead, which is a different regression.",
+    "Carried forward from SB-ASK-002 and not addressed here: the coverage-boundary assertion all(r['term_coverage'] >= 0.30 for r in got) is vacuous on the iteration whose expected row count is zero. Left alone deliberately to keep this diff to D3 and D4.",
+    "Carried forward: phrase_bonus, all_terms_bonus, gentle loosening of the 0.30 coverage floor, the execute_match candidate limit and the fts_token prefix threshold remain unpinned (F2).",
+    "Verified against synthetic fixtures with ollama_chat stubbed; no model, database of the owner's, or vault was exercised.",
+    "Ranking internals remain unpinned and are pre-existing, not introduced here: bm25 field weights, phrase_bonus, the fts_token prefix threshold and the execute_match candidate limit can all be mutated without the suite noticing (F2, plus bm25 weights which F2 did not name)."
+  ],
+  "rollback": "abandon candidate branch uep/task-sb-ask-004 (uep/work unchanged at 4d69f6dda871bc7baf1b9fac723f0168c9f0c9d2)",
+  "superseded_candidates": [
+    {
+      "sha": "748c48e1d813770c6796726dd4ce616b7097a7af",
+      "verdict": "Agent C PASS with two required corrections",
+      "reason": "a stale comment still described D4 as a live finding, and D4 was pinned only through the four Greenhouse spans"
+    },
+    {
+      "sha": "fbacbc6cade11033407ebb5b319675b04edb4c6a",
+      "verdict": "Agent C PASS, Codex FAIL",
+      "reason": "removing the query_terms fallback outright also silenced legitimate questions whose only content words are meta-words: 'root cause' and 'proof' each retrieved one genuinely relevant HIGH-strength result on the base and returned nothing"
+    }
+  ],
+  "repair_1": {
+    "trigger": "Agent C corrections on 748c48e; tests only, no source change",
+    "changes": [
+      "struck the stale [chunking] comment describing D4 as a live finding",
+      "pinned the no-signal fallback chunk's (1,1) placeholder span",
+      "pinned the long-line split's end_line, not just its start_line",
+      "pinned the span guard as a predicate on line CONTENT, via a direct chunk_note call"
+    ],
+    "checks": "142 -> 146",
+    "source_diff_unchanged": "still exactly two hunks against uep/work"
+  },
+  "agent_c": {
+    "verdict": "PASS",
+    "sha_verified": "fbacbc6cade11033407ebb5b319675b04edb4c6a",
+    "blocking_findings": "none",
+    "repair_1_tests_only_confirmed": "git diff 748c48e1..fbacbc6c -- src/ is empty; git diff 4d69f6dd..fbacbc6c -- src/ is still exactly the two hunks",
+    "gaps_closed": [
+      "M20 fallback span - caught",
+      "M21 long-line split end_line - caught",
+      "M22 guard weakened to 'if raw_line:' - caught"
+    ],
+    "d4_mutations": "5 of 5 caught, including full guard revert, start-only guard and end-only guard",
+    "d1_d2_pins_live": "confirmed again by mutation on this candidate",
+    "collateral": "21 rows compared base vs candidate: 17 differ in span only, 0 differ anywhere else",
+    "vacuity": "repair 1 introduced none; the one declared carried-forward vacuity remains, deliberately",
+    "limitation_raised": "the 13-of-18 aggregate was not reproducible from the receipt; the question list is now recorded under d3_measurement",
+    "note": "Agent C disclosed that its first suite run omitted -B and left __pycache__ in its own isolated checkout, which is gitignored and outside the candidate object"
+  },
+  "d3_measurement": {
+    "why": "Agent C could not reproduce the 13-of-18 aggregate because the receipt did not say which questions were used. Enumerated here so a third party can repeat it.",
+    "method": "each question passed to search(config, q, 5) against the fixture vault on base 4d69f6dd, strength from deterministic_evidence_strength",
+    "questions": [
+      "the",
+      "this",
+      "note",
+      "an",
+      "it",
+      "notes",
+      "evidence",
+      "one",
+      "that",
+      "of the and to",
+      "show me the notes",
+      "what did I say?",
+      "give me the evidence",
+      "what are the problems?",
+      "explain the problem",
+      "root cause",
+      "proof",
+      "tell me"
+    ],
+    "result_on_base": {
+      "returned_rows": 13,
+      "of_which_HIGH": 9,
+      "HIGH": [
+        "the (5 rows)",
+        "this (5)",
+        "note (5)",
+        "an (1)",
+        "it (1)",
+        "notes (1)",
+        "evidence (1)",
+        "one (1)",
+        "that (1)"
+      ],
+      "MEDIUM": [
+        "of the and to (5)"
+      ],
+      "LOW": [
+        "show me the notes (1)",
+        "give me the evidence (1)",
+        "what are the problems? (1)"
+      ],
+      "returned_nothing": [
+        "what did I say?",
+        "explain the problem",
+        "root cause",
+        "proof",
+        "tell me"
+      ]
+    },
+    "result_on_candidate": "NOT 'all 18 return zero rows' - that was true of the superseded candidate fbacbc6 and is false here. On this candidate 6 of the 18 return rows: note (5, HIGH), notes (1, HIGH), evidence (1, HIGH), one (1, HIGH), show me the notes (1, now HIGH, was LOW on base), give me the evidence (1, now HIGH, was LOW on base). The last two are finding F1.",
+    "agent_c_corroboration": "Agent C re-measured the nine named HIGH cases and confirmed all nine return rows at HIGH on base and zero on the candidate. Its own independently chosen set of 18 gave 11 returning and 10 HIGH - set-dependent, same direction, if anything worse."
+  },
+  "repair_budget_remaining": 0,
+  "repair_2": {
+    "trigger": "Codex FAIL on fbacbc6, finding 1 (MEDIUM, CONFIRMED). The executor had recorded this as a limitation; Codex was right that it should block.",
+    "diagnosis": "Codex's, and exact: the old fallback was masking an overbroad meta_words list. meta_words is about how a question is phrased, but root, cause, problem, proof, evidence and note can equally be the subject.",
+    "change": "the fallback is narrowed rather than removed: when nothing survives the filters it falls back to the words that are not stopwords, keeping the minimum word length",
+    "measured": {
+      "pure_stopword_questions_still_suppressed": [
+        "the",
+        "this",
+        "an",
+        "it",
+        "that",
+        "of the and to"
+      ],
+      "legitimate_questions_restored": [
+        "root cause -> ['root','cause'], 1 relevant row HIGH",
+        "proof -> ['proof'], 1 relevant row HIGH",
+        "the problem -> ['problem']"
+      ],
+      "still_retrieving_at_HIGH_and_why_that_is_not_D3": [
+        "note",
+        "notes",
+        "evidence",
+        "one"
+      ]
+    },
+    "checks": "146 -> 151"
+  },
+  "newly_identified_defects": [
+    {
+      "id": "D5",
+      "severity": "MEDIUM",
+      "status": "recorded, NOT fixed here",
+      "confirmed": true,
+      "summary": "A single generic term matches as all_terms with full coverage, so deterministic_evidence_strength reports HIGH and the model answers confidently. On the fixture vault 'note' returns 5 rows HIGH, and 'notes', 'evidence' and 'one' return 1 row each at HIGH.",
+      "why_not_fixed_here": "it belongs to the strength contract, not to query_terms: coverage of 1.0 over a single generic term should not be HIGH. Fixing it means changing deterministic_evidence_strength, which is outside this package's two hunks and would change answer strength for every query.",
+      "note": "this is the residue of the nine HIGH-strength contentless questions measured on the base. Five were stopwords and are now suppressed by D3; these four are real words and are not D3's business.",
+      "scope_correction": "D5 was filed as pre-existing residue measured on the base. That is wrong for the cases in F1: repair 2 CREATES those, they were LOW on the base. D5 owns them. The four that genuinely are pre-existing residue are note, notes, evidence and one, which behave identically on base and candidate."
+    }
+  ],
+  "codex": {
+    "verdict_on_superseded": "FAIL on fbacbc6",
+    "finding_1": "MEDIUM CONFIRMED, D3 suppressed valid subject queries - accepted, verified independently, and repaired in repair 2",
+    "finding_2": "LOW CONFIRMED, D4 is ineffective until the index is rebuilt - accepted; the receipt's REINDEX ADVISED is upgraded to REINDEX REQUIRED FOR EFFECT below",
+    "confirmed_clean": [
+      "isolation is real: only the declared two source hunks, no D1/D2 content",
+      "D4 arithmetic correct after rebuild across every chunk shape",
+      "the D1 and D2 pins are clearly marked and engineered to fail when repaired",
+      "ranking, scope, authority, provenance, schema, prompt contract, trailer and injection handling unchanged"
+    ],
+    "sandbox_note": "Codex could not run the retrieval-core suite because its read-only sandbox has no writable temporary directory; it ran the other four. Agent C ran all five.",
+    "status": "a re-review of the repaired candidate is required after Agent C passes; Codex and Agent C never run concurrently"
+  },
+  "receipt_accuracy_failure": {
+    "what": "Two statements describing the frozen candidate were stale text carried forward from the superseded candidate without re-checking, and were measurably false.",
+    "which": [
+      "known_limitations[1]: 'root cause', 'the problem' and 'proof' 'return nothing now'",
+      "d3_measurement.result_on_candidate: 'all 18 return zero rows'"
+    ],
+    "why_it_matters": "this is the second occurrence of the same failure in this document, on the same defect, in the artifact the owner reads to approve a user-visible answer-policy change. Both are corrected above, and both were found by Agent C rather than by the executor."
+  },
+  "escalation": {
+    "reason": "Repair budget exhausted (2 of 2) with a confirmed regression open. Branch frozen and preserved; one terminal escalation, not a third repair.",
+    "candidate_sha": "1aa987f60954995e08d94afe665654e44687bee2",
+    "agent_c_verdict": "FAIL",
+    "codex_verdict_on_predecessor": "FAIL",
+    "blocking": [
+      {
+        "id": "F1",
+        "severity": "MEDIUM",
+        "status": "CONFIRMED by the executor independently",
+        "summary": "Narrowing the fallback shrinks the term set for meta-word-only questions, and a smaller term set is EASIER to cover fully, so match_mode is promoted from partial_terms to all_terms and deterministic_evidence_strength then returns HIGH.",
+        "measured": {
+          "vault": "Cabinet.md 'Show the notes to the joiner before cutting the carcass panels.' and Audit.md 'Give the evidence to the auditor by Friday in the sealed box.'",
+          "show me the notes": "base ['show','me','the','notes'] 1 row partial_terms LOW  ->  candidate ['show','notes'] 1 row all_terms HIGH",
+          "give me the evidence": "base ['give','me','the','evidence'] 1 row partial_terms LOW  ->  candidate ['give','evidence'] 1 row all_terms HIGH"
+        },
+        "why_it_blocks": "these are the receipt's own named base-LOW examples, and the package exists to stop contentless questions being answered at full confidence. On this class the candidate is worse than the base it repairs, and it was disclosed nowhere until Agent C measured it."
+      }
+    ],
+    "root_cause": "D3 and D5 are coupled and cannot be separated. deterministic_evidence_strength returns HIGH whenever ANY row matched all_terms, with no regard to how few or how generic those terms are. So any change that shrinks a question's term set can promote its strength. Removing the fallback silenced legitimate questions; narrowing it promotes contentless ones. Neither edit to query_terms can be correct while the strength contract rewards smaller term sets.",
+    "what_is_finished": "D4. Its source hunk is byte-identical across two Agent C passes, its five pins are live, every chunk shape was verified under base and candidate, and the only difference it makes to the index is start_line/end_line on 17 of 21 rows.",
+    "what_is_not": "D3. Three formulations have now been tried - fallback to all words (base, answers 'the' at HIGH), no fallback (silences 'root cause'), fallback to non-stopwords (promotes 'show me the notes' to HIGH) - and each trades one class of wrong answer for another.",
+    "recommended_next": [
+      "Split again: merge D4 on its own. It is finished, twice verified, and independently valuable.",
+      "Treat D3 and D5 as ONE package. Fix the strength contract first - all_terms over one or two generic terms should not be HIGH - and only then decide what query_terms should do, because until then every query_terms change moves strength around as a side effect.",
+      "If D3 is wanted sooner than that, the base behaviour is the safest of the three: it answers contentless questions, but at LOW, not HIGH, for the multi-word cases."
+    ],
+    "non_blocking_carried": [
+      "four mutation survivors: the fallback's length threshold, whether the fallback is conditional at all, dedup, and meta_words - which can be DELETED ENTIRELY with all 151 checks still green",
+      "one near-tautological new check asserting 'root' and 'proof' are not in STOPWORDS",
+      "regression_sweep in this receipt still records repair 1's 8 mutations, not repair 2's 10"
+    ],
+    "preserved": {
+      "branch": "uep/task-sb-ask-004",
+      "candidate_tag": "sb-ask-004-candidate",
+      "commits": [
+        "748c48e initial (Agent C PASS)",
+        "fbacbc6 repair 1 (Agent C PASS, Codex FAIL)",
+        "1aa987f repair 2 (Agent C FAIL)"
+      ],
+      "integration_line_untouched": "4d69f6dda871bc7baf1b9fac723f0168c9f0c9d2",
+      "main_untouched": "3bb076131f7475ed2aa042988dc692562ad5460d"
+    },
+    "rollback": "abandon uep/task-sb-ask-004. Nothing was merged; uep/work is unchanged."
+  }
+}

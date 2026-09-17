@@ -1,0 +1,345 @@
+{
+  "package_id": "SB-ASK-008",
+  "purpose": "Close defect D1 by deciding a line's fate before acting on it, so the give-back - and the class of bug where text was restored but state was not - is removed entirely.",
+  "supersedes": {
+    "package": "SB-ASK-007",
+    "candidate": "dd391c8bff11d3dee10ad98f30af37d2bdc19890",
+    "status": "ESCALATED, never merged, branch and tag preserved",
+    "why": "Agent C passed it; Codex failed it on the give-back restoring text but not fence state, so a heading textually inside a fence became the note's title and the delimiters reached the evidence. The owner chose option A.",
+    "budget": "a new owner-approved package, so a fresh repair budget"
+  },
+  "base_sha": "4573b55d0e9d698a290ee2f7b5326ac87b95c379",
+  "candidate_sha": "20c015628d8b093b80baae77d6d411575cd5bfb3",
+  "branch": "uep/task-sb-ask-008",
+  "status": "ESCALATED",
+  "changed_files": [
+    "fixtures/README.md",
+    "fixtures/vault/10 Areas/Backtick Info Note.md",
+    "fixtures/vault/10 Areas/Bound Exactness Note.md",
+    "fixtures/vault/10 Areas/Comment Fence Note.md",
+    "fixtures/vault/10 Areas/Comment Marker Note.md",
+    "fixtures/vault/10 Areas/Commented Title Note.md",
+    "fixtures/vault/10 Areas/Fence Closer Note.md",
+    "fixtures/vault/10 Areas/Fence Shapes Note.md",
+    "fixtures/vault/10 Areas/Fenced Markup Note.md",
+    "fixtures/vault/10 Areas/Give Back Fence Note.md",
+    "fixtures/vault/10 Areas/Hidden Title Only.md",
+    "fixtures/vault/10 Areas/Multi Opener Note.md",
+    "fixtures/vault/10 Areas/Rule Opener Note.md",
+    "fixtures/vault/10 Areas/Title Precedence Note.md",
+    "src/ask-my-brain/ask_my_brain.py",
+    "tests/test_retrieval_core_e2e.py"
+  ],
+  "commits_carried": [
+    "20c0156 SB-ASK-008 repair 2: pin the four gaps instead of declaring them",
+    "1148d56 SB-ASK-008 repair 1: bound the restart instead of guarding one shape of it",
+    "f77e494 SB-ASK-008: decide before acting, so there is nothing to undo",
+    "dd391c8 SB-ASK-007 repair 2: recognise fences properly instead of toggling on backticks",
+    "592dfb6 SB-ASK-007 repair 1: pin note_title's contract",
+    "4aa8f3b SB-ASK-007: close D1's last leg, the note title",
+    "350c7bc SB-ASK-006 repair 2: the give-back must restore the line, not the raw line",
+    "473b9cd SB-ASK-006 repair 1: a comment may only remove text it actually encloses",
+    "44e7588 SB-ASK-006: repair D1 by making markup handling line-local and fence-aware"
+  ],
+  "tests": [
+    {
+      "command": "python3 -B tests/test_retrieval_core_e2e.py",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -B tests/test_ask_grounding_integration.py",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -B tests/test_source_references.py",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -B tests/test_weak_evidence.py",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -B tests/test_search_row_adapter.py",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -B src/ask-my-brain/ask_my_brain.py --help",
+      "exit_code": 0
+    }
+  ],
+  "repair_cycles_used": 2,
+  "agent_c_required": true,
+  "codex_required": true,
+  "codex_rationale": "D1 decides what text from an untrusted note reaches the answer model. Codex has now overturned three of this package line's declared limitations and found two classes Agent C had passed. The high-risk criteria are met.",
+  "design": {
+    "change": "classify_markup runs the pass; if an opener turns out never to close, it records that opener as ordinary text and runs the pass AGAIN with it. Each restart settles one opener, so it terminates, and the classification finally returned was computed with the right answer from the first line - fence state included.",
+    "why_this_closes_the_class": "the give-back could only undo TEXT. State - fence tracking above all - had already been computed from the wrong premise. Deciding before acting means there is no wrong premise to undo.",
+    "one_state_machine": "the restart re-runs the same pass rather than adding a second traversal, so the two cannot drift apart",
+    "termination": "bounded by len(lines) + 1 passes. Each restart settles one opener and a note has at most that many, so the bound is never reached while this function is correct. It is a bound rather than a progress check because a progress check only catches the shape of non-progress it tests for - which is exactly how the previous wording came to be false."
+  },
+  "codex_g1_closed": {
+    "note": "'<!-- literal unmatched opener' / '```text' / '# GIVEBACKHEADING' / content / '```'",
+    "sb_ask_007": "title 'GIVEBACKHEADING must not become the title', two chunks, fence delimiters in the body and in the evidence block",
+    "sb_ask_008": "title is the filename, no chunk heading, both fenced lines kept as fenced content, delimiters dropped",
+    "fixture": "10 Areas/Give Back Fence Note.md, verified to distinguish the two candidates"
+  },
+  "invisible_repair_note": "the change was again invisible to the suite - the fixture index came out byte-identical to SB-ASK-007 - which is the pattern that has repeatedly let a defect through in this package line. It ships with a fixture that makes it visible.",
+  "index_effect": {
+    "notes_indexed": 23,
+    "chunks_indexed": 36,
+    "files_skipped": 2,
+    "correction": "the previous revision of this block still carried the pre-repair-1 counts (21 notes, 34 chunks, 12 of 21). Agent C caught it; re-measured here.",
+    "vs_uep_work_over_the_same_vault": {
+      "identical_in_every_column": "13 of 23",
+      "movers": {
+        "10 Areas/Backtick Info Note.md": {
+          "columns": [
+            "body"
+          ],
+          "chunks": "1 -> 1"
+        },
+        "10 Areas/Comment Fence Note.md": {
+          "columns": [
+            "body"
+          ],
+          "chunks": "1 -> 1"
+        },
+        "10 Areas/Comment Marker Note.md": {
+          "columns": [
+            "body"
+          ],
+          "chunks": "1 -> 1"
+        },
+        "10 Areas/Commented Title Note.md": {
+          "columns": [
+            "body",
+            "chunk_count",
+            "end_line",
+            "heading",
+            "start_line",
+            "title"
+          ],
+          "chunks": "1 -> 2"
+        },
+        "10 Areas/Fence Closer Note.md": {
+          "columns": [
+            "body"
+          ],
+          "chunks": "1 -> 1"
+        },
+        "10 Areas/Fence Shapes Note.md": {
+          "columns": [
+            "body",
+            "chunk_count",
+            "end_line"
+          ],
+          "chunks": "2 -> 1"
+        },
+        "10 Areas/Fenced Markup Note.md": {
+          "columns": [
+            "body",
+            "chunk_count",
+            "end_line"
+          ],
+          "chunks": "2 -> 1"
+        },
+        "10 Areas/Give Back Fence Note.md": {
+          "columns": [
+            "body",
+            "chunk_count",
+            "end_line",
+            "title"
+          ],
+          "chunks": "2 -> 1"
+        },
+        "10 Areas/Hidden Title Only.md": {
+          "columns": [
+            "body",
+            "title"
+          ],
+          "chunks": "1 -> 1"
+        },
+        "10 Areas/Multi Opener Note.md": {
+          "columns": [
+            "body",
+            "chunk_count",
+            "end_line",
+            "title"
+          ],
+          "chunks": "2 -> 1"
+        }
+      }
+    }
+  },
+  "regression_sweep": {
+    "mutations": 17,
+    "caught": "17 of the 17 mutations swept",
+    "survived": "0 among those 17. Stated precisely at Agent C's request: one mutation NOT in that set does survive - removing the restart bound entirely - and always will, because it is a defensive limit correct code never reaches. Reading '0 survived' without that carve-out overstates it. Agent C's own wider sweep of 35 mutants found 27 caught and 8 survived: three declared fence-closer gaps, two proved-equivalent mutants, the bound removal, and two new boundary gaps declared below.",
+    "hung": 0,
+    "newly_pinned": [
+      "the bound one pass short",
+      "the closer offset in both directions",
+      "the closing marker located with rfind"
+    ],
+    "disambiguation": "an earlier revision listed 'find vs rfind' among caught mutations while also declaring an rfind gap. Those were two different sites: the OPENING marker's find was caught, the CLOSING marker's was the declared gap. Both are now pinned and the wording is separated.",
+    "note": "a mutation removing the bound alone still survives, and always will: it is a defensive limit that correct code never reaches. The mutations it exists to contain are all caught."
+  },
+  "defects_still_open_and_still_pinned": [
+    {
+      "id": "D2",
+      "severity": "HIGH",
+      "why_not_here": "needs the reranker to take matched terms from what FTS5 returned instead of re-deriving them by string comparison"
+    },
+    {
+      "id": "D3",
+      "severity": "MEDIUM",
+      "why_not_here": "coupled to D5: deterministic_evidence_strength returns HIGH for any all_terms match however few or generic the terms are"
+    }
+  ],
+  "known_limitations": [
+    "WITHDRAWN as a limitation and raised to blocking finding P1: the O(N^2) restart with no file-size cap. See escalation.",
+    "Raised as blocking finding P2 rather than declared: the rule pattern deletes mixed-punctuation lines that are not thematic breaks. See escalation.",
+    "REINDEX REQUIRED: chunk bodies, titles and, for a note with a heading-like line inside a fence, chunk boundaries all change. An index built before this commit carries marker text in its bodies and may carry a commented heading as a title.",
+    "Tilde fences, four-or-more-backtick fences and the three-space indent rule are now handled, and three of the five closer sub-rules are pinned: same character, not shorter, no info string. The other two are not - see the coverage gaps below. The previous receipt declared the first two as limitations; Codex ruled that dishonest about impact and it was.",
+    "Setext underlines (=== under a heading) are consumed by the rule pattern, flattening setext headings.",
+    "After a comment closes mid-line, what remains is treated as text rather than re-tested as a fence delimiter. Either reading is defensible; declared rather than pinned.",
+    "Fence markers are removed from the evidence a note contributes, so a fenced block reaches the model as ordinary prose. The system prompt still declares all evidence untrusted, so no trust boundary changes.",
+    "Carried forward: the coverage-boundary assertion all(r['term_coverage'] >= 0.30 for r in got) is vacuous on the zero-row iteration; and phrase_bonus, all_terms_bonus, the 0.30 floor, bm25 weights, the execute_match candidate limit and the fts_token prefix threshold remain unpinned.",
+    "Agent C F5, undeclared until now: 'a closer must be at least as long as its opener' is only half pinned. A SHORTER closer is pinned not to close; nothing pins that a LONGER one does. Shipped behaviour is correct. A regression here leaves the fence open longer, so it protects more and strips less - it cannot promote removed text into a title or the evidence.",
+    "Agent C F6: a closer carrying only trailing whitespace still closes, and that is unpinned. Same over-protective direction as F5.",
+    "Agent C F12: the rule that a TILDE fence's info string may contain a tilde is unpinned, although its backtick counterpart is pinned by Backtick Info Note. This is the tilde image of Codex's finding 2: a regression would fail to open the fence, so a literal tilde-fenced example would lose its comments. Content loss, not a leak.",
+    "Agent C C17, carried from SB-ASK-002 and not previously declared: max_chars split FIDELITY is unpinned. The suite asserts only that a piece is no longer than the maximum, so a mutant dropping one character from every piece passes. Shipped splitting is lossless, verified.",
+    "Documentation debt, carried: the comment above the coverage-boundary block still says no question over these fixtures lands inside [0.30, 0.35). Two questions ten lines above it are now asserted to do exactly that, and Agent C measured both at 0.309 and 0.3397. The comment is false and self-contradicting. It is a comment, not an assertion, and the repair budget is exhausted, so it is recorded rather than fixed.",
+    "Restored after Agent C caught it being deleted: a heading line that itself opens a never-closing comment yields a title carrying the literal marker, e.g. 'Title: Something <!--'. Measured identical on SB-ASK-007 and here. I had removed this from the list as 'an edge of the give-back' when it is nothing of the kind - it is a property of treating an unterminated opener as literal text, which this design preserves by construction. Cosmetic: no commented-out content leaks, the marker is the note's own literal text. Only the G1 limitation was genuinely resolved.",
+    "A mutation removing the restart bound alone survives the suite, and always will: it is a defensive limit that correct code never reaches. Every mutation it exists to contain - progress broken in any shape - is caught now that it is a bound rather than a progress check.",
+    "Agent C, new and outside this package's surface: the readable-signal gate is >= 20 characters and no fixture sits near that boundary - the closest margin is 15 - so a mutation to >= 19 survives. The gate is byte-identical to base apart from re-indentation.",
+    "Agent C, new and outside this package's surface: no fixture carries an h4, h5 or h6 heading, so narrowing the chunk-heading pattern from #{1,6} to #{1,3} survives. Also byte-identical to base."
+  ],
+  "rollback": "abandon candidate branch uep/task-sb-ask-008 (uep/work unchanged at 4573b55d0e9d698a290ee2f7b5326ac87b95c379)",
+  "superseded_candidates": [
+    {
+      "sha": "f77e494bcc3d8212838e92bcf02b519afa4803d7",
+      "verdict": "Agent C PASS with three required receipt corrections",
+      "reason": "the termination claim was overstated, a true limitation had been deleted rather than resolved, and the restart's quadratic cost was undeclared"
+    },
+    {
+      "sha": "1148d56d19119e03de81191d62c33e68e5088988",
+      "verdict": "Agent C PASS with one required receipt correction and two new declarable gaps",
+      "reason": "index_effect still carried the pre-repair-1 counts, and the bound's exactness and the closing-marker offset were unpinned"
+    }
+  ],
+  "repair_1": {
+    "trigger": "Agent C corrections on f77e494",
+    "code_change": "termination is now bounded rather than guarded. I had written that it was 'structural'; it was not. The guard tested ONE SHAPE of non-progress - the same opener re-reported and recorded - and Agent C demonstrated a mutation that breaks progress differently (recording made a no-op) still hangs with the guard intact. Verified independently. The loop now runs at most len(lines) + 1 passes, which does not depend on the body being correct.",
+    "effect": "every restart mutation that previously hung now terminates and is caught by the suite: six restart mutations, six caught, zero hangs",
+    "new_fixture": "10 Areas/Multi Opener Note.md - three unterminated openers followed by a fence, so the classifier restarts four times. Nothing pinned more than a single restart before.",
+    "checks": "210 -> 217",
+    "commit_message_erratum": "the commit message for this repair says '210 -> 216'. The true figure is 217, as the tests block records. Noted rather than amended, because amending would change the frozen SHA."
+  },
+  "agent_c": {
+    "verdict": "PASS",
+    "sha_verified": "20c015628d8b093b80baae77d6d411575cd5bfb3",
+    "blocking_findings": "none",
+    "recommendation": "proceed to Codex",
+    "gaps_confirmed_pinned": [
+      "the bound one pass short - caught, and Agent C noted the four token checks alone would NOT catch it; the literal-marker assertion is the load-bearing one",
+      "the closer offset at +4 and at +2 - both caught",
+      "the closing marker located with rfind - caught"
+    ],
+    "fixtures_honest": "Bound Exactness Note is the ONLY note in the vault that reaches the bound, and reaches it exactly: 4 lines, 5 passes, len(lines)+1 == 5. The two-'-->' line genuinely separates find from rfind. The find/rfind ambiguity is resolved into two distinct sites, each separately pinned.",
+    "narrowed_assertion": "fc_body.count('-->') == 1 independently catches both directions it advertises, and the narrowed pair is strictly stronger than the blanket check it replaced",
+    "nothing_else_moved": "22 of 24 common notes identical in every column; the only deltas are the three fixtures' own rows",
+    "mutation_sweep": {
+      "mutants": 35,
+      "caught": 27,
+      "survived": 8,
+      "hung": 0
+    },
+    "receipt_check": "independently re-measured index_effect and confirmed 23/36/2 and 13 of 23. Agent C's first pass disagreed on four notes' column lists and it chased that down and reported that the receipt was right and it was wrong - its comparison had been list-length-sensitive across a 2->1 chunk change. Both carried errata confirmed accurate and correctly self-reported."
+  },
+  "repair_budget_remaining": 0,
+  "repair_2": {
+    "trigger": "Agent C corrections on 1148d56, plus two further survivors from my own sweep",
+    "pinned_not_declared": [
+      "R8 the bound's exactness: range(len(lines)) - one short and genuinely wrong - passed the whole suite. New fixture Bound Exactness Note, every line an unterminated opener.",
+      "M5 how far the closing marker is consumed: +4 ate the next character and +2 left a '>' behind; both passed because every fixture had a space after the marker.",
+      "the closing marker is located with find, not rfind - carried debt from SB-ASK-006, declared unpinned twice. The comment-fence note now closes onto a line carrying a second '-->' which is ordinary text."
+    ],
+    "assertion_narrowed": "'no closing marker is left anywhere in the body' was true only while no fixture contained a legitimate '-->'. It now pins that exactly one survives, which is what it always meant.",
+    "checks": "217 -> 224"
+  },
+  "erratum_carried": "repair 1's commit message says '210 -> 216' where the true figure is 217. Repair 1's own fixture count was described as 'restarts four times' where it is four passes and three restarts. Both noted rather than amended, because amending changes a frozen SHA.",
+  "escalation": {
+    "reason": "Repair budget exhausted (2 of 2) with two confirmed findings. Branch frozen and preserved; one terminal escalation, not a third repair.",
+    "candidate_sha": "20c015628d8b093b80baae77d6d411575cd5bfb3",
+    "agent_c_verdict": "PASS",
+    "codex_verdict": "FAIL",
+    "codex_on_the_repair_itself": "'The restart repair is logically correct for D1's prior state-restoration failure. I found no path where commented-out text reaches the body, title, heading, FTS index, or evidence because of restart ordering.' The give-back replacement is accepted as correct; both findings are elsewhere.",
+    "blocking": [
+      {
+        "id": "P1",
+        "severity": "HIGH",
+        "status": "CONFIRMED by the executor independently",
+        "regression_against_base": true,
+        "summary": "The restart is O(N^2) and build_index applies no file-size cap, so note CONTENT can delay an index rebuild for hours. Codex classes this as an index-build denial-of-service surface.",
+        "measured": "2000 unterminated openers: base 0.002s, candidate 1.566s. 1000: base 0.001s, candidate 0.392s. The predecessor was linear.",
+        "why_declaring_it_was_not_enough": "this receipt declared the quadratic as a known limitation. Codex has now made the same call three times - that a declared limitation is honest about implementation scope and dishonest about acceptance impact - and been upheld each time. A regression that hands note content control over indexing time is not a footnote."
+      },
+      {
+        "id": "P2",
+        "severity": "MEDIUM",
+        "status": "CONFIRMED by the executor independently",
+        "regression_against_base": true,
+        "summary": "_RULE_LINE_RE is r\"^[ \\t]*[-=_*]{3,}[ \\t]*$\", which accepts any MIXTURE of those characters. A Markdown thematic break is three or more of ONE marker (*** --- ___), and '===' is a setext underline rather than a break at all.",
+        "reproduced": "a standalone line '-=_*' is kept by the base and deleted by this candidate",
+        "why_it_matters": "this is a cleanup destruction path, not missing coverage. The receipt declared setext flattening but not the wider deletion of mixed-punctuation lines."
+      }
+    ],
+    "what_is_settled": [
+      "the give-back is gone and the state-restoration class with it - Codex accepts the restart design as correct",
+      "len(lines) + 1 is sufficient for the shipped algorithm, and its exactness is pinned",
+      "fence recognition, the title path, the closer rules and the closing-marker offset are all pinned",
+      "224 checks; Agent C's 35-mutant sweep found 27 caught, 0 hung, and no undeclared survivor inside this package's surface"
+    ],
+    "root_cause_of_each": {
+      "P1": "the restart re-scans from line 1 every time. It does not need to: state flows strictly forward and literal_openers only affects lines at or after the settled opener, so everything before it is identical on every pass.",
+      "P2": "the rule pattern was written as a character class when a thematic break is a repeated single marker. The character class was inherited from the base, where it never fired because the pattern was inert - so this package made a latent error operative."
+    },
+    "recommended_next": [
+      {
+        "option": "A",
+        "cost": "one contained package",
+        "description": "Fix both. P2 is one regex: ^[ \\t]*(\\*{3,}|-{3,}|_{3,})[ \\t]*$, dropping '=' from the break markers and requiring a single repeated marker; setext underlines then need their own decision. P1 is resuming the restart from the settled opener rather than rescanning - keep the classified prefix and the fence state as they stood just before that line and continue, which makes it linear. Both are well understood, neither is speculative, and this is the first stop in this defect's history where the fix direction is not in doubt."
+      },
+      {
+        "option": "B",
+        "cost": "none beyond a decision",
+        "description": "Cap the note size in build_index and merge with P2 fixed only. That removes the denial-of-service surface without making the algorithm linear, at the price of silently skipping very large notes - which is its own product decision."
+      }
+    ],
+    "executor_note": "Eleven attempts across five packages. What is different this time: Codex accepts the mechanism, both remaining findings are small and fully diagnosed, and neither is about the part that has been failing repeatedly. I would take option A.",
+    "preserved": {
+      "branch": "uep/task-sb-ask-008",
+      "candidate_tag": "sb-ask-008-candidate",
+      "commits": [
+        "20c0156 SB-ASK-008 repair 2: pin the four gaps instead of declaring them",
+        "1148d56 SB-ASK-008 repair 1: bound the restart instead of guarding one shape of it",
+        "f77e494 SB-ASK-008: decide before acting, so there is nothing to undo",
+        "dd391c8 SB-ASK-007 repair 2: recognise fences properly instead of toggling on backticks",
+        "592dfb6 SB-ASK-007 repair 1: pin note_title's contract",
+        "4aa8f3b SB-ASK-007: close D1's last leg, the note title",
+        "350c7bc SB-ASK-006 repair 2: the give-back must restore the line, not the raw line",
+        "473b9cd SB-ASK-006 repair 1: a comment may only remove text it actually encloses",
+        "44e7588 SB-ASK-006: repair D1 by making markup handling line-local and fence-aware"
+      ],
+      "also_preserved": [
+        "uep/task-sb-ask-007 (dd391c8)",
+        "uep/task-sb-ask-006 (350c7bc)",
+        "uep/task-sb-ask-003 (8163e1ef)"
+      ],
+      "integration_line_untouched": "4573b55d0e9d698a290ee2f7b5326ac87b95c379",
+      "main_untouched": "3bb076131f7475ed2aa042988dc692562ad5460d"
+    },
+    "rollback": "abandon uep/task-sb-ask-008. Nothing was merged; uep/work is unchanged."
+  }
+}

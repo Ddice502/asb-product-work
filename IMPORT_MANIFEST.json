@@ -1,0 +1,510 @@
+{
+  "authorized_by": "owner decision 2026-09-16: one-time, read-only source export from home under EXPORT_CONTRACT.md",
+  "bytes_imported": 1052651,
+  "files": [
+    {
+      "bytes": 21195,
+      "home_path": "/AI/Apps/ask-my-brain-web/app.py",
+      "sha256": "fe983ad2c0281f7b5d293c86de7f8a0dc97cc35357b592c28dac9e6418d176ca",
+      "target_path": "src/ask-my-brain-web/app.py"
+    },
+    {
+      "bytes": 54248,
+      "home_path": "/AI/Scripts/Ask My Brain/ask_my_brain.py",
+      "sha256": "90958fdb7e36f0aeb6aafcd735fc7de58777719adcfea00995bf51592777ac88",
+      "target_path": "src/ask-my-brain/ask_my_brain.py"
+    },
+    {
+      "bytes": 4568,
+      "home_path": "/AI/Scripts/Automatic Shopping/run_automatic_shopping.py",
+      "sha256": "4b5221f2a0d8bc93201b626c9177423367d9aa8bacd6cd766717e2f16c226203",
+      "target_path": "src/automatic-shopping/run_automatic_shopping.py"
+    },
+    {
+      "bytes": 9859,
+      "home_path": "/AI/Scripts/Automatic Shopping/shopping_common.py",
+      "sha256": "666d5924a41b6d8ab00c72ff78c1344cfeeb0306988071b852d47c9c561cd1f3",
+      "target_path": "src/automatic-shopping/shopping_common.py"
+    },
+    {
+      "bytes": 8777,
+      "home_path": "/AI/Scripts/Automatic Shopping/shopping_io.py",
+      "sha256": "c81ecddd4061d4b7dab99e8525d6083fece0a20ce4bcfa283912542033c16a18",
+      "target_path": "src/automatic-shopping/shopping_io.py"
+    },
+    {
+      "bytes": 13344,
+      "home_path": "/AI/Scripts/Automatic Shopping/shopping_writer.py",
+      "sha256": "89321a7eb47efb29cc512fbd0469882eb36722f752ca24d2136cd22ddd2db90c",
+      "target_path": "src/automatic-shopping/shopping_writer.py"
+    },
+    {
+      "bytes": 22174,
+      "home_path": "/AI/Scripts/Automatic Tasks/automatic_task_writer.py",
+      "sha256": "8b2f8e7555f1333919c85e2150bab6f8f52c05f7fd4cf016e625f4f86bf53fab",
+      "target_path": "src/automatic-tasks/automatic_task_writer.py"
+    },
+    {
+      "bytes": 6772,
+      "home_path": "/AI/Scripts/Automatic Tasks/run_automatic_tasks.py",
+      "sha256": "acc1ea954083a7811fe92b32c4696db345069d77b82d793b611853071ea6186c",
+      "target_path": "src/automatic-tasks/run_automatic_tasks.py"
+    },
+    {
+      "bytes": 4738,
+      "home_path": "/AI/Apps/camera-photo-ocr/app.py",
+      "sha256": "7561fd06aae16004cf40b0901b0c782d5a0c4fb4fff7d5ecac0424aac1e417b3",
+      "target_path": "src/camera-photo-ocr/app.py"
+    },
+    {
+      "bytes": 29423,
+      "home_path": "/AI/Scripts/Camera Photo/camera-photo-review.js",
+      "sha256": "0911d0ebb4a5ff2ec3ea3049223842f2c5bd7371461b76e437af91a1ecef2a74",
+      "target_path": "src/camera-photo/camera-photo-review.js"
+    },
+    {
+      "bytes": 56357,
+      "home_path": "/AI/Scripts/Camera Photo/camera-photo-worker.js",
+      "sha256": "40ecf62008a36cf77a40be357357e6a793c5b84105d0f080912a3fa6f4258219",
+      "target_path": "src/camera-photo/camera-photo-worker.js"
+    },
+    {
+      "bytes": 642,
+      "home_path": "/AI/Scripts/Camera Photo/create-smoke-test.sh",
+      "sha256": "43b660a0ad5b7398e0d3a6c3358e7b14476e8725fc13f7079bacb66a4f7b50cc",
+      "target_path": "src/camera-photo/create-smoke-test.sh"
+    },
+    {
+      "bytes": 1336,
+      "home_path": "/AI/Scripts/Camera Photo/install-paddleocr.sh",
+      "sha256": "7575897c90332f53a8ca4f3bfa5c5e4f77cf352ab1352591fd4b310021264d19",
+      "target_path": "src/camera-photo/install-paddleocr.sh"
+    },
+    {
+      "bytes": 2422,
+      "home_path": "/AI/Scripts/Camera Photo/preflight.sh",
+      "sha256": "3842fd8c722c30bc16a7919c828880a0d2ecd13f1c6babaa5355b5e0fc125c3f",
+      "target_path": "src/camera-photo/preflight.sh"
+    },
+    {
+      "bytes": 7207,
+      "home_path": "/AI/Scripts/Camera Photo/recover-context-limit-failures.js",
+      "sha256": "965f13d2970a0806d74920bbafcec8e9814f7a81492ba2ace50d56b46d4a9377",
+      "target_path": "src/camera-photo/recover-context-limit-failures.js"
+    },
+    {
+      "bytes": 15549,
+      "home_path": "/AI/Scripts/Second Brain Auditor/approved-remediation-executor.mjs",
+      "sha256": "58a2fd2a9e23482ca2820c9cc528a016934d88702983e86b0f3146fa3407cab1",
+      "target_path": "src/second-brain-auditor/approved-remediation-executor.mjs"
+    },
+    {
+      "bytes": 2797,
+      "home_path": "/AI/Scripts/Second Brain Auditor/host-heartbeat-check.sh",
+      "sha256": "f5d25103a9f7251d5413390d49f58838214a34ea27bc04ea9ec248a7791552c3",
+      "target_path": "src/second-brain-auditor/host-heartbeat-check.sh"
+    },
+    {
+      "bytes": 45923,
+      "home_path": "/AI/Scripts/Second Brain Auditor/phase1-collector.mjs",
+      "sha256": "8e091e972173df8cf8a4600a12c75b04bdd9703d4143af1aed6ba2c1da9c00cf",
+      "target_path": "src/second-brain-auditor/phase1-collector.mjs"
+    },
+    {
+      "bytes": 22184,
+      "home_path": "/AI/Scripts/Second Brain Auditor/preflight.mjs",
+      "sha256": "547416b63a4fda296383b0744ae72c8b006773b543f8a9f129caf59453bb8261",
+      "target_path": "src/second-brain-auditor/preflight.mjs"
+    },
+    {
+      "bytes": 82999,
+      "home_path": "/AI/Scripts/Second Brain Auditor/production-auditor.mjs",
+      "sha256": "6a8dc22fe8d084ac7beddfb50c8ec5b014a99ee4154ffca76099e922e66c4bec",
+      "target_path": "src/second-brain-auditor/production-auditor.mjs"
+    },
+    {
+      "bytes": 5867,
+      "home_path": "/AI/Scripts/Second Brain Auditor/schemas/auditor-config.phase1.schema.json",
+      "sha256": "a08ca71dc3cf23e364729cce6c20cea48e270145035a957fa689ac82c4eaa14d",
+      "target_path": "src/second-brain-auditor/schemas/auditor-config.phase1.schema.json"
+    },
+    {
+      "bytes": 1488,
+      "home_path": "/AI/Scripts/Second Brain Auditor/schemas/collection-input.phase1.schema.json",
+      "sha256": "cb34333aa5ccd86e47824aea0012459504f797e59b8f9fb7bac4f5ce70a9422c",
+      "target_path": "src/second-brain-auditor/schemas/collection-input.phase1.schema.json"
+    },
+    {
+      "bytes": 1659,
+      "home_path": "/AI/Scripts/Second Brain Auditor/schemas/finding.schema.json",
+      "sha256": "6fab6d7cebf389bedcf26a5c360222fb9950444af15ddda27c9cfe73542124df",
+      "target_path": "src/second-brain-auditor/schemas/finding.schema.json"
+    },
+    {
+      "bytes": 1455,
+      "home_path": "/AI/Scripts/Second Brain Auditor/schemas/local-ai-response.schema.json",
+      "sha256": "5e229c79dd2044d79802b0b0da4b87acf7e56e1273fad6d60f2ebc9bb5a169af",
+      "target_path": "src/second-brain-auditor/schemas/local-ai-response.schema.json"
+    },
+    {
+      "bytes": 1486,
+      "home_path": "/AI/Scripts/Second Brain Auditor/schemas/production-config.schema.json",
+      "sha256": "aea8dad1c0642fd1b5cbb5835569b641259ffc324d81b38ac6def3adf0326894",
+      "target_path": "src/second-brain-auditor/schemas/production-config.schema.json"
+    },
+    {
+      "bytes": 1140,
+      "home_path": "/AI/Scripts/Second Brain Auditor/schemas/production-result.schema.json",
+      "sha256": "8f268c3ab94545ed2b1b99e06d65577c677b429068d7991fb6c60a00a62a184e",
+      "target_path": "src/second-brain-auditor/schemas/production-result.schema.json"
+    },
+    {
+      "bytes": 1508,
+      "home_path": "/AI/Scripts/Second Brain Auditor/schemas/snapshot.phase1.schema.json",
+      "sha256": "c4d61cd888676df176eb732629ddfd5f406eef8571e602f8cf10a61e32b7b329",
+      "target_path": "src/second-brain-auditor/schemas/snapshot.phase1.schema.json"
+    },
+    {
+      "bytes": 63014,
+      "home_path": "/AI/Scripts/Second Brain Backups/second-brain-backup.mjs",
+      "sha256": "f277cb11fa72d149d328a15f48c39589e4514faebaff908a5c064fc68ce44b5e",
+      "target_path": "src/second-brain-backups/second-brain-backup.mjs"
+    },
+    {
+      "bytes": 5044,
+      "home_path": "/AI/Scripts/Second Brain Diagnostics/diagnostics.py",
+      "sha256": "79a9d847b3a789ba4fd14f7f432cbcca69deafa68ade4d0eb541e28379999562",
+      "target_path": "src/second-brain-diagnostics/diagnostics.py"
+    },
+    {
+      "bytes": 20704,
+      "home_path": "/AI/Scripts/Second Brain Failure Control/failure_control.py",
+      "sha256": "205a67483cc396e276d4a5ea1fcc2ad458eb00dae006b302fc1e417212f20699",
+      "target_path": "src/second-brain-failure-control/failure_control.py"
+    },
+    {
+      "bytes": 9008,
+      "home_path": "/AI/Scripts/Second Brain Notifications/notification_router.py",
+      "sha256": "508048724d424e13dee8b8663189514fcc04a3f8f812668fbe9c87dea3a39b48",
+      "target_path": "src/second-brain-notifications/notification_router.py"
+    },
+    {
+      "bytes": 30422,
+      "home_path": "/AI/Scripts/Second Brain Observability/observability.py",
+      "sha256": "c98d3a47274c380ffa8fa4d2fde0694e3d27ab1f75832a51657081cf1d15b94c",
+      "target_path": "src/second-brain-observability/observability.py"
+    },
+    {
+      "bytes": 43376,
+      "home_path": "/AI/Scripts/Second Brain Personal Email/personal_email.py",
+      "sha256": "2217f748d32d1cd4fd4d02a76e0d5970a6e5d8aee4253e071fb3a68ab43f079d",
+      "target_path": "src/second-brain-personal-email/personal_email.py"
+    },
+    {
+      "bytes": 31252,
+      "home_path": "/AI/Scripts/Second Brain Personal Morning Brief/morning_brief.py",
+      "sha256": "9fd82090810dab7168f8a3ccb47ee9aa558668a4e8df64e75331320a7db07a18",
+      "target_path": "src/second-brain-personal-morning-brief/morning_brief.py"
+    },
+    {
+      "bytes": 22275,
+      "home_path": "/AI/Scripts/Second Brain Personal Morning Brief/morning_brief_delivery.py",
+      "sha256": "3d00d60ea6fcf298333a137b413e9f6b8e60bf08cd90f57a845052a6db1a2235",
+      "target_path": "src/second-brain-personal-morning-brief/morning_brief_delivery.py"
+    },
+    {
+      "bytes": 35641,
+      "home_path": "/AI/Scripts/Second Brain Personal Morning Brief/morning_brief_external.py",
+      "sha256": "b0854783374e757c67376612fbb5a456562ea1dde19afb6e6045be8c363b0f9a",
+      "target_path": "src/second-brain-personal-morning-brief/morning_brief_external.py"
+    },
+    {
+      "bytes": 62007,
+      "home_path": "/AI/Scripts/Second Brain Personal Morning Brief/morning_brief_runner.py",
+      "sha256": "97d3cad14d08823f153fae10b8406e9970a2998c8f9c6dadadaea1d21d76c2a3",
+      "target_path": "src/second-brain-personal-morning-brief/morning_brief_runner.py"
+    },
+    {
+      "bytes": 33183,
+      "home_path": "/AI/Scripts/Second Brain Status/processing_status.py",
+      "sha256": "b7b4fce19a5828502238a90beabd77a29616e1528edccbb1f6bdffc87d5e6b36",
+      "target_path": "src/second-brain-status/processing_status.py"
+    },
+    {
+      "bytes": 12231,
+      "home_path": "/AI/Scripts/Second Brain Step 53/step53-daily-observer.sh",
+      "sha256": "2c64d96975e4db9a1c8624a08bc9c992ed94a6c2e545567fbe7633bed9113781",
+      "target_path": "src/second-brain-step-53/step53-daily-observer.sh"
+    },
+    {
+      "bytes": 20389,
+      "home_path": "/AI/Scripts/Second Brain Voice Curator Cleanup/voice-curator-cleanup.js",
+      "sha256": "b69c967c680887b3af516b08e7f07882e7c67f05f7dcf1a632bb84880f0bbf9f",
+      "target_path": "src/second-brain-voice-curator-cleanup/voice-curator-cleanup.js"
+    },
+    {
+      "bytes": 63830,
+      "home_path": "/AI/Scripts/Second Brain Webpage Import/webpage_import.py",
+      "sha256": "40c0b6d50beea552d6e07519f7b96fa2a648f83bae8b1cca904b3443e8113485",
+      "target_path": "src/second-brain-webpage-import/webpage_import.py"
+    },
+    {
+      "bytes": 44989,
+      "home_path": "/AI/Scripts/Second Brain Website Scraper/website_scraper.py",
+      "sha256": "d7aec96327aee5216152e0dbd620ffd59185cac62c09293674654d10a718331c",
+      "target_path": "src/second-brain-website-scraper/website_scraper.py"
+    },
+    {
+      "bytes": 71752,
+      "home_path": "/AI/Scripts/Second Brain Work Week Start Report/work_week_start_report.py",
+      "sha256": "5baeb16fb59757cb9e5d3536db77c09851d6a18060fd54a28d2cb3b17d517c38",
+      "target_path": "src/second-brain-work-week-start-report/work_week_start_report.py"
+    },
+    {
+      "bytes": 50242,
+      "home_path": "/AI/Scripts/Second Brain/Step35/personal-weekly-brief-worker.js",
+      "sha256": "21de5bc7329edb27257250cebec8a32e5d12ab5bac2f018c173eaefaccbaf730",
+      "target_path": "src/second-brain/Step35/personal-weekly-brief-worker.js"
+    },
+    {
+      "bytes": 6175,
+      "home_path": "/AI/Apps/Website Scraper Browser/render.py",
+      "sha256": "af73ea25519e6df42969e71a5a3bb34133082e11d5528f9b38ae1f515d7f364e",
+      "target_path": "src/website-scraper-browser/render.py"
+    }
+  ],
+  "files_imported": 45,
+  "hash_verified": true,
+  "import": "asb-product-source-import/1",
+  "refused": [
+    {
+      "path": "/AI/Apps/Website Scraper Browser/Dockerfile",
+      "reason": "extension (none) is not on the source/doc allowlist (ambiguous -> refused)"
+    },
+    {
+      "path": "/AI/Apps/Website Scraper Browser/seccomp_profile.json",
+      "reason": "extension .json is not on the source/doc allowlist (ambiguous -> refused)"
+    },
+    {
+      "path": "/AI/Apps/ask-my-brain-web/requirements.lock",
+      "reason": "extension .lock is not on the source/doc allowlist (ambiguous -> refused)"
+    },
+    {
+      "path": "/AI/Apps/camera-photo-ocr/Dockerfile",
+      "reason": "extension (none) is not on the source/doc allowlist (ambiguous -> refused)"
+    },
+    {
+      "path": "/AI/Apps/camera-photo-ocr/camera-ocr.compose.yml",
+      "reason": "extension .yml is not on the source/doc allowlist (ambiguous -> refused)"
+    },
+    {
+      "path": "/AI/Apps/camera-photo-ocr/requirements.txt",
+      "reason": "extension .txt is not on the source/doc allowlist (ambiguous -> refused)"
+    },
+    {
+      "path": "/AI/Scripts/Automatic Shopping/shopping_gate.py",
+      "reason": "content names the vault"
+    },
+    {
+      "path": "/AI/Scripts/Automatic Tasks/automatic_task_gate.py",
+      "reason": "content names the vault"
+    },
+    {
+      "path": "/AI/Scripts/Automatic Tasks/automatic_task_production_gate.py",
+      "reason": "content names the vault"
+    },
+    {
+      "path": "/AI/Scripts/Camera Photo/tests/camera-photo-smoke.jpg",
+      "reason": "extension .jpg is not on the source/doc allowlist (ambiguous -> refused)"
+    },
+    {
+      "path": "/AI/Scripts/Second Brain Auditor/phase1-collector.mjs.before-fenced-code-fix-20260811T002400Z",
+      "reason": "extension .before-fenced-code-fix-20260811t002400z is not on the source/doc allowlist (ambiguous -> refused)"
+    },
+    {
+      "path": "/AI/Scripts/Second Brain Auditor/production-auditor.mjs.before-ai-critical-evidence-gate-20260812T204256Z",
+      "reason": "extension .before-ai-critical-evidence-gate-20260812t204256z is not on the source/doc allowlist (ambiguous -> refused)"
+    },
+    {
+      "path": "/AI/Scripts/Second Brain Auditor/production-auditor.mjs.before-model-fix-20260811T000122Z",
+      "reason": "extension .before-model-fix-20260811t000122z is not on the source/doc allowlist (ambiguous -> refused)"
+    },
+    {
+      "path": "/AI/Scripts/Second Brain Auditor/production-auditor.mjs.before-model-fix-20260811T000126Z",
+      "reason": "extension .before-model-fix-20260811t000126z is not on the source/doc allowlist (ambiguous -> refused)"
+    },
+    {
+      "path": "/AI/Scripts/Second Brain Auditor/production-auditor.mjs.before-model-fix-v2-20260811T000242Z",
+      "reason": "extension .before-model-fix-v2-20260811t000242z is not on the source/doc allowlist (ambiguous -> refused)"
+    },
+    {
+      "path": "/AI/Scripts/Second Brain Auditor/production-auditor.mjs.before-monthly-backup-threshold-20260812T172345Z",
+      "reason": "extension .before-monthly-backup-threshold-20260812t172345z is not on the source/doc allowlist (ambiguous -> refused)"
+    },
+    {
+      "path": "/AI/Scripts/Second Brain Auditor/production-auditor.mjs.before-monthly-backup-threshold-20260812T172421Z",
+      "reason": "extension .before-monthly-backup-threshold-20260812t172421z is not on the source/doc allowlist (ambiguous -> refused)"
+    },
+    {
+      "path": "/AI/Scripts/Second Brain Auditor/production-auditor.mjs.before-monthly-backup-threshold-20260812T172522Z",
+      "reason": "extension .before-monthly-backup-threshold-20260812t172522z is not on the source/doc allowlist (ambiguous -> refused)"
+    },
+    {
+      "path": "/AI/Scripts/Second Brain Auditor/production-auditor.mjs.before-physical-basename-fix-20260811T002730Z",
+      "reason": "extension .before-physical-basename-fix-20260811t002730z is not on the source/doc allowlist (ambiguous -> refused)"
+    },
+    {
+      "path": "/AI/Scripts/Second Brain Auditor/production-auditor.mjs.before-sticky-note-filter-20260812T205228Z",
+      "reason": "extension .before-sticky-note-filter-20260812t205228z is not on the source/doc allowlist (ambiguous -> refused)"
+    },
+    {
+      "path": "/AI/Scripts/Second Brain Auditor/production-auditor.mjs.before-target-resolver-fix-20260811T002145Z",
+      "reason": "extension .before-target-resolver-fix-20260811t002145z is not on the source/doc allowlist (ambiguous -> refused)"
+    },
+    {
+      "path": "/AI/Scripts/Second Brain Auditor/production-auditor.mjs.before-temp-safety-ai-dedup-20260812T224515Z",
+      "reason": "extension .before-temp-safety-ai-dedup-20260812t224515z is not on the source/doc allowlist (ambiguous -> refused)"
+    },
+    {
+      "path": "/AI/Scripts/Second Brain Backups/bin/restic",
+      "reason": "extension (none) is not on the source/doc allowlist (ambiguous -> refused)"
+    },
+    {
+      "path": "/AI/Scripts/Second Brain Backups/second-brain-backup.mjs.before-20260810T153412Z",
+      "reason": "extension .before-20260810t153412z is not on the source/doc allowlist (ambiguous -> refused)"
+    },
+    {
+      "path": "/AI/Scripts/Second Brain Backups/second-brain-backup.mjs.before-20260810T153445Z",
+      "reason": "extension .before-20260810t153445z is not on the source/doc allowlist (ambiguous -> refused)"
+    },
+    {
+      "path": "/AI/Scripts/Second Brain Backups/second-brain-backup.mjs.before-20260810T153948Z",
+      "reason": "extension .before-20260810t153948z is not on the source/doc allowlist (ambiguous -> refused)"
+    },
+    {
+      "path": "/AI/Scripts/Second Brain Backups/second-brain-backup.mjs.pre-adhoc-20260911T175012Z",
+      "reason": "extension .pre-adhoc-20260911t175012z is not on the source/doc allowlist (ambiguous -> refused)"
+    },
+    {
+      "path": "/AI/Scripts/Second Brain Backups/second-brain-backup.mjs.pre-ki124-20260911T075300Z",
+      "reason": "extension .pre-ki124-20260911t075300z is not on the source/doc allowlist (ambiguous -> refused)"
+    }
+  ],
+  "refused_count": 28,
+  "roots_considered": [
+    {
+      "files": 1,
+      "present": true,
+      "root": "/AI/Scripts/Ask My Brain"
+    },
+    {
+      "files": 4,
+      "present": true,
+      "root": "/AI/Scripts/Automatic Shopping"
+    },
+    {
+      "files": 2,
+      "present": true,
+      "root": "/AI/Scripts/Automatic Tasks"
+    },
+    {
+      "files": 6,
+      "present": true,
+      "root": "/AI/Scripts/Camera Photo"
+    },
+    {
+      "files": 1,
+      "present": true,
+      "root": "/AI/Scripts/Second Brain"
+    },
+    {
+      "files": 12,
+      "present": true,
+      "root": "/AI/Scripts/Second Brain Auditor"
+    },
+    {
+      "files": 1,
+      "present": true,
+      "root": "/AI/Scripts/Second Brain Backups"
+    },
+    {
+      "files": 1,
+      "present": true,
+      "root": "/AI/Scripts/Second Brain Diagnostics"
+    },
+    {
+      "files": 1,
+      "present": true,
+      "root": "/AI/Scripts/Second Brain Failure Control"
+    },
+    {
+      "files": 1,
+      "present": true,
+      "root": "/AI/Scripts/Second Brain Notifications"
+    },
+    {
+      "files": 1,
+      "present": true,
+      "root": "/AI/Scripts/Second Brain Observability"
+    },
+    {
+      "files": 1,
+      "present": true,
+      "root": "/AI/Scripts/Second Brain Personal Email"
+    },
+    {
+      "files": 4,
+      "present": true,
+      "root": "/AI/Scripts/Second Brain Personal Morning Brief"
+    },
+    {
+      "files": 1,
+      "present": true,
+      "root": "/AI/Scripts/Second Brain Status"
+    },
+    {
+      "files": 1,
+      "present": true,
+      "root": "/AI/Scripts/Second Brain Step 53"
+    },
+    {
+      "files": 1,
+      "present": true,
+      "root": "/AI/Scripts/Second Brain Voice Curator Cleanup"
+    },
+    {
+      "files": 1,
+      "present": true,
+      "root": "/AI/Scripts/Second Brain Webpage Import"
+    },
+    {
+      "files": 1,
+      "present": true,
+      "root": "/AI/Scripts/Second Brain Website Scraper"
+    },
+    {
+      "files": 1,
+      "present": true,
+      "root": "/AI/Scripts/Second Brain Work Week Start Report"
+    },
+    {
+      "files": 1,
+      "present": true,
+      "root": "/AI/Apps/ask-my-brain-web"
+    },
+    {
+      "files": 1,
+      "present": true,
+      "root": "/AI/Apps/Website Scraper Browser"
+    },
+    {
+      "files": 1,
+      "present": true,
+      "root": "/AI/Apps/camera-photo-ocr"
+    }
+  ],
+  "secret_scan_clean": true,
+  "secret_scan_files": 45,
+  "source_host": "home",
+  "transport": "read-only ssh + tar stream; nothing written on home"
+}

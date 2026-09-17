@@ -1,7 +1,12 @@
 # Second Brain product-development target (isolated)
 
-This repository is the Unattended Execution Pipeline's **product** target on `jro.desktop`. It is
-separate from the control-plane target `~/asb-uep-work` and is authorized separately.
+This repository is the Local AI Second Brain's isolated **product-development**
+target on `jro.desktop`. It is separate from the legacy control-plane target
+`~/asb-uep-work` and is authorized separately.
+
+The legacy UEP, Control Room, and M0-A work remains preserved evidence only.
+They are not part of the active product-delivery workflow and must not be
+extended, activated, retried, merged, cleaned up, or used for product work.
 
 It is isolated by construction:
 

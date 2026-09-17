@@ -1,0 +1,423 @@
+{
+  "package_id": "SB-ASK-009",
+  "purpose": "Fix the two findings Codex raised against SB-ASK-008: the quadratic restart with no file-size cap, and a rule pattern that deleted mixed-punctuation lines that are not thematic breaks.",
+  "supersedes": {
+    "package": "SB-ASK-008",
+    "candidate": "20c015628d8b093b80baae77d6d411575cd5bfb3",
+    "status": "ESCALATED, never merged, branch and tag preserved",
+    "codex_on_the_mechanism": "'The restart repair is logically correct for D1's prior state-restoration failure. I found no path where commented-out text reaches the body, title, heading, FTS index, or evidence because of restart ordering.' Both findings were elsewhere.",
+    "budget": "a new owner-approved package, so a fresh repair budget"
+  },
+  "base_sha": "4573b55d0e9d698a290ee2f7b5326ac87b95c379",
+  "candidate_sha": "2fed7cb5d1b95b3de2719790fe7769664c977871",
+  "branch": "uep/task-sb-ask-009",
+  "status": "HARD STOP - repair budget exhausted (2 of 2), Agent C verdict FAIL, owner decision required",
+  "changed_files": [
+    "fixtures/README.md",
+    "fixtures/vault/10 Areas/Backtick Info Note.md",
+    "fixtures/vault/10 Areas/Bound Exactness Note.md",
+    "fixtures/vault/10 Areas/Break Markers Note.md",
+    "fixtures/vault/10 Areas/Comment Fence Note.md",
+    "fixtures/vault/10 Areas/Comment Marker Note.md",
+    "fixtures/vault/10 Areas/Commented Title Note.md",
+    "fixtures/vault/10 Areas/Fence Closer Note.md",
+    "fixtures/vault/10 Areas/Fence Shapes Note.md",
+    "fixtures/vault/10 Areas/Fenced Markup Note.md",
+    "fixtures/vault/10 Areas/Give Back Fence Note.md",
+    "fixtures/vault/10 Areas/Hidden Title Only.md",
+    "fixtures/vault/10 Areas/Multi Opener Note.md",
+    "fixtures/vault/10 Areas/Rule Opener Note.md",
+    "fixtures/vault/10 Areas/Title Precedence Note.md",
+    "src/ask-my-brain/ask_my_brain.py",
+    "tests/test_retrieval_core_e2e.py"
+  ],
+  "commits_carried": [
+    "4203eaa SB-ASK-009 repair 1: delete the resume, so the backstop is correct again",
+    "fea50f4 SB-ASK-009: decide openers up front, and fix what counts as a thematic break",
+    "20c0156 SB-ASK-008 repair 2: pin the four gaps instead of declaring them",
+    "1148d56 SB-ASK-008 repair 1: bound the restart instead of guarding one shape of it",
+    "f77e494 SB-ASK-008: decide before acting, so there is nothing to undo",
+    "dd391c8 SB-ASK-007 repair 2: recognise fences properly instead of toggling on backticks",
+    "592dfb6 SB-ASK-007 repair 1: pin note_title's contract",
+    "4aa8f3b SB-ASK-007: close D1's last leg, the note title",
+    "350c7bc SB-ASK-006 repair 2: the give-back must restore the line, not the raw line",
+    "473b9cd SB-ASK-006 repair 1: a comment may only remove text it actually encloses",
+    "44e7588 SB-ASK-006: repair D1 by making markup handling line-local and fence-aware"
+  ],
+  "tests": [
+    {
+      "command": "python3 -B tests/test_retrieval_core_e2e.py",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -B tests/test_ask_grounding_integration.py",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -B tests/test_source_references.py",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -B tests/test_weak_evidence.py",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -B tests/test_search_row_adapter.py",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -B src/ask-my-brain/ask_my_brain.py --help",
+      "exit_code": 0
+    }
+  ],
+  "repair_cycles_used": 2,
+  "agent_c_required": true,
+  "codex_required": true,
+  "codex_rationale": "D1 decides what text from an untrusted note reaches the answer model, and P1 concerns an indexing denial-of-service surface. Codex has overturned four declared limitations in this package line. The high-risk criteria are met.",
+  "p1": {
+    "finding": "the restart was O(N^2) and build_index applies no file-size cap, so note content controlled index-rebuild time",
+    "two_wrong_attempts_before_the_right_one": [
+      "resuming from the settled opener did not help: the expensive part is scanning to the end of the note to DISCOVER a comment never closes",
+      "reusing the prefix instead of copying it did not help either; nor did indexing instead of slicing, though both were real costs"
+    ],
+    "fix": "last_closing_line() answers, in one scan before classifying, whether any later line carries a closing marker. Whether an opener closes does not depend on fences or any other classification, because once a comment is open every following line is comment text until '-->'. An opener that cannot close is literal immediately, with no restart.",
+    "measured": {
+      "1000": 0.0023,
+      "4000": 0.0077,
+      "16000": 0.0316,
+      "64000": 0.1428
+    },
+    "sb_ask_008_for_comparison": "32000 lines took 125s",
+    "equivalence": "differential against SB-ASK-008 with only the P2 fix applied, so P1 was the sole variable: 15,000 randomised notes across max_chars 3500, 200 and 40 - zero mismatches",
+    "backstop": "the restart loop is kept for the case where that decision is ever wrong in the direction of opening a comment that does not close. No fixture needs more than one pass.",
+    "measured_taken_on": "fea50f44, BEFORE the resume was deleted. repair_1.timings_after is the candidate's."
+  },
+  "p2": {
+    "finding": "_RULE_LINE_RE was a character class, so any MIXTURE of break characters was deleted. '-=_*' is not a thematic break; the base kept it and SB-ASK-008 deleted it.",
+    "fix": "a break is three or more of ONE marker. '=' stays a marker so a setext underline is still removed, which is the declared behaviour.",
+    "pinned_both_directions": "mixtures survive ('-=_*', '*-*-*-', '--'), runs of one marker are stripped ('---', '***', '___', '===')"
+  },
+  "stale_claim_corrected": "Bound Exactness Note's comment said it pinned the restart bound. Since openers are decided up front it settles in one pass, so it pins that each opener is literal and keeps its marker, and no longer exercises the bound. Corrected in the test and the fixtures README rather than left.",
+  "index_effect": {
+    "notes_indexed": 24,
+    "chunks_indexed": 37,
+    "files_skipped": 2,
+    "vs_uep_work_over_the_same_vault": {
+      "identical_in_every_column": "13 of 24",
+      "movers": {
+        "10 Areas/Backtick Info Note.md": {
+          "columns": [
+            "body"
+          ],
+          "chunks": "1 -> 1"
+        },
+        "10 Areas/Break Markers Note.md": {
+          "columns": [
+            "body"
+          ],
+          "chunks": "1 -> 1"
+        },
+        "10 Areas/Comment Fence Note.md": {
+          "columns": [
+            "body"
+          ],
+          "chunks": "1 -> 1"
+        },
+        "10 Areas/Comment Marker Note.md": {
+          "columns": [
+            "body"
+          ],
+          "chunks": "1 -> 1"
+        },
+        "10 Areas/Commented Title Note.md": {
+          "columns": [
+            "body",
+            "chunk_count",
+            "end_line",
+            "heading",
+            "start_line",
+            "title"
+          ],
+          "chunks": "1 -> 2"
+        },
+        "10 Areas/Fence Closer Note.md": {
+          "columns": [
+            "body"
+          ],
+          "chunks": "1 -> 1"
+        },
+        "10 Areas/Fence Shapes Note.md": {
+          "columns": [
+            "body",
+            "chunk_count",
+            "end_line"
+          ],
+          "chunks": "2 -> 1"
+        },
+        "10 Areas/Fenced Markup Note.md": {
+          "columns": [
+            "body",
+            "chunk_count",
+            "end_line"
+          ],
+          "chunks": "2 -> 1"
+        },
+        "10 Areas/Give Back Fence Note.md": {
+          "columns": [
+            "body",
+            "chunk_count",
+            "end_line",
+            "title"
+          ],
+          "chunks": "2 -> 1"
+        },
+        "10 Areas/Hidden Title Only.md": {
+          "columns": [
+            "body",
+            "title"
+          ],
+          "chunks": "1 -> 1"
+        },
+        "10 Areas/Multi Opener Note.md": {
+          "columns": [
+            "body",
+            "chunk_count",
+            "end_line",
+            "title"
+          ],
+          "chunks": "2 -> 1"
+        }
+      }
+    }
+  },
+  "regression_sweep": {
+    "mutations": 9,
+    "caught": 6,
+    "survived": 3,
+    "hung": 0,
+    "method": "per-mutant output-equivalence measured over 12,000 randomised notes, not asserted",
+    "survivors_all_measured_equivalent": [
+      "the opener cutoff >= weakened to > : 0 of 12,000",
+      "the precompute recording an opener but opening it anyway: 0 of 12,000",
+      "the restart bound one pass short: 0 of 12,000"
+    ],
+    "note": "the first two are the mutations that forced the F1 leak before this repair. That they now measure 0 of 12,000 is the evidence the backstop is correct, not a claim that it is.",
+    "withdrawn": "the reason originally given for this survivor - 'the frontmatter closing --- is itself a thematic break, so it is dropped either way' - was misattributed, and the survivorship itself was an artefact of an ASCII-only generator. See SB-ASK-010.",
+    "survivor_later_killed": [
+      "the frontmatter cutoff in _classify_once (line 980) weakened to '<': 0 of 12,000 on ASCII-only notes, which is why this measurement was mistaken for a proof. SB-ASK-010 killed it with a non-breaking space before the closing marker. NOT an equivalent mutant - withdrawn from this list."
+    ],
+    "recount_note": "Agent C O5: entry [3] declared itself withdrawn while remaining in a list named for survivors, and the survived count still included it. It is now in its own field and the counts are restated: 3 survivors measured equivalent, 6 caught - the sixth by SB-ASK-010's NBSP witness, which did not exist when this sweep ran."
+  },
+  "defects_still_open_and_still_pinned": [
+    {
+      "id": "D2",
+      "severity": "HIGH",
+      "why_not_here": "needs the reranker to take matched terms from what FTS5 returned instead of re-deriving them by string comparison"
+    },
+    {
+      "id": "D3",
+      "severity": "MEDIUM",
+      "why_not_here": "coupled to D5: deterministic_evidence_strength returns HIGH for any all_terms match however few or generic the terms are"
+    }
+  ],
+  "known_limitations": [
+    "REINDEX REQUIRED: chunk bodies, titles and, for a note with a heading-like line inside a fence, chunk boundaries all change. An index built before this commit carries marker text in its bodies and may carry a commented heading as a title.",
+    "Tilde fences, four-or-more-backtick fences and the three-space indent rule are now handled, and three of the five closer sub-rules are pinned: same character, not shorter, no info string. The other two are not - see the coverage gaps below. The previous receipt declared the first two as limitations; Codex ruled that dishonest about impact and it was.",
+    "Setext underlines (=== under a heading) are consumed by the rule pattern, flattening setext headings.",
+    "After a comment closes mid-line, what remains is treated as text rather than re-tested as a fence delimiter. Either reading is defensible; declared rather than pinned.",
+    "Fence markers are removed from the evidence a note contributes, so a fenced block reaches the model as ordinary prose. The system prompt still declares all evidence untrusted, so no trust boundary changes.",
+    "Carried forward: the coverage-boundary assertion all(r['term_coverage'] >= 0.30 for r in got) is vacuous on the zero-row iteration; and phrase_bonus, all_terms_bonus, the 0.30 floor, bm25 weights, the execute_match candidate limit and the fts_token prefix threshold remain unpinned.",
+    "Agent C F5, undeclared until now: 'a closer must be at least as long as its opener' is only half pinned. A SHORTER closer is pinned not to close; nothing pins that a LONGER one does. Shipped behaviour is correct. A regression here leaves the fence open longer, so it protects more and strips less - it cannot promote removed text into a title or the evidence.",
+    "Agent C F6: a closer carrying only trailing whitespace still closes, and that is unpinned. Same over-protective direction as F5.",
+    "Agent C F12: the rule that a TILDE fence's info string may contain a tilde is unpinned, although its backtick counterpart is pinned by Backtick Info Note. This is the tilde image of Codex's finding 2: a regression would fail to open the fence, so a literal tilde-fenced example would lose its comments. Content loss, not a leak.",
+    "Agent C C17, carried from SB-ASK-002 and not previously declared: max_chars split FIDELITY is unpinned. The suite asserts only that a piece is no longer than the maximum, so a mutant dropping one character from every piece passes. Shipped splitting is lossless, verified.",
+    "Documentation debt, carried: the comment above the coverage-boundary block still says no question over these fixtures lands inside [0.30, 0.35). Two questions ten lines above it are now asserted to do exactly that, and Agent C measured both at 0.309 and 0.3397. The comment is false and self-contradicting. It is a comment, not an assertion, and the repair budget is exhausted, so it is recorded rather than fixed.",
+    "Restored after Agent C caught it being deleted: a heading line that itself opens a never-closing comment yields a title carrying the literal marker, e.g. 'Title: Something <!--'. Measured identical on SB-ASK-007 and here. I had removed this from the list as 'an edge of the give-back' when it is nothing of the kind - it is a property of treating an unterminated opener as literal text, which this design preserves by construction. Cosmetic: no commented-out content leaks, the marker is the note's own literal text. Only the G1 limitation was genuinely resolved.",
+    "A mutation removing the restart bound alone survives the suite, and always will: it is a defensive limit that correct code never reaches. Every mutation it exists to contain - progress broken in any shape - is caught now that it is a bound rather than a progress check.",
+    "Agent C, new and outside this package's surface: the readable-signal gate is >= 20 characters and no fixture sits near that boundary - the closest margin is 15 - so a mutation to >= 19 survives. The gate is byte-identical to base apart from re-indentation.",
+    "Agent C, new and outside this package's surface: no fixture carries an h4, h5 or h6 heading, so narrowing the chunk-heading pattern from #{1,6} to #{1,3} survives. Also byte-identical to base.",
+    "The restart bound is unreachable in correct code now that openers are decided up front - shipped classifies every one of 20,000 generated notes and all 26 fixtures in exactly one pass - so no output-level test can pin it. It is a backstop, and mutations to it survive the suite by construction. There is no resume: this package deleted it (see repair_1).",
+    "Agent C M25, now resolved by SB-ASK-010 and recorded here as a correction, not a limitation: my claim that BOTH '<= fm_end' comparisons are equivalent mutants was wrong in both halves. The classifier's (line 980) is killable on a real input - a non-breaking space before the closing marker - and is now pinned. The one in last_closing_line (line 933) was never a survivor either: mutating it fails an assertion this suite already had, on an input frontmatter_end cannot produce. This receipt's own sweep table listed that site as CAUGHT while known_limitations declared it equivalent by construction.",
+    "WITHDRAWN and replaced, per Codex CODEX-1: classification is NOT linear in general and build_index's missing file-size cap IS still a denial-of-service surface. P1 made the per-LINE opener case linear; a single line carrying many unclosed '<!--' openers remains quadratic in _INLINE_COMMENT_RE.sub. 16,000 openers on one line take 3.0s. Introduced at SB-ASK-006, present in the whole unmerged line, absent from uep/work."
+  ],
+  "rollback": "abandon candidate branch uep/task-sb-ask-009 (uep/work unchanged at 4573b55d0e9d698a290ee2f7b5326ac87b95c379)",
+  "superseded_candidates": [
+    {
+      "sha": "fea50f44ba0ef8b93d5d46c4118a8a2937f4dd9d",
+      "verdict": "Agent C FAIL",
+      "reason": "the resume carried the fence marker but not the open-comment state, so a restart landing on a line where a comment had closed mid-line re-read comment text as content. My claim that all three survivors were output-equivalent because the backstop settles them was false, and it was the sole justification for leaving them untested."
+    },
+    {
+      "sha": "4203eaa8f8d95ed6b74d0d98c3d17120ce1e7899",
+      "verdict": "Agent C FAIL",
+      "reason": "text-only: four statements asserting the deleted resume still exists, including _classify_once's own documented return contract, plus a self-contradicting receipt. No behavioural defect."
+    },
+    {
+      "sha": "2fed7cb5d1b95b3de2719790fe7769664c977871",
+      "verdict": "Agent C FAIL",
+      "reason": "text only: four present-tense statements describing the deleted give-back (one a printed check label), and a false equivalence claim. No behavioural defect; AST verified identical to 4203eaa apart from docstrings. Closed by SB-ASK-010."
+    }
+  ],
+  "repair_1": {
+    "trigger": "Agent C F1 on fea50f44, verified independently on its two-line witness",
+    "what_was_wrong": "not shipped output - the precompute means the backstop never fires - but the backstop itself, which is the last line of defence for exactly the leak class this package line exists to close, and which this package broke while claiming it was what made the survivors safe",
+    "fix": "the resume is deleted rather than repaired. It was never earning its place: last_closing_line is what made the classifier linear, not the resume. Over 20,000 openers the two measure the same to within run-to-run noise - Agent C's independent timing has the sign flipping between best and median - so the resume was buying nothing. Each pass now classifies from the first line.",
+    "evidence": "the two mutations that force the backstop to fire now differ from shipped output on 0 of 12,000 randomised notes; before the repair they differed on 371",
+    "f2_also": "the stale claim I reported as corrected survived in two more places - fixtures/README.md and the Multi Opener comment both still said the classifier 'restarts more than once', and a check label still credited 'the bound was large enough to settle every opener'. All 26 fixtures settle in one pass. All three corrected.",
+    "timings_after": {
+      "1000": 0.0022,
+      "4000": 0.0081,
+      "16000": 0.0325,
+      "64000": 0.1358
+    }
+  },
+  "repair_2": {
+    "trigger": "Agent C FAIL on 4203eaa, findings 1-5, all text-only; no behavioural defect found",
+    "what_was_wrong": "the commit that deleted the resume left four statements asserting it still exists, including the rewritten function's own documented return contract, and this receipt contradicted itself between known_limitations and repair_1. This is the third consecutive cycle of the same finding class in this package, and the class Agent C was explicitly charged to audit.",
+    "corrections": [
+      "F1/F2 of this cycle: _classify_once's docstring summary said 'optionally resumed part way' and its Returns clause described a third return value and a resume point. The function returns two values and has no resume parameter. Both rewritten; the summary now states what the function actually guarantees - it always starts from the first line.",
+      "F3: tests/test_retrieval_core_e2e.py declared 'the bound and the resume are unreachable... both are declared as backstops'. Only the bound exists; the comment now names only the bound.",
+      "F4: known_limitations said the resume was a live untestable backstop, contradicting repair_1.fix in the same file. Corrected to name only the bound and to record that the resume was deleted.",
+      "F5 (Agent C finding 4): the M25 equivalence declaration reached a true conclusion by a mechanism that does not apply to the function it named - last_closing_line has no rule branch. The stated reason was true of the other cutoff, in _classify_once. Both now stated separately with their actual reasons. Agent C notes this is the same shape as the F1 justification it failed last cycle: right words, wrong mechanism, differing only in that the conclusion held this time.",
+      "F6 (Agent C finding 5): '0.0428s against 0.0422s' was presented as a measurement settling whether the resume earned its place. Agent C's independent timing has the sign flipping between best and median, and 1.4% is not separable from noise on this workload. The conclusion stands; the specific figures are withdrawn in favour of 'the same to within run-to-run noise' in both the docstring and this receipt."
+    ],
+    "code_behaviour_changed": "none - every correction is to a docstring, a comment or this receipt",
+    "ast_check": "ast.dump of the candidate equals ast.dump of 4203eaa once docstrings are stripped - the repair changes no code"
+  },
+  "agent_c": {
+    "first_run": {
+      "sha": "fea50f44",
+      "verdict": "FAIL",
+      "finding": "F1, the false survivor-equivalence justification"
+    },
+    "second_run": {
+      "sha": "4203eaa8f8d95ed6b74d0d98c3d17120ce1e7899",
+      "verdict": "FAIL",
+      "findings": "1-5, all text-only; no behavioural defect",
+      "independent_confirmations": [
+        "the F1 leak is closed: 17 hand-built witnesses plus a tagged-token leak oracle over 20,000 structured notes x 3 max_chars = 180,000 checks, 0 leaks, with the backstop forced to fire",
+        "survivor claim re-measured on Agent C's own generator at 60,000 comparisons per mutant (receipt claimed 12,000): 0 differing for all four, plus a fifth variant it found itself",
+        "the measurement is not vacuous: M19 restarts on 5,515 of 20,000 notes up to 8 passes deep and still never differs, and the same generator detects the pre-repair bug on fea50f44 at 1,272 of 36,000",
+        "shipped never restarts: exactly 1 pass on all 20,000 generated notes and all 26 fixtures",
+        "linearity reproduced at 1k/4k/16k/64k, cost per line flat to within 9% across a 64x range",
+        "containment clean: 17 changed files matching this receipt file for file, no database/network/vault/home/.env/real-data surface",
+        "index_effect reproduced exactly: 24 notes, 37 chunks, 2 skipped"
+      ]
+    },
+    "third_run": {
+      "sha": "2fed7cb5d1b95b3de2719790fe7769664c977871",
+      "verdict": "FAIL",
+      "behavioural": "clean - AST-equality claim verified independently (docstring-stripped ast.dump equal; the test-file change is a # comment, so even the raw AST is equal), all five prior findings confirmed fixed, six commands exit 0, F1 witness clean with the backstop force-fired, 1,200 comparisons against 4203eaa with 0 differences, containment clean",
+      "findings": [
+        {
+          "id": "AC3-1",
+          "severity": "the fourth cycle of the staleness class",
+          "confirmed_by_executor": true,
+          "what": "four live present-tense statements describing the GIVE-BACK, a mechanism deleted two packages ago by SB-ASK-008 f77e494 ('decide before acting, so there is nothing to undo')",
+          "locations": [
+            "tests/test_retrieval_core_e2e.py:510-512",
+            "tests/test_retrieval_core_e2e.py:518-520",
+            "tests/test_retrieval_core_e2e.py:524 (a CHECK LABEL the suite prints on every passing run)",
+            "fixtures/README.md:31 ('the only way to reach that give-back path')"
+          ],
+          "why_the_checks_actually_pass": "ENCLOSEDSECRET stays out because _INLINE_COMMENT_RE.sub runs on the line before the opener search in the single pass - nothing is ever restored. RULEOPENER survives because last_closing_line returns 0, so the opener is literal at 1051-1057 and the rule branch is never entered - it is not given back, it is never taken away.",
+          "provenance": "git log -S dates all four to 350c7bc (SB-ASK-006 repair 2). They survived SB-ASK-008's deletion of the mechanism and both SB-ASK-009 repair cycles.",
+          "sharpest_point": "the same test file already carries the CORRECTLY past-tensed version at lines 349-354, 160 lines above the stale present-tense ones - the correction was made in one place in this very file and not the others. And repair_1 claims the sweep caught 'a check label still credited the bound was large enough'; the identical sub-class was left standing four lines from a label that was fixed.",
+          "executor_verification": "confirmed by direct grep; both 'restore' hits in the source (958, 1108) are past-tense history, so the stale text is confined to tests and fixtures/README"
+        },
+        {
+          "id": "AC3-2a",
+          "severity": "receipt self-contradiction, same shape as the one that failed 4203eaa",
+          "what": "regression_sweep.survivors_all_measured_equivalent[3] still carries the exact mechanism M25 withdrew ('the frontmatter closing --- is itself a thematic break, so it is dropped either way'), and still names a single 'frontmatter cutoff'. repair_2.corrections F5 claims 'Both now stated separately with their actual reasons' - only known_limitations was rewritten, so F5 falsifies itself.",
+          "executor_verification": "confirmed by reading the file"
+        },
+        {
+          "id": "AC3-2b",
+          "severity": "a false equivalence claim - the substantive one",
+          "confirmed_by_executor": true,
+          "what": "M25 asserts 'BOTH <= fm_end cutoffs are equivalent mutants'. The last_closing_line one is (airtight: frontmatter_end only returns a line stripping to exactly '---', which cannot contain '-->'). The _classify_once one at line 980 is NOT: _RULE_LINE_RE anchors ^[ \\t]* while frontmatter_end accepts any line whose .strip() is '---', so 15 whitespace codepoints (including \\xa0) separate them.",
+          "witness": "note '---/title: N/\\xa0---/PROSE...' with ONLY line 980 mutated to '<': shipped body 'PROSE line long enough...' against mutant body '---\\nPROSE line long enough...', start_line 4 against 3",
+          "executor_verification": "reproduced exactly. _RULE_LINE_RE.match('\\xa0---') is False while '\\xa0---'.strip() == '---' is True. The mutant is killable, so it does not belong on a list of survivors excused by construction.",
+          "shipped_behaviour": "correct and unchanged - this is a receipt over-claim, not a product defect",
+          "why_it_was_missed": "Agent C's 60,000-comparison and 200,000-note measurements, which M25 cites as support, were ASCII-only and could not have found it. The receipt generalised a measurement into a construction proof."
+        },
+        {
+          "id": "AC3-3",
+          "severity": "minor",
+          "what": "fixtures/README.md:39 says Fence Shapes Note.md carries 'four-plus backticks and tildes'. It carries no four-or-more-backtick fence; the only one in the vault is in Fence Closer Note.md."
+        },
+        {
+          "id": "AC3-4",
+          "severity": "minor, not counted by Agent C",
+          "what": "p1.measured (64000 -> 0.1428, taken on fea50f44 pre-repair) and repair_1.timings_after (64000 -> 0.1358) give two tables for the same quantity with no marker of which applies to the candidate"
+        }
+      ],
+      "agent_c_bottom_line": "The product is in good shape. The code is behaviourally byte-equivalent to a candidate verified exhaustively, the F1 leak is closed, and nothing here is a shipping risk. What fails is receipt-and-comment discipline, for the fourth cycle running and in the same two ways each time."
+    }
+  },
+  "hard_stop": {
+    "reason": "the standing work order allows at most two evidence-based repair cycles; both are used (repair_1 the resume deletion, repair_2 the stale-text corrections). Agent C's third verdict is FAIL. A third repair is not mine to take.",
+    "codex_not_run": "Codex review was not started. The workflow runs it only after Agent C passes, and never concurrently.",
+    "no_merge": "nothing merged, nothing promoted. uep/work is untouched at 4573b55; main untouched at 3bb0761; no remote.",
+    "candidate_sha": "2fed7cb5d1b95b3de2719790fe7769664c977871",
+    "branch": "uep/task-sb-ask-009",
+    "all_defects_are_text": "WITHDRAWN per Codex: that was true of the findings known at the time, but Codex's review of this SHA found two product-code defects, CODEX-1 (HIGH) and CODEX-2 (MEDIUM). Product code IS implicated.",
+    "resolution": "owner approved SB-ASK-010, a documentation-only cleanup package with no product-code changes"
+  },
+  "codex_review": {
+    "sha": "2fed7cb5d1b95b3de2719790fe7769664c977871",
+    "verdict": "FAIL",
+    "run": "completed on the second attempt; the first was truncated by an account usage limit and produced no verdict",
+    "confirmed_safe": {
+      "content_leakage": "Codex found NO leakage witness in the shipped comment state machine. It re-ran the historical witness '<!-- a / secret --> visible <!-- b' and confirmed 'secret' reaches neither body nor title; it also confirmed a '-->' inside a visually fenced region correctly closes an already-open comment, and that CRLF and no-final-newline inputs are normalised safely by splitlines().",
+      "last_closing_line": "sound for the classifier's first-'-->' comment semantics",
+      "restart_backstop": "cannot spin - len(lines)+1 passes suffice for at most one newly settled line per pass - and the precomputation makes it unreachable",
+      "note_title": "correctly excludes classified comments and fenced headings"
+    },
+    "findings": [
+      {
+        "id": "CODEX-1",
+        "severity": "HIGH",
+        "confirmed_by_executor": true,
+        "what": "_INLINE_COMMENT_RE.sub() is quadratic in the number of '<!--' openers ON A SINGLE LINE with no closer. The lazy '.*?' rescans the remaining suffix for every candidate opener.",
+        "witness": "one line containing '<!--' repeated N times, no '-->'",
+        "measured_by_executor": {
+          "1000": "0.012s",
+          "2000": "0.047s",
+          "4000": "0.188s",
+          "8000": "0.754s",
+          "16000": "3.033s",
+          "scaling": "4x per doubling"
+        },
+        "codex_measurements_matched": "0.012 / 0.048 / 0.192 / 0.767 / 3.014 - independent and near-identical",
+        "why_i_missed_it": "my benchmark used ONE opener per line, which is the shape P1 fixed. It never exercises the per-line substitution. I measured the shape I had repaired rather than the adversarial one, then generalised the result to 'classification is linear'.",
+        "regression_analysis_by_executor": {
+          "introduced_at": "44e7588 (SB-ASK-006), the first package of the D1 line, which made markup handling line-local",
+          "uep/work base 4573b55": "free - 0.000s at 4,000 openers",
+          "every candidate since SB-ASK-006": "quadratic; SB-ASK-008 doubled the constant (0.093s at 2,000) and SB-ASK-009 halved it back (0.048s)",
+          "conclusion": "NOT introduced by SB-ASK-009, but present in it and in the whole unmerged line. Merging the line would introduce it into uep/work, where it does not exist today."
+        },
+        "falsifies": [
+          "the receipt's 'classification is linear'",
+          "the receipt's 'no longer a denial-of-service surface' - build_index still has no file-size cap, and a single adversarial LINE is now sufficient"
+        ]
+      },
+      {
+        "id": "CODEX-2",
+        "severity": "MEDIUM",
+        "confirmed_by_executor": true,
+        "what": "_RULE_LINE_RE does not implement Markdown thematic breaks exactly, in both directions",
+        "witness_a": "'* * *' is a valid thematic break (Markdown permits spaces between identical markers) and is KEPT as content",
+        "witness_b": "'    ---' at four spaces of indent is NOT a thematic break (breaks allow at most three leading spaces) and is DELETED",
+        "executor_note": "both are PRE-EXISTING, not regressions. The base pattern '^[ \\t]*[-=_*]{3,}[ \\t]*$' has the identical behaviour on both witnesses - it cannot match across the spaces in '* * *', and its '[ \\t]*' accepts unlimited indent. P2 changed only the mixed-marker case, which it fixed correctly ('-=_*' now survives). So P2 neither introduced nor repaired these two.",
+        "test_gap": "the suite's break checks cover only contiguous runs, so neither witness is pinned"
+      },
+      {
+        "id": "CODEX-3",
+        "severity": "LOW",
+        "what": "the receipt still carries materially false product conclusions - the linearity and no-DoS claims (falsified by CODEX-1) and 'every open finding is textual and no product code is implicated' (falsified by CODEX-1 and CODEX-2)",
+        "status": "corrected below"
+      }
+    ]
+  }
+}

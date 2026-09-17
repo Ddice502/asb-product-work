@@ -1,0 +1,260 @@
+{
+  "package_id": "SB-ASK-003",
+  "purpose": "Repair the four defects SB-ASK-002 found and pinned in the Ask My Brain retrieval core, and clear the F1/F3/F4 documentation findings in the same package per owner instruction.",
+  "base_sha": "4d69f6dda871bc7baf1b9fac723f0168c9f0c9d2",
+  "candidate_sha": "8163e1ef8f9830810589d485ba9dd6a7aa518234",
+  "branch": "uep/task-sb-ask-003",
+  "status": "ESCALATED",
+  "changed_files": [
+    "fixtures/README.md",
+    "fixtures/vault/10 Areas/Comment Marker Note.md",
+    "fixtures/vault/10 Areas/Diacritics Note.md",
+    "fixtures/vault/10 Areas/Fenced Code Note.md",
+    "src/ask-my-brain/ask_my_brain.py",
+    "tests/test_retrieval_core_e2e.py"
+  ],
+  "tests": [
+    {
+      "command": "python3 -B tests/test_retrieval_core_e2e.py",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -B tests/test_ask_grounding_integration.py",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -B tests/test_source_references.py",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -B tests/test_weak_evidence.py",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -B tests/test_search_row_adapter.py",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -B src/ask-my-brain/ask_my_brain.py --help",
+      "exit_code": 0
+    }
+  ],
+  "repair_cycles_used": 2,
+  "agent_c_required": true,
+  "codex_required": true,
+  "codex_rationale": "This package DOES meet the handoff's high-risk criteria, unlike SB-ASK-002: it changes a security-sensitive retrieval path (D1 is a prompt-contamination fix in the path that feeds the answer model), it changes index CONTENT semantics, and D3 changes user-visible answer policy. Codex runs after Agent C passes, never concurrently.",
+  "defects_repaired": [
+    {
+      "id": "D1",
+      "severity": "HIGH",
+      "fix": "corrected four regex literals in chunk_note whose doubled backslashes made each class match {backslash, s, S} rather than any character",
+      "effect": "Outside fenced blocks, HTML comments, horizontal rules, fence markers and runs of blank lines are stripped while all surrounding prose is retained. Inside a fenced block nothing is stripped: the content is carried verbatim. Two earlier attempts at this fix were themselves destructive and were repaired; see superseded_candidates."
+    },
+    {
+      "id": "D2",
+      "severity": "HIGH",
+      "fix": "new shared fold_text() applies NFD + str.lower() on both the query and document sides - canonical decomposition and simple lowercasing, deliberately not NFKD + casefold - and query_terms widens [A-Za-z0-9] to [^\\W_] with re.UNICODE",
+      "effect": "accented content is reachable through search by either spelling, and the fold now agrees with unicode61 on the sharp s, compatibility ligatures and superscripts."
+    },
+    {
+      "id": "D3",
+      "severity": "MEDIUM",
+      "fix": "removed query_terms' fallback to the stopwords themselves",
+      "effect": "a question with no subject left in it now retrieves nothing and ask() prints the fixed no-evidence response, instead of being answered at HIGH confidence",
+      "owner_visible_policy_change": true
+    },
+    {
+      "id": "D4",
+      "severity": "LOW",
+      "fix": "start_line and end_line advance only on lines that carry text",
+      "effect": "a citation's line range covers its text and not the blank lines around it"
+    }
+  ],
+  "findings_cleared": {
+    "F1": "stale comment in the test file reproducing a claim already withdrawn from the receipt - struck",
+    "F3": "wrong example in the SB-ASK-002 receipt D2 summary - corrected there",
+    "F4": "assertion strictly entailed by the one above it - deleted"
+  },
+  "findings_still_open": {
+    "F2": "the reranker's additive bonuses (phrase_bonus, all_terms_bonus), the row coverage floor against LOOSENING, the execute_match candidate limit and the second prefix threshold in fts_token remain unpinned; mutating them leaves the suite green"
+  },
+  "regression_sweep": {
+    "method": "mutations applied to a throwaway copy outside the repository; unmutated control asserted green",
+    "mutations": 20,
+    "caught": 19,
+    "equivalent_mutants": 1,
+    "equivalent": "making the fence-line regex newline-crossing survives, and is equivalent BY CONSTRUCTION: it is only ever matched against a single line produced by body.split('\\n'), so no pattern it could express can span lines. This is the structural property that replaced the previous regex-dependent one.",
+    "covers": [
+      "comment stripper: identity, greedy, and re-broken",
+      "fence awareness: cleanup applied inside fences, splitter that never toggles",
+      "separator: identity and threshold",
+      "blank-line collapse",
+      "fold: NFD->NFKD, lower->casefold, no combining strip",
+      "both folding sides",
+      "both tokenization widenings",
+      "D3 fallback",
+      "D4 span guard and both off-by-ones"
+    ]
+  },
+  "unchanged": [
+    "every coverage-boundary row count: ('bench dirigible', 3), ('saw bench clamps dirigible parliament', 1), ('frame bench dirigible', 0), verified byte-identical to the base",
+    "every other note's chunk count: the 21 -> 22 delta is entirely the new Fenced Code Note; the Diacritics Note still yields exactly one chunk",
+    "the system and user prompt contract",
+    "the MODEL= / EVIDENCE_CHUNKS= trailer",
+    "ranking, scoring, authority, scope and the database schema"
+  ],
+  "known_limitations": [
+    "REINDEX REQUIRED: chunk bodies and spans both change, so any index built before this commit carries comment and marker text in its bodies and blank-padded spans. Nothing here rebuilds an existing database.",
+    "The readable-signal gate is still ASCII-only (r'[^A-Za-z0-9]+' with a 20-character floor), so a note whose prose is entirely non-Latin collapses to the title-only fallback chunk and is never indexed. This bounds how far the D2 unicode widening can reach; the widening is observable only for a non-Latin word sitting beside enough ASCII prose. Pre-existing and unchanged.",
+    "fold_text coerces a non-string argument with str(), turning None into 'none'. Not reachable today (schema columns are NOT NULL and every caller passes text), but it would convert a type error into a silent token.",
+    "D1's comment and marker stripping replaces each match with a single space, so a body can retain a lone space between blank lines. Cosmetic.",
+    "D3 is a user-visible policy change: questions made only of stopwords and meta-words now return the no-evidence response. Agent C found no question that retrieved useful evidence on the base and fails now; the two that returned anything returned LOW-strength noise. Codex is right that this is nonetheless a real recall tradeoff, and the earlier claim that no plausible useful case exists was too strong: 'what did I say?' is all stopwords and meta-words, and in a journal or transcript vault that could be a legitimate request. Reversible by restoring the fallback.",
+    "F2 remains open: phrase_bonus, all_terms_bonus, gentle loosening of the 0.30 coverage floor, the execute_match candidate limit and the fts_token prefix threshold are unpinned.",
+    "Verified against synthetic fixtures with ollama_chat stubbed; no model, database of the owner's, or vault was exercised.",
+    "One vacuous assertion remains, at tests/test_retrieval_core_e2e.py:439: inside the coverage-boundary loop, all(r['term_coverage'] >= 0.30 for r in got) is vacuously true on the iteration whose expected row count is 0. The len(got) == expected check above it carries that row's real content, and the other two iterations exercise the predicate substantively.",
+    "Four surviving mutants are test gaps, not defects; the shipped code is correct in each case. The one worth a fixture is a greedy comment stripper (<!--.*-->  rather than non-greedy), which would delete prose BETWEEN two HTML comments - the same destructive family as the fence regression, on the one D1 literal the fixtures already covered. No fixture has two comments or a multi-line comment. Also unpinned: fence indent tolerance, the {3,} blank-run threshold at its boundary, and the [ \\t]+ horizontal-whitespace collapse (a fifth cleanup literal this package did not claim).",
+    "Tilde (~~~) fences and lines of four or more backticks are not recognised as fences, so their markers are retained. Nothing is deleted. Pre-existing scope, not changed here.",
+    "CRLF is unreachable in the real path: Path.read_text uses universal-newline decoding, so \\r\\n becomes \\n before chunk_note sees it.",
+    "Fence markers are removed from the evidence a note contributes, so a fenced block reaches the model as ordinary prose. Codex notes this removes a structural cue that attacker-controlled text was quoted rather than asserted. The system prompt still declares all evidence untrusted, so no trust boundary changes, but the cue is gone. Keeping the markers would be a design change beyond this defect and is left for an owner decision.",
+    "Tilde (~~~) fences and lines of four or more backticks are still not recognised as fences, so their markers are retained and, more importantly, their contents are NOT protected from the comment and separator stripping. Pre-existing scope; now materially relevant because the stripping is live.",
+    "fold_text coerces a non-string argument with str(), turning None into 'none'. Not reachable today (schema columns are NOT NULL and every caller passes text), but it would convert a type error into a silent token."
+  ],
+  "rollback": "abandon candidate branch uep/task-sb-ask-003 (uep/work unchanged at 4d69f6dda871bc7baf1b9fac723f0168c9f0c9d2)",
+  "superseded_candidates": [
+    {
+      "sha": "85c3b725ff31958acb57bc86af6db6edae420a9a",
+      "verdict": "Agent C FAIL",
+      "reason": "the D1 fence repair activated a destructive pattern: \\s and [^`] both cross line boundaries, so it deleted the fenced code and all prose after the closing fence. The base was inert, so this was a regression introduced by the repair."
+    },
+    {
+      "sha": "c0f5593ef13ab1c73985be69fa419429d85e3650",
+      "verdict": "Agent C PASS, Codex FAIL",
+      "reason": "cleanup ran over fenced content, deleting an HTML comment's inner lines and a rule inside a fenced example; fold_text used casefold (expanding the German sharp s away from the index's token) and NFKD (whose compatibility mappings let the reranker claim coverage for terms the index never matched, and which was not idempotent)"
+    }
+  ],
+  "repair_1": {
+    "trigger": "Agent C FAIL on 85c3b72 (finding F-A, HIGH)",
+    "changes": [
+      "fence and separator patterns scoped to a single line: r\"(?m)^[ \\t]*```[^\\n`]*$\" and r\"(?m)^[ \\t]*[-=_*]{3,}[ \\t]*$\"",
+      "new fixture 10 Areas/Fenced Code Note.md: fenced block, blank-line run and horizontal rule with prose before, between and after; no fixture previously held a fence or body-level separator, which is why the destructive pattern passed",
+      "each of D1's four literals is now covered, not just the comment stripper",
+      "Diacritics Note gains a non-Latin word beside ASCII prose, pinning the [^\\W_] / [\\W_] widening that Agent C reported unpinned",
+      "F-C: a label still calling D2 a live defect after repair, struck",
+      "F-D: eight span checks strictly entailed by the exact-span equality above them, removed"
+    ],
+    "checks": "146 -> 150"
+  },
+  "index_counts": {
+    "vault_notes": 14,
+    "indexed": 12,
+    "chunks": 22,
+    "skipped": 2,
+    "note": "changed from 11 indexed / 21 chunks by the new Fenced Code Note fixture. An earlier revision of this receipt wrongly carried '11 notes, 21 chunks' under 'unchanged'; that was stale from candidate 85c3b72 and is corrected here (R1)."
+  },
+  "agent_c": {
+    "verdict": "PASS",
+    "sha_verified": "c0f5593ef13ab1c73985be69fa419429d85e3650",
+    "blocking_findings": "none",
+    "f_a_closed_how": "proven three independent ways: an exhaustive fuzz over 31,250 documents found 0 newline-spanning matches for either new pattern (against 12,190 and 6,720 for the old ones); 16 end-to-end chunk_note cases including CRLF, unclosed fence, fence at EOF, nested fences, setext underline and table rows showed zero text loss; and the destructive variant is now caught by mutation.",
+    "f_b_f_c_f_d": "all closed; each of D1's four literals now has at least one caught mutant",
+    "mutation_sweep": {
+      "mutations": 26,
+      "caught": 19,
+      "survived": 7,
+      "undeclared_survivors_are_test_gaps_not_defects": true
+    },
+    "receipt_corrections_required": [
+      "R1 stale 'unchanged' index counts",
+      "R2 garbled sharp-s sentence",
+      "R3 equivalence rationale"
+    ],
+    "corrections_applied": "R1, R2 and R3 applied to this receipt after the PASS. The receipt is untracked evidence, so the candidate SHA is unchanged."
+  },
+  "repair_budget_remaining": 0,
+  "repair_2": {
+    "trigger": "Codex FAIL on c0f5593 (findings 1 HIGH, 2 and 3 MEDIUM, all confirmed independently)",
+    "changes": [
+      "cleanup is fence-aware: the body is split into fenced and unfenced runs line by line, the comment and separator patterns run only over unfenced runs, fenced content is carried verbatim, and fence marker lines are still dropped. Because the splitter works line by line, a marker pattern can no longer span lines however it is written - the destructive failure mode is structurally impossible, not regex-dependent.",
+      "fold_text is NFD + str.lower() instead of NFKD + str.casefold(): 'Stra\u00dfe' folds to 'stra\u00dfe' which the index holds, the ffi ligature and superscript digits are left alone so the reranker cannot claim unearned coverage, canonical accents are still stripped, and folding is idempotent",
+      "Fenced Code Note gains a second fence containing an HTML comment and a rule; Comment Marker Note gains a second comment with a sentence between it and the first, pinning non-greediness"
+    ],
+    "checks": "150 -> 166"
+  },
+  "codex": {
+    "verdict_on_superseded": "FAIL on c0f5593",
+    "findings": 3,
+    "all_confirmed_independently_by_executor": true,
+    "status": "a re-review of the repaired candidate is required after Agent C passes; Codex and Agent C never run concurrently"
+  },
+  "escalation": {
+    "reason": "Repair budget exhausted (2 of 2) with two blocking defects open. Per the handoff, the branch is frozen and preserved and this is one terminal escalation, not a third repair.",
+    "candidate_sha": "8163e1ef8f9830810589d485ba9dd6a7aa518234",
+    "agent_c_verdict": "FAIL",
+    "codex_verdict_on_predecessor": "FAIL",
+    "blocking": [
+      {
+        "id": "G-1",
+        "severity": "HIGH",
+        "status": "CONFIRMED by the executor independently",
+        "summary": "Fence awareness is per-chunk, not per-note. inside_fence is a local of flush(); the chunk boundaries are decided in chunk_note's caller loop, which is not fence-aware. Whenever a chunk boundary falls inside a fenced block the rest of that fence is treated as plain text and the strippers run over it.",
+        "reproduced": "A bash fence containing the line '# rotate the credentials before the deploy' triggers the heading split, because the heading regex matches any '# ...' line. The following '---' and the entire '<!-- REMEMBER ... -->' line are deleted from inside the fence. The base keeps both.",
+        "also_triggered_by": "the max_chunk_chars split, which cuts mid-fence for any long fenced block",
+        "receipt_claims_now_false": [
+          "defects_repaired.D1.effect: 'Inside a fenced block nothing is stripped'",
+          "repair_2.changes[0]: 'the destructive failure mode is structurally impossible'"
+        ]
+      },
+      {
+        "id": "G-2",
+        "severity": "MEDIUM",
+        "status": "CONFIRMED by the executor independently",
+        "summary": "NFD plus strip-combining removes marks that unicode61 remove_diacritics 2 retains, so fold_text still lets the reranker count a term as matched that the index never found. Removing NFKD closed the ligature and superscript instances, not the property.",
+        "reproduced": "Against a live FTS5 table holding '\u0451\u043b\u043a\u0430 \u043f\u043e\u0434\u0430\u0440\u043a\u0438': MATCH '\u0451\u043b\u043a\u0430' returns 1 row, MATCH '\u0435\u043b\u043a\u0430' returns 0, and fold_text('\u0451\u043b\u043a\u0430') is '\u0435\u043b\u043a\u0430'. The reranker therefore reports a match the index does not have. 582 codepoints diverge in U+0300..U+1FFF alone; Agent C swept all 131,897 letter codepoints and found 12,499.",
+        "code_comment_now_false": "the fold_text docstring says 'NFD is canonical only, so it strips the accents unicode61 strips and nothing else'"
+      }
+    ],
+    "not_confirmed": [
+      {
+        "id": "G-3",
+        "severity": "MEDIUM as reported",
+        "status": "REFUTED by the executor on this SQLite build",
+        "agent_c_claim": "str.lower()'s final-sigma rule makes fold_text('\u039f\u0394\u039f\u03a3') emit '\u03bf\u03b4\u03bf\u03c2', a token the index cannot hold, reproducing D2 on Greek.",
+        "executor_finding": "Against a live unicode61 remove_diacritics 2 table holding '\u039f\u0394\u039f\u03a3 landmark', MATCH '\u03bf\u03b4\u03bf\u03c2' returns 1 row and MATCH '\u03bf\u03b4\u03bf\u03c3' returns 1 row. Both sigma forms match, so the premise that the index cannot hold the folded token does not hold here. Recorded because the owner should not act on it as stated; it may still be worth checking on the SQLite build that runs on home."
+      }
+    ],
+    "what_is_genuinely_finished": [
+      "D3 (stopword-only questions) - repaired, verified, pinned against regression, and its recall tradeoff honestly recorded",
+      "D4 (chunk spans) - repaired, verified by Agent C across every fixture shape, pinned against both off-by-ones",
+      "D1's comment stripper is correct and non-greedy WITHIN a chunk, and D2's sharp-s handling is correct",
+      "the test suite grew from 139 to 166 checks and now catches 20 of 25 mutations"
+    ],
+    "root_cause": "Three attempts at D1 failed in the same direction: each fixed the pattern in front of me rather than the structure behind it. Markup cleanup is being done on a text buffer whose boundaries were already decided by a chunker that knows nothing about markup, so no amount of regex care inside flush() can protect a fenced block the chunker has already cut in half. D2 has the mirror problem: the reranker re-derives which terms matched by folding strings itself, instead of asking the index what it actually matched, so any fold that is not bit-exact with unicode61 diverges somewhere.",
+    "recommended_next": [
+      "Split the package. D3 and D4 are finished and independently valuable; they could be re-cut as a small package with no D1 or D2 content and go through the gates cleanly.",
+      "D1 done properly needs fence state tracked in chunk_note's main loop, so a fenced block is never split across chunks and never reclassified. That is a chunking design change and belongs in its own approved package with a re-index.",
+      "D2 done properly probably means the reranker stops re-deriving matched terms by string comparison and instead takes them from what FTS5 returned. That removes the need for fold_text to agree with unicode61 at all, and is a larger change than a defect repair.",
+      "Until then D1 and D2 remain open defects in the merged base, unchanged from before this package: comments are not stripped and accented content is unreachable. Neither got worse on uep/work, because nothing was merged."
+    ],
+    "non_blocking_carried": [
+      "V-1 two consecutive checks with an identical predicate at tests lines 300-303",
+      "V-2 the declared vacuous coverage-boundary assertion, now at line 459 not 439",
+      "R-A a stale limitation claiming no fixture has two comments, which repair 2 added",
+      "R-B regression_sweep and known_limitations disagree about how many mutants survived",
+      "R-D two limitations duplicated",
+      "R-E the G-1 hole is not disclosed in any limitation",
+      "M06 an undeclared surviving mutant on the separator pattern"
+    ],
+    "preserved": {
+      "branch": "uep/task-sb-ask-003",
+      "candidate_tag": "sb-ask-003-candidate",
+      "commits": [
+        "85c3b72 initial",
+        "c0f5593 repair 1",
+        "8163e1e repair 2"
+      ],
+      "integration_line_untouched": "4d69f6dda871bc7baf1b9fac723f0168c9f0c9d2",
+      "main_untouched": "3bb076131f7475ed2aa042988dc692562ad5460d"
+    },
+    "rollback": "abandon uep/task-sb-ask-003. Nothing was merged; uep/work is unchanged."
+  }
+}

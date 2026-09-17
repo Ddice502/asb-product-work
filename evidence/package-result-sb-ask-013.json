@@ -1,0 +1,321 @@
+{
+  "package": "SB-ASK-013",
+  "title": "D6: recognise a thematic break as Markdown defines one",
+  "owner_approval": "'Lets take care of D6' - PD-002 selected, 2026-09-17",
+  "base": "uep/work a8008fe4ceecd60b90bcce268cc4a5107684cd2e",
+  "candidate_sha": "ebd76676f3de313b8df96ae16287a680fe888aea",
+  "branch": "uep/task-sb-ask-013",
+  "repair_cycles_used": 2,
+  "changed_files": [
+    "docs/PRODUCT_DECISIONS.md",
+    "docs/WORDING_CLEANUP_LOG.md",
+    "src/ask-my-brain/ask_my_brain.py",
+    "tests/test_retrieval_core_e2e.py"
+  ],
+  "tests": [
+    {
+      "command": "python3 -B tests/test_retrieval_core_e2e.py",
+      "exit_code": 0,
+      "last_line": "PASS retrieval_core_e2e: 291 checks"
+    },
+    {
+      "command": "python3 -B tests/test_ask_grounding_integration.py",
+      "exit_code": 0,
+      "last_line": "PASS ask_grounding_integration: 59 checks"
+    },
+    {
+      "command": "python3 -B tests/test_source_references.py",
+      "exit_code": 0,
+      "last_line": "PASS source_references: 19 checks"
+    },
+    {
+      "command": "python3 -B tests/test_weak_evidence.py",
+      "exit_code": 0,
+      "last_line": "PASS weak_evidence: 24 checks"
+    },
+    {
+      "command": "python3 -B tests/test_search_row_adapter.py",
+      "exit_code": 0,
+      "last_line": "PASS search_row_adapter: 32 checks"
+    },
+    {
+      "command": "python3 -B src/ask-my-brain/ask_my_brain.py --help",
+      "exit_code": 0
+    }
+  ],
+  "src_change": "_RULE_LINE_RE and the comment above it; and at its one call site in _classify_once, the pattern is shown the visibly-ending line (processed text plus the raw trailing whitespace, unless truncated at an opener) before the text is tidied. No other product code.",
+  "verification_before_tests": {
+    "oracle": "960,800 lines up to length 7 over ' \\t*-_=x': pattern vs the rule written without a regex, 0 disagreements",
+    "delta_vs_uep_work": {
+      "dropped_now_kept": 172,
+      "all_indented_4plus_or_tab_led": true,
+      "kept_now_dropped": 1224,
+      "all_have_whitespace_between_markers": true,
+      "counted_over": "the 686,286 already-rstripped lines among the 960,800, which is how the pattern sees a line. Over all 960,800 raw lines the counts are 412 and 2,304 (Agent C). Both qualitative claims hold either way."
+    },
+    "backtracking": "7 shapes at N=8,000 and 32,000; worst ratio 5.1x for 4x input; slowest 2.566ms",
+    "fixture_effect": "26 fixture notes, chunk_note output changed: 0"
+  },
+  "pinned_edge": {
+    "what": "a rule is now kept when removed comments plus literal spaces leave four or more leading spaces. '<!--a--> <!--b--> ---' is the pinned case; '<!--a--><!--b--> ---' leaves two and is still dropped.",
+    "measured": {
+      "<!--a--> ---": {
+        "old": "drop",
+        "new": "drop",
+        "new_text": ""
+      },
+      "<!--a--><!--b--> ---": {
+        "old": "drop",
+        "new": "drop",
+        "new_text": ""
+      },
+      "<!--a--> <!--b--> ---": {
+        "old": "drop",
+        "new": "keep",
+        "new_text": "    ---"
+      },
+      "<!--a--> <!--b--> <!--c--> ---": {
+        "old": "drop",
+        "new": "keep",
+        "new_text": "      ---"
+      }
+    }
+  },
+  "known_limitation_unchanged": "a rule after removed inline comment(s) that leave 0-3 leading spaces is still dropped, as at uep/work ('<!--a--> ---'). By the HTML-block reasoning it should be kept. Not repaired here. Siblings of the same mechanism, markers only, found by Agent C: '<!--a-->   ---' and '-->    ---' are now kept; '-<!--a-->-<!--b-->-', '- <!--a--> - <!--b--> -' and '<!--a--> * * *' were kept and are now dropped.",
+  "mutation_check": {
+    "caught": 8,
+    "survived": 0,
+    "mutations": [
+      "indent limit removed",
+      "indent limit four",
+      "no whitespace between markers",
+      "two dashes enough",
+      "'=' run may contain spaces",
+      "'=' not a marker",
+      "any mixture of markers",
+      "trailing text allowed"
+    ],
+    "applies_to": "the first candidate a6fcfc0 (pattern mutations). Repair 1 and repair 2 each record their own."
+  },
+  "docs": [
+    "PD-002 closed",
+    "WL-02 and WL-03 resolved by deletion of the text they described"
+  ],
+  "still_open": [
+    "PD-003 heading-pattern quadratic",
+    "D2",
+    "D3/D5",
+    "build_index has no file-size cap",
+    "WL-01, WL-04..WL-15"
+  ],
+  "derived_line_citations": {
+    "pattern": {
+      "file": "src/ask-my-brain/ask_my_brain.py",
+      "anchor": "r\"^ {0,3}\"",
+      "line": 900
+    },
+    "checks": {
+      "file": "tests/test_retrieval_core_e2e.py",
+      "anchor": "# D6, repaired by SB-ASK-013.",
+      "line": 397
+    },
+    "trailing_whitespace_checks": {
+      "file": "tests/test_retrieval_core_e2e.py",
+      "anchor": "# A break may end only in spaces or tabs. The classifier tidies",
+      "line": 409
+    },
+    "visible_line": {
+      "file": "src/ask-my-brain/ask_my_brain.py",
+      "anchor": "is_rule = _RULE_LINE_RE.match(visible) is not None",
+      "line": 1091
+    },
+    "comment_context_checks": {
+      "file": "tests/test_retrieval_core_e2e.py",
+      "anchor": "# The same holds when a comment shares the line",
+      "line": 421
+    }
+  },
+  "superseded_candidates": [
+    {
+      "sha": "a6fcfc08b5404dfb3c22e80f8e2a91dce77f4b7a",
+      "agent_c": "PASS",
+      "codex": "FAIL on behaviour: '---' + NBSP dropped as a break"
+    },
+    {
+      "sha": "a3bbcc71ff6c565de07af73063fe294617974fa6",
+      "agent_c": "FAIL on behaviour: the raw-line guard is wrong whenever a comment shares the line, in both directions",
+      "codex": "not run"
+    }
+  ],
+  "codex": {
+    "first_run": {
+      "sha": "a6fcfc0",
+      "verdict": "FAIL",
+      "blocking": "trailing non-ASCII whitespace discarded before rule classification; witness '---' + U+00A0",
+      "passed": [
+        "both D6 directions",
+        "no catastrophic-backtracking construction: alternatives have distinct initial markers and the repetitions a forced partition",
+        "no commented-out text leaked",
+        "the pinned edge acceptable; the one-comment limitation disclosed",
+        "Agent C's three unpinned cases non-blocking",
+        "receipt machine facts consistent"
+      ]
+    },
+    "second_run": {
+      "sha": "ebd76676f3de313b8df96ae16287a680fe888aea",
+      "verdict": "PASS",
+      "blocking": "none",
+      "confirmed": [
+        "CODEX-2 fixed across Unicode-whitespace, comment-state, fence and chunking paths: NBSP, U+3000, U+2009, U+2002, U+2003, U+202F, U+205F, U+1680, VT, FF, CR; complete comments before/after/beside markers; whitespace inside vs outside an unclosed comment; multi-line closure; close-then-open; literal openers; fences",
+        "177,155 short single-line inputs vs a6fcfc0: 96 behavioural differences, all involving non-ASCII whitespace or comment markers",
+        "no content or title leakage through chunk_note",
+        "'- '*n + NBSP*n linear through 1.2M characters",
+        "no vacuous check among the 18 added",
+        "receipt SHA, base, history and four-file changed set"
+      ],
+      "test_gaps_non_blocking": "agrees with Agent C: the two surviving mutants are genuine coverage gaps, one assertion on index 1 would kill both, and the implementation is correct on the witness",
+      "wording": [
+        "the repair-1 test comment still mentions a guard repair 2 removed",
+        "'unless the line was cut at an opener' is imprecise for a literal opener, whose tail is appended harmlessly",
+        "docs/WORDING_CLEANUP_LOG.md ends in a blank line (git diff --check)"
+      ],
+      "limitation": "did not run the main suite in its read-only sandbox; used direct Python calls. Agent C ran all five suites on this SHA."
+    }
+  },
+  "repair_1": {
+    "trigger": "Codex FAIL on a6fcfc0 (behavioural)",
+    "provenance": "'---'+NBSP has been dropped since SB-ASK-006; '* * *'+NBSP was kept at uep/work and dropped by a6fcfc0. Partly pre-existing, partly introduced by this package.",
+    "first_attempt_was_wrong": "moving the match above the rstrip() Codex pointed at changed nothing: the rstrip() that matters is at the top of the loop. The call-site oracle caught it - 1,122 disagreements, 0 lines moved.",
+    "fix": "the rule branch is taken only when the raw line's trailing whitespace is spaces and tabs alone",
+    "call_site_oracle": "classify_markup vs the regex-free rule over 960,800 RAW lines up to length 7 including NBSP: 0 disagreements",
+    "delta_vs_a6fcfc0": "1,122 lines moved, all drop->keep, all ending in whitespace other than space/tab",
+    "chunk_note_differential": "60,000 notes, 1,511 differ from a6fcfc0, 0 unexplained line differences",
+    "fixture_effect": "0 of 26 differ from uep/work",
+    "mutations": "6 caught, 0 survived, including the three that survived Agent C's run",
+    "agent_c_gaps_closed": [
+      "'_ _'",
+      "'=='",
+      "NBSP between markers"
+    ],
+    "superseded_by": "repair 2: the raw-line guard was wrong beside a comment and is removed"
+  },
+  "repair_budget": "2 of 2 used. A further behavioural FAIL is a hard stop.",
+  "repair_2": {
+    "trigger": "Agent C FAIL on a3bbcc7 (behavioural, B1)",
+    "hazard_named_but_untested": "the executor flagged exactly this to Agent C when sending repair 1, and had not tested it",
+    "direction_1": "'* * *'+NBSP+'<!-- c -->' dropped, should be kept; kept at uep/work, so a regression of this package. The second rstrip(), which repair 1 dismissed, is the one that matters beside a comment.",
+    "direction_2": "'--- <!-- unclosed'+NBSP with a later closer kept, should be dropped; introduced by repair 1's guard",
+    "fix": "the pattern sees the visibly-ending line; the raw-line guard is removed",
+    "model_check": "a character-level comment machine plus the regex-free rule, written separately: 549,028 notes (token sequences to length 6 over '-','*',space,NBSP,'<!--','-->','x' in four comment contexts), 0 disagreements. A first run showed 30, all a fault in the model (it stripped an NBSP standing before an opener).",
+    "agent_c_witnesses": "all 14 classify as Agent C's report says they should",
+    "moved_vs_a3bbcc7": "60 of 549,028",
+    "comment_free_identity": "all 960,800 raw lines classify identically to a3bbcc7",
+    "differential": "80,000 generated notes, 636 differ from a3bbcc7, every differing line carries '<!--' or '-->'",
+    "fixture_effect": "0 of 26 differ from uep/work",
+    "long_tails": "three shapes at 250k and 1M characters, ratios 4.0-4.7x for 4x input, slowest 17ms",
+    "mutations": "6 caught, 0 survived, including Agent C's surviving mutant and Codex's original finding restored",
+    "new_checks": 7
+  },
+  "agent_c": {
+    "run_1": {
+      "sha": "a6fcfc08b5404dfb3c22e80f8e2a91dce77f4b7a",
+      "verdict": "PASS",
+      "blocking": "none",
+      "first_review_under_the_amended_gate": true,
+      "could_not_break": [
+        "the rule oracle to length 8 on an 11-character alphabet incl. NBSP, \\\\r, \\\\x0b, \\\\x0c: 235,794,769 lines, 0 disagreements",
+        "old-vs-new delta: exactly the two intended classes, nothing else moved",
+        "200,000-note differential through frontmatter_end, classify_markup and chunk_note with a recording proxy on the pattern: 0 unexplained differences, 0 title differences, no commented-out text leaked",
+        "20 backtracking shapes to 128k units plus 1M and 4M stress: worst 4.78x for 4x input, linear",
+        "fence, frontmatter, open-comment, setext and note_title interactions",
+        "base control: the new tests fail on the base src",
+        "15 of the 24 new checks discriminate base from candidate; 9 are regression guards",
+        "receipt machine facts and both anchors"
+      ],
+      "test_gaps_minor_non_blocking": [
+        "nothing pins '_ _' or '__' as kept ({2,} for underscores survives)",
+        "nothing pins NBSP between markers as kept (\\\\s in place of [ \\\\t] survives)",
+        "nothing pins '==' or '+++' as kept (={2,} and '+' as a marker survive) - predates this package"
+      ],
+      "suggested_additions": [
+        "'_ _'",
+        "'=='",
+        "'-\\\\xa0-\\\\xa0-'"
+      ],
+      "wording_findings_to_log": 6
+    },
+    "run_2": {
+      "sha": "a3bbcc7",
+      "verdict": "FAIL",
+      "blocking": "B1 - the raw-line guard is wrong beside a comment, both directions"
+    },
+    "run_3": {
+      "sha": "ebd76676f3de313b8df96ae16287a680fe888aea",
+      "verdict": "PASS",
+      "blocking": "none",
+      "could_not_break": [
+        "B1 closed both ways: 53 witnesses match an independent model written this run",
+        "its own 3,843,200-note harness: 0 disagreements with its reference model, where a3bbcc7 had 586",
+        "extended space of 107,616,800 notes - 9 tokens to length 7 in 20 comment and fence contexts - 0 disagreements with either of two independent models; fenced lines verbatim",
+        "the executor's model fix judged a genuine model bug, not a product defect explained away",
+        "truncated set on exactly the right path; close-then-open lines correct",
+        "300,000-note differential vs a3bbcc7: 2,608 lines moved, 0 unexplained, 0 of 1,575,851 comment-free lines moved",
+        "leakage: 0 violations of an absolute visibility oracle, vs a3bbcc7 and vs uep/work",
+        "13 timing shapes to 4M characters, linear",
+        "all receipt machine facts and five anchors"
+      ],
+      "test_gaps_non_blocking": [
+        "M9 'truncated' sticky across lines survives; witness ['<!--','-->---NBSP'] line 2",
+        "M13' tail lost on the line that closes a multi-line comment survives; same witness",
+        "one added check on index 1 would close both; the code is correct on these inputs over 107.6M notes"
+      ],
+      "performance_note": "'- '*n + NBSP*n at 1M characters costs 87ms where a3bbcc7 took 5ms - linear, a constant factor, because the pattern now reads the run before failing at the NBSP",
+      "wording": [
+        "W1 the repair-1 test comment still speaks of 'a guard on the line as written', which repair 2 removed",
+        "W2 'unless the line was cut at an opener' is exact only for the cut path; the tail is harmlessly appended on the literal-opener path",
+        "W3 '636 of 80,000', '30', 'fourteen', 'six' not reproducible without the executor's generator",
+        "W4 this block needed an entry for this run - now added"
+      ]
+    }
+  },
+  "merge_gate": {
+    "candidate_sha": "ebd76676f3de313b8df96ae16287a680fe888aea",
+    "branch": "uep/task-sb-ask-013",
+    "agent_c": "PASS on ebd7667",
+    "codex": "PASS on ebd7667",
+    "sequential": "Codex started only after Agent C finished",
+    "repair_cycles_used": "2 of 2",
+    "status": "gate satisfied; awaiting the owner's merge decision. Nothing merged.",
+    "to_log_at_merge": [
+      "Agent C run 1 WORDING-1..6, run 3 W1..W4, Codex wording x3 -> docs/WORDING_CLEANUP_LOG.md",
+      "follow-up test gap: one check on index 1, witness ['<!--','-->---NBSP']",
+      "known limitation unchanged: a rule after removed comment(s) leaving 0-3 leading spaces is still dropped"
+    ]
+  },
+  "status": "MERGED into uep/work, owner approval 2026-09-17",
+  "merge": {
+    "integration_merge_sha": "45e7d7a061006cc67934591ed57b30c8fd49236c",
+    "parents": [
+      "a8008fe",
+      "ebd7667"
+    ],
+    "into": "uep/work only",
+    "suites_on_merged_tree": "291 / 59 / 19 / 24 / 32, --help exit 0",
+    "merged_tree_vs_candidate": "src/, tests/ and fixtures/ identical",
+    "docs_commit_after_merge": "2959285cb5950374c5dda8a5d45549273fa96d8e",
+    "logged": "WL-16..WL-22 and TG-01 in docs/WORDING_CLEANUP_LOG.md",
+    "untouched": {
+      "main": "3bb0761",
+      "remotes": 0,
+      "home_vault_runtime": "not touched"
+    },
+    "open_after_merge": [
+      "PD-003 heading-pattern quadratic",
+      "D2",
+      "D3/D5",
+      "build_index has no file-size cap",
+      "TG-01",
+      "a rule after removed comment(s) leaving 0-3 leading spaces is still dropped"
+    ]
+  }
+}

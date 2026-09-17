@@ -1,0 +1,1398 @@
+Reading additional input from stdin...
+OpenAI Codex v0.154.0
+--------
+workdir: /tmp/claude-1000/-home-jro-asb-product-work/3a6ea635-0952-4430-b51f-5ad9bf0bc6ac/scratchpad/codex-013
+model: gpt-5.6-sol
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: low
+reasoning summaries: none
+session id: 01a0af6f-b2c7-79a0-a824-c018fc21c38f
+--------
+user
+You are **Codex**, the independent reviewer for a frozen product candidate in the AI Second Brain
+project. You review only. Do not edit, create or delete any file, do not move any git ref, and do
+not propose to apply a fix yourself - report findings and stop. Agent C has passed this exact SHA
+and is not running; you are the only reviewer active.
+
+## The frozen object
+
+- Package: **SB-ASK-013** - the repair of YOUR finding CODEX-2 (defect D6)
+- Candidate SHA: a6fcfc08b5404dfb3c22e80f8e2a91dce77f4b7a
+- Base (integration branch `uep/work`): a8008fe4ceecd60b90bcce268cc4a5107684cd2e
+- Your working directory IS a detached checkout of that exact SHA.
+- Package diff (small - read all of it): ./PACKAGE_DIFF.patch
+- Receipt: ./PACKAGE_RESULT.json
+
+## THE GATE HAS CHANGED - read docs/SECOND_BRAIN_EXECUTION_HANDOFF.md section 5, "Wording findings do not block"
+
+By owner decision, a finding that concerns ONLY non-executable wording - a code comment, a
+docstring no code reads, a comment or check label in a test, a commit message, the prose of a
+receipt - does NOT block a package whose behaviour is verified. Still report such findings, but
+label each one **WORDING** and list them separately. Your verdict must rest on behaviour, scope,
+tests and machine facts. Still blocking: strings the product emits or a test asserts on,
+prompt/trailer contracts, and a receipt's machine facts (SHAs, changed files, commands, exit codes).
+
+## What you found, and what changed
+
+On 2fed7cb you reported that `_RULE_LINE_RE` keeps `* * *` (a valid thematic break) and deletes
+`    ---` (four-space indent, not a break). The old pattern was
+`^[ \t]*(?:\*{3,}|-{3,}|_{3,}|={3,})[ \t]*$`. The new one:
+
+    r"^ {0,3}"
+    r"(?:(?:\*[ \t]*){3,}|(?:-[ \t]*){3,}|(?:_[ \t]*){3,}|={3,}[ \t]*)"
+    r"$"
+
+applied at one unchanged call site in `_classify_once`, to the line after inline comments are
+replaced by single spaces and after `rstrip()`. The `={3,}` alternative is deliberate project
+behaviour (dropping a setext underline), not CommonMark's thematic break.
+
+## What to review, in priority order
+
+1. **Is D6 actually repaired, in both directions, and is the pattern right?** Attack boundaries:
+   3 vs 4 spaces, tabs in the indent, tabs between markers, two markers, mixtures, trailing text,
+   `= = =`, non-ASCII whitespace, a trailing newline reaching `$`.
+2. **Catastrophic backtracking.** The pattern nests a quantifier. Find an input that makes it
+   superlinear, or show why none exists.
+3. **Collateral behaviour.** Anything the change breaks nearby: frontmatter closers, fenced blocks
+   (a rule inside a fence must survive verbatim), open comments, setext underlines, `note_title`,
+   and above all whether any commented-out TEXT can now reach a chunk body or title.
+4. **The pinned edge.** Because removed comments leave spaces, `<!--a--> <!--b--> ---` is now kept
+   (four spaces in) while `<!--a--> ---` is still dropped. The executor pinned the first and recorded
+   the second as an unchanged limitation. Acceptable, or a defect this package should have fixed?
+5. **Scope.** Any product-code change beyond the pattern and its comment?
+6. **Tests.** 24 checks replace the two defect pins. Any that cannot fail, or that pass for the
+   wrong reason? Agent C found three minor unpinned cases (`_ _`, `==`/`+++`, NBSP between
+   markers) - say whether you consider any of them blocking.
+7. **Receipt machine facts.**
+8. WORDING findings, labelled, last.
+
+## Constraints
+
+- The main suite writes a temporary database outside the working directory and may not run in your
+  sandbox; say so, and use direct Python calls instead. Not a defect.
+- Do not write outside your working directory; do not touch the network.
+
+## Output
+
+Verdict (PASS or FAIL). Then BLOCKING findings, each with exact code, location, witness, observed
+versus expected, and how you verified it. Then WORDING findings, labelled. Then what you checked.
+2026-09-17T12:55:28.417597Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: "Bearer realm=\"OAuth\", resource_metadata=\"https://mcp.cloudflare.com/.well-known/oauth-protected-resource/mcp\"" })
+warning: Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest.
+codex
+I’m using the Second Brain acceptance-coordinator skill because this is a frozen-candidate gate review. I’ll keep the checkout strictly read-only and separate behavioral blockers from wording-only findings.
+exec
+/bin/bash -lc "sed -n '1,240p' /home/jro/.agents/skills/synced/b3739465-8229-4f62-8168-599e7753e477_2b1f5040-cc5f-4c6a-bdff-481a5e9cf404/second-brain-acceptance-coordinator/SKILL.md" in /tmp/claude-1000/-home-jro-asb-product-work/3a6ea635-0952-4430-b51f-5ad9bf0bc6ac/scratchpad/codex-013
+ succeeded in 0ms:
+---
+name: "second-brain-acceptance-coordinator"
+description: "Classify a Second Brain V2 specialist agent's mirrored evidence against the project's 10-criterion consolidated-acceptance checklist (intended domain, retrieval relevance, grounding/provenance, permission behavior, queue/resource behavior, failure handling, phone/control surface, owner review, regression, no unauthorized external action). Use when the owner asks whether a specialist (Research, Writing, Travel, Career, Automation, Project Planning, etc.) is ready for acceptance, or to assess existing Phase B evidence. Do not use to run or recommend running a live production test — this Skill only classifies evidence already in evidence-mirror/current."
+---
+
+# Second Brain Acceptance Coordinator
+
+## When to use
+
+The owner asks whether a specialist agent is ready for consolidated acceptance, wants an
+assessment of existing Phase B (or equivalent) evidence, or wants to know what's missing
+before a specialist can be promoted.
+
+## When NOT to use
+
+- Debugging a specific failure trace (use **Second Brain Root Cause Coordinator**).
+- Deciding to actually run a new live test — this Skill only classifies *existing*
+  mirrored evidence and recommends the minimum additional test; it never runs one.
+- Assessing shared-foundation components (Agent Coordinator, System Awareness,
+  Preference Learning) — no equivalent checklist exists for those yet (see
+  `docs/KNOWN_ISSUES.md` KI-043 / `command-center/PENDING_DECISIONS.yaml` PD-002); say so
+  rather than forcing the specialist checklist onto them.
+
+## Project context
+
+This skill operates on the AI Second Brain project workspace at
+`/home/jro/AI-Second-Brain-Development`. `command-center/` is a Cowork-owned
+coordination/derived-state layer — never authoritative. `AGENTS.md` at the project root
+defines the full authority hierarchy; nothing this skill touches outranks it.
+
+## Authoritative inputs
+
+- `evidence-mirror/current/files/<agent-name>/**` — raw closeouts or sanitized receipts
+  for the specialist in question.
+- `docs/TESTING_AND_ACCEPTANCE.md` — the checklist's definition.
+- `docs/KNOWN_ISSUES.md` — prior findings for this component.
+
+## Evidence / freshness requirements
+
+Confirm the read protocol (`evidence-mirror/current` resolves to
+`status.json.current_snapshot_id`) before classifying. If the specialist's directory has
+files marked `changed_review_required` or `unclassified` in the manifest, say so — those
+files are not visible to this Skill by design and their absence should not be silently
+treated as "no evidence exists."
+
+## Allowed operations
+
+- Read `evidence-mirror/current/**` (specialist-agent roots), `docs/TESTING_AND_ACCEPTANCE.md`,
+  `docs/KNOWN_ISSUES.md`.
+- Read multiple specialists' evidence in parallel when evaluating more than one.
+- Produce a classification report (chat output or artifact) — no file writes required by
+  this Skill's core function; it may optionally draft (not apply) a `command-center/DEVELOPMENT_BACKLOG.yaml`
+  candidate item for the recommended next test.
+
+## Prohibited operations
+
+- No SSH, no `home` access, no production vault access, no submitting queue jobs of any
+  kind — this Skill has no live-test capability at all.
+- No writes to `docs/**`, `AGENTS.md`, or `command-center/DEVELOPMENT_BACKLOG.yaml`
+  directly (draft-only, per above).
+- Do not describe or imply steps for executing a live production test — that crosses into
+  Codex / Second Brain Codex Task Builder territory, gated on owner approval.
+
+## Owner-approval boundaries
+
+This Skill requires no approval to run (pure read + classify). Its output — "minimum
+additional test needed" — is a recommendation only; actually running that test requires
+the full **Second Brain Codex Task Builder** + owner-approval flow, entirely
+separate from this Skill.
+
+## The 10 criteria (verbatim from docs/TESTING_AND_ACCEPTANCE.md)
+
+1. intended domain
+2. retrieval relevance
+3. grounding/provenance
+4. permission behavior
+5. queue/resource behavior
+6. failure handling
+7. phone/control surface
+8. owner review
+9. regression
+10. no unauthorized external action
+
+## Expected output structure
+
+For each of the 10 criteria, classify exactly one of: **FULLY EVIDENCED**, **PARTIALLY
+EVIDENCED**, **NOT EVIDENCED**, **NOT APPLICABLE** (state why), **FAILED / CONTRADICTORY
+EVIDENCE**. Then: a plain-language conclusion first, then the minimum additional test
+needed for any genuine gap (not a maximal retest of everything).
+
+## Hard rules — violating any of these is a defect in this Skill's output, not a judgment call
+
+- **Never treat NOT EVIDENCED as FAILED.** Absence of a test is not a failed test.
+- **Never treat a mechanism-safety PASS as proof of output quality.** All safety flags
+  `false` (as required) proves *permission behavior* passed — nothing about output
+  quality. (Writing Agent's Phase B: safety flags all correct, core deliverable still a
+  confirmed defect.)
+- **Never treat grounded-but-irrelevant retrieval as successful retrieval relevance.**
+  Citation coverage passing is a *grounding/provenance* result, not a *retrieval
+  relevance* result. (Writing Agent test 2: Waze sources cited for a welcome-email draft —
+  citation coverage passed, retrieval relevance clearly failed.)
+
+## Stop conditions
+
+- Stop before recommending or describing any live/production test execution step.
+- Stop and say so plainly if the target component has no consolidated-acceptance
+  checklist defined yet (shared-foundation components).
+- Stop if the evidence-mirror read protocol fails — report `UNKNOWN` freshness rather
+  than classifying against a possibly-stale snapshot without saying so.
+
+exec
+/bin/bash -lc "git status --short --branch && git rev-parse HEAD && git rev-parse uep/work && sed -n '1,260p' PACKAGE_DIFF.patch && sed -n '1,240p' PACKAGE_RESULT.json && rg -n \"Wording findings do not block|"'^##? 5|_RULE_LINE_RE|def _classify_once" docs/SECOND_BRAIN_EXECUTION_HANDOFF.md . --glob '"'"'!PACKAGE_DIFF.patch'"'" in /tmp/claude-1000/-home-jro-asb-product-work/3a6ea635-0952-4430-b51f-5ad9bf0bc6ac/scratchpad/codex-013
+ succeeded in 0ms:
+## HEAD (no branch)
+?? PACKAGE_DIFF.patch
+?? PACKAGE_RESULT.json
+?? REVIEW_TASK.md
+a6fcfc08b5404dfb3c22e80f8e2a91dce77f4b7a
+a8008fe4ceecd60b90bcce268cc4a5107684cd2e
+diff --git a/docs/PRODUCT_DECISIONS.md b/docs/PRODUCT_DECISIONS.md
+index 4becbb9..302b32e 100644
+--- a/docs/PRODUCT_DECISIONS.md
++++ b/docs/PRODUCT_DECISIONS.md
+@@ -57,7 +57,8 @@ no longer printed.
+ 
+ ## PD-002 — Indented marker runs are deleted as thematic breaks (D6)
+ 
+-**Status:** open, deferred, non-blocking.
++**Status:** closed. Selected by the owner 2026-09-17 and repaired by SB-ASK-013,
++in both directions. The text below is the item as it was raised.
+ **Raised:** 2026-09-17, by Codex reviewing SB-ASK-009; provenance corrected by
+ Agent C reviewing SB-ASK-012.
+ **Blocks:** nothing. Pinned as defect D6 in `tests/test_retrieval_core_e2e.py`.
+diff --git a/docs/WORDING_CLEANUP_LOG.md b/docs/WORDING_CLEANUP_LOG.md
+index c15a878..eb4df86 100644
+--- a/docs/WORDING_CLEANUP_LOG.md
++++ b/docs/WORDING_CLEANUP_LOG.md
+@@ -40,3 +40,11 @@ its file at `48752ee`.
+ | WL-13 | `package-result-sb-ask-010.json` | `closes[AC3-1].guard_proved_non_vacuous` | Cites `tests:359, 533, 543, 554` as the candidate's. At `16bbf63` those sites are 361, 536, 544, 557; two of the four cited numbers match no commit. |
+ | WL-14 | `package-result-sb-ask-011.json` | `closes[O1].what` | Undercounts the unmarked lines carrying "Give Back": says three in the test file, there were five. |
+ | WL-15 | `package-result-sb-ask-011.json` | `changed_files` / `product_code_unchanged` | Adjacent fields measured against different bases (`16bbf63` and `2fed7cb`) without saying so. |
++
++## Resolved
++
++| id | how |
++| --- | --- |
++| WL-02 | The comment above `_RULE_LINE_RE` was rewritten by SB-ASK-013 when the pattern changed; the sentence is gone. |
++| WL-03 | The D6 pins and their comment were deleted by SB-ASK-013 when D6 was repaired. |
++
+diff --git a/src/ask-my-brain/ask_my_brain.py b/src/ask-my-brain/ask_my_brain.py
+index d938615..9c45dda 100755
+--- a/src/ask-my-brain/ask_my_brain.py
++++ b/src/ask-my-brain/ask_my_brain.py
+@@ -889,16 +889,17 @@ def fence_delimiter(
+ 
+     return False
+ 
+-# A thematic break is three or more of ONE marker, not any mixture of them.
+-# Written as a character class, this deleted lines like '-=_*' that are not
+-# breaks at all - a latent error inherited from the base, where the pattern
+-# is written with a doubled backslash and deletes no rule line. '=' is kept
+-# as a marker so that a setext underline is still removed, which is the
+-# behaviour this line has always been declared to have.
++# A Markdown thematic break: at most three spaces of indent, then three or
++# more of ONE marker out of '*', '-' and '_', each of which may be followed
++# by spaces or tabs, and nothing else on the line. A mixture of markers is
++# not a break, and neither is a run indented four spaces or by a tab, which
++# is indented code. A run of three or more '=' under the same indent limit
++# is dropped as well: it is a setext heading underline, and unlike a break
++# it may not contain spaces.
+ _RULE_LINE_RE = re.compile(
+-    r"^[ \t]*"
+-    r"(?:\*{3,}|-{3,}|_{3,}|={3,})"
+-    r"[ \t]*$"
++    r"^ {0,3}"
++    r"(?:(?:\*[ \t]*){3,}|(?:-[ \t]*){3,}|(?:_[ \t]*){3,}|={3,}[ \t]*)"
++    r"$"
+ )
+ 
+ _INLINE_COMMENT_RE = re.compile(
+diff --git a/tests/test_retrieval_core_e2e.py b/tests/test_retrieval_core_e2e.py
+index 8a9c211..31146d4 100644
+--- a/tests/test_retrieval_core_e2e.py
++++ b/tests/test_retrieval_core_e2e.py
+@@ -49,8 +49,9 @@ because deterministic_evidence_strength returns HIGH for any all_terms match how
+ the terms are, so every change to the term set moves strength as a side effect. Do not read those
+ two pins as requirements.
+ 
+-D6 (thematic breaks are recognised by an approximation that is wrong in both directions) was found
+-by Codex reviewing SB-ASK-009, is older than that package, and is pinned OPEN beside them.
++D6 (thematic breaks were recognised by an approximation that was wrong in both directions) was
++found by Codex reviewing SB-ASK-009 and repaired by SB-ASK-013. Its two pins are replaced by
++[chunking] checks of the correct behaviour.
+ """
+ from __future__ import annotations
+ 
+@@ -393,6 +394,37 @@ def main() -> int:
+             check(dropped not in marks,
+                   f"[chunking] {dropped!r} is a run of one marker and is stripped (got {marks!r})")
+ 
++        # D6, repaired by SB-ASK-013. A break's markers may be separated by spaces or tabs, and a
++        # break may be indented by at most three spaces; a tab or a fourth space makes the line
++        # indented code. A run of '=' is a setext underline and may not contain spaces.
++        for line in ("* * *", "- - -", "_ _ _", "*  *  *", "-\t-\t-", "- - - -", " * * *",
++                     "   ---", "   ===="):
++            kind = amb.classify_markup([line], 0)[0]["kind"]
++            check(kind == "drop", f"[chunking] {line!r} is a thematic break and is dropped (got {kind})")
++        for line in ("    ---", "\t---", " \t---", "    * * *", "    ===", "* - *", "- _ -", "- -",
++                     "* *", "= = =", "---x", "- - - x"):
++            entry = amb.classify_markup([line], 0)[0]
++            check(entry["kind"] == "keep" and entry["text"] == line,
++                  f"[chunking] {line!r} is not a thematic break and is kept whole (got {entry})")
++        # The pattern sees the line after comments are removed, and each removed comment leaves
++        # one space. So a rule after two removed comments begins with four spaces and is kept.
++        # Markdown would keep it too, for its own reason: a line that opens with a comment is an
++        # HTML block, and nothing on it is a thematic break.
++        entry = amb.classify_markup(["<!--a--> <!--b--> ---"], 0)[0]
++        check(entry["kind"] == "keep" and entry["text"] == "    ---",
++              f"[chunking] a rule after two removed comments is kept, four spaces in (got {entry})")
++        # The two witnesses Codex raised, through chunk_note, where whitespace is also tidied.
++        _, spaced = amb.chunk_note(
++            "# T\nVisible prose long enough for indexing here ok.\n\n* * *\n\n"
++            "After prose long enough for indexing here.\n", "n.md", 3500)
++        check("*" not in "\n".join(c["body"] for c in spaced),
++              "[chunking] a break written with spaces between its markers does not reach the body")
++        _, indented = amb.chunk_note(
++            "# T\nVisible prose long enough for indexing here ok.\n\n    ---\n\n"
++            "After prose long enough for indexing here.\n", "n.md", 3500)
++        check("---" in "\n".join(c["body"] for c in indented),
++              "[chunking] a run of markers indented four spaces is content and reaches the body")
++
+         # Whether a comment opener ever closes is decided before classifying, from whether any
+         # later line carries a closing marker. That is what makes the classifier linear instead
+         # of restarting over the whole note per opener.
+@@ -967,26 +999,6 @@ def main() -> int:
+               "[defect-pins] DEFECT D3 PINNED (not a requirement): a contentless question yields "
+               "HIGH-strength evidence and would be answered by the model")
+ 
+-        # D6 (MEDIUM, Codex on SB-ASK-009): _RULE_LINE_RE approximates a Markdown thematic break
+-        # and is wrong in both directions. A break's markers may be separated by spaces, which
+-        # the pattern cannot match, and a break may be indented by at most three spaces, where
+-        # the pattern accepts any amount. Neither is a fault uep/work has: its rule pattern is
+-        # written with a doubled backslash and deletes no rule line at all. So the first witness
+-        # reads the same there only because no rule line is stripped, and the second is a deletion
+-        # this line of packages introduced at SB-ASK-006, when the pattern was made to work.
+-        _, spaced = amb.chunk_note(
+-            "# T\nVisible prose long enough for indexing here ok.\n\n* * *\n\n"
+-            "After prose long enough for indexing here.\n", "n.md", 3500)
+-        check("* * *" in "\n".join(c["body"] for c in spaced),
+-              "[defect-pins] DEFECT D6 PINNED (not a requirement): a thematic break written with "
+-              "spaces between its markers is kept as content")
+-        _, indented = amb.chunk_note(
+-            "# T\nVisible prose long enough for indexing here ok.\n\n    ---\n\n"
+-            "After prose long enough for indexing here.\n", "n.md", 3500)
+-        check("---" not in "\n".join(c["body"] for c in indented),
+-              "[defect-pins] DEFECT D6 PINNED (not a requirement): a run of markers indented four "
+-              "spaces, which is not a thematic break, is deleted as one")
+-
+         # -------------------------------------------------------------- [containment]
+         check(len(CONNECTED) >= 2,
+               f"[containment] the code under test opened databases and we observed them (got {CONNECTED})")
+{
+  "package": "SB-ASK-013",
+  "title": "D6: recognise a thematic break as Markdown defines one",
+  "owner_approval": "'Lets take care of D6' - PD-002 selected, 2026-09-17",
+  "base": "uep/work a8008fe4ceecd60b90bcce268cc4a5107684cd2e",
+  "candidate_sha": "a6fcfc08b5404dfb3c22e80f8e2a91dce77f4b7a",
+  "branch": "uep/task-sb-ask-013",
+  "repair_cycles_used": 0,
+  "changed_files": [
+    "docs/PRODUCT_DECISIONS.md",
+    "docs/WORDING_CLEANUP_LOG.md",
+    "src/ask-my-brain/ask_my_brain.py",
+    "tests/test_retrieval_core_e2e.py"
+  ],
+  "tests": [
+    {
+      "command": "python3 -B tests/test_retrieval_core_e2e.py",
+      "exit_code": 0,
+      "last_line": "PASS retrieval_core_e2e: 273 checks"
+    },
+    {
+      "command": "python3 -B tests/test_ask_grounding_integration.py",
+      "exit_code": 0,
+      "last_line": "PASS ask_grounding_integration: 59 checks"
+    },
+    {
+      "command": "python3 -B tests/test_source_references.py",
+      "exit_code": 0,
+      "last_line": "PASS source_references: 19 checks"
+    },
+    {
+      "command": "python3 -B tests/test_weak_evidence.py",
+      "exit_code": 0,
+      "last_line": "PASS weak_evidence: 24 checks"
+    },
+    {
+      "command": "python3 -B tests/test_search_row_adapter.py",
+      "exit_code": 0,
+      "last_line": "PASS search_row_adapter: 32 checks"
+    },
+    {
+      "command": "python3 -B src/ask-my-brain/ask_my_brain.py --help",
+      "exit_code": 0
+    }
+  ],
+  "src_change": "_RULE_LINE_RE and the comment above it. No other product code.",
+  "verification_before_tests": {
+    "oracle": "960,800 lines up to length 7 over ' \\t*-_=x': pattern vs the rule written without a regex, 0 disagreements",
+    "delta_vs_uep_work": {
+      "dropped_now_kept": 172,
+      "all_indented_4plus_or_tab_led": true,
+      "kept_now_dropped": 1224,
+      "all_have_whitespace_between_markers": true,
+      "counted_over": "the 686,286 already-rstripped lines among the 960,800, which is how the pattern sees a line. Over all 960,800 raw lines the counts are 412 and 2,304 (Agent C). Both qualitative claims hold either way."
+    },
+    "backtracking": "7 shapes at N=8,000 and 32,000; worst ratio 5.1x for 4x input; slowest 2.566ms",
+    "fixture_effect": "26 fixture notes, chunk_note output changed: 0"
+  },
+  "pinned_edge": {
+    "what": "a rule is now kept when removed comments plus literal spaces leave four or more leading spaces. '<!--a--> <!--b--> ---' is the pinned case; '<!--a--><!--b--> ---' leaves two and is still dropped.",
+    "measured": {
+      "<!--a--> ---": {
+        "old": "drop",
+        "new": "drop",
+        "new_text": ""
+      },
+      "<!--a--><!--b--> ---": {
+        "old": "drop",
+        "new": "drop",
+        "new_text": ""
+      },
+      "<!--a--> <!--b--> ---": {
+        "old": "drop",
+        "new": "keep",
+        "new_text": "    ---"
+      },
+      "<!--a--> <!--b--> <!--c--> ---": {
+        "old": "drop",
+        "new": "keep",
+        "new_text": "      ---"
+      }
+    }
+  },
+  "known_limitation_unchanged": "a rule after removed inline comment(s) that leave 0-3 leading spaces is still dropped, as at uep/work ('<!--a--> ---'). By the HTML-block reasoning it should be kept. Not repaired here. Siblings of the same mechanism, markers only, found by Agent C: '<!--a-->   ---' and '-->    ---' are now kept; '-<!--a-->-<!--b-->-', '- <!--a--> - <!--b--> -' and '<!--a--> * * *' were kept and are now dropped.",
+  "mutation_check": {
+    "caught": 8,
+    "survived": 0,
+    "mutations": [
+      "indent limit removed",
+      "indent limit four",
+      "no whitespace between markers",
+      "two dashes enough",
+      "'=' run may contain spaces",
+      "'=' not a marker",
+      "any mixture of markers",
+      "trailing text allowed"
+    ]
+  },
+  "docs": [
+    "PD-002 closed",
+    "WL-02 and WL-03 resolved by deletion of the text they described"
+  ],
+  "still_open": [
+    "PD-003 heading-pattern quadratic",
+    "D2",
+    "D3/D5",
+    "build_index has no file-size cap",
+    "WL-01, WL-04..WL-15"
+  ],
+  "derived_line_citations": {
+    "pattern": {
+      "file": "src/ask-my-brain/ask_my_brain.py",
+      "anchor": "r\"^ {0,3}\"",
+      "line": 900
+    },
+    "checks": {
+      "file": "tests/test_retrieval_core_e2e.py",
+      "anchor": "# D6, repaired by SB-ASK-013.",
+      "line": 397
+    }
+  },
+  "agent_c": {
+    "sha": "a6fcfc08b5404dfb3c22e80f8e2a91dce77f4b7a",
+    "verdict": "PASS",
+    "blocking": "none",
+    "first_review_under_the_amended_gate": true,
+    "could_not_break": [
+      "the rule oracle to length 8 on an 11-character alphabet incl. NBSP, \\\\r, \\\\x0b, \\\\x0c: 235,794,769 lines, 0 disagreements",
+      "old-vs-new delta: exactly the two intended classes, nothing else moved",
+      "200,000-note differential through frontmatter_end, classify_markup and chunk_note with a recording proxy on the pattern: 0 unexplained differences, 0 title differences, no commented-out text leaked",
+      "20 backtracking shapes to 128k units plus 1M and 4M stress: worst 4.78x for 4x input, linear",
+      "fence, frontmatter, open-comment, setext and note_title interactions",
+      "base control: the new tests fail on the base src",
+      "15 of the 24 new checks discriminate base from candidate; 9 are regression guards",
+      "receipt machine facts and both anchors"
+    ],
+    "test_gaps_minor_non_blocking": [
+      "nothing pins '_ _' or '__' as kept ({2,} for underscores survives)",
+      "nothing pins NBSP between markers as kept (\\\\s in place of [ \\\\t] survives)",
+      "nothing pins '==' or '+++' as kept (={2,} and '+' as a marker survive) - predates this package"
+    ],
+    "suggested_additions": [
+      "'_ _'",
+      "'=='",
+      "'-\\\\xa0-\\\\xa0-'"
+    ],
+    "wording_findings_to_log": 6
+  }
+}
+docs/SECOND_BRAIN_EXECUTION_HANDOFF.md:283:Wording findings do not block
+./REVIEW_TASK.md:15:## THE GATE HAS CHANGED - read docs/SECOND_BRAIN_EXECUTION_HANDOFF.md section 5, "Wording findings do not block"
+./REVIEW_TASK.md:26:On 2fed7cb you reported that `_RULE_LINE_RE` keeps `* * *` (a valid thematic break) and deletes
+./docs/PRODUCT_DECISIONS.md:66:`_RULE_LINE_RE` accepts any amount of leading whitespace, so a run of markers
+./docs/SECOND_BRAIN_EXECUTION_HANDOFF.md:283:Wording findings do not block
+./docs/WORDING_CLEANUP_LOG.md:4:corrected, under "Wording findings do not block" in
+./docs/WORDING_CLEANUP_LOG.md:48:| WL-02 | The comment above `_RULE_LINE_RE` was rewritten by SB-ASK-013 when the pattern changed; the sentence is gone. |
+./PACKAGE_RESULT.json:46:  "src_change": "_RULE_LINE_RE and the comment above it. No other product code.",
+./tests/test_retrieval_core_e2e.py:449:        check(amb._RULE_LINE_RE.match("\u00a0---") is None,
+./tests/test_retrieval_core_e2e.py:639:        # the outset and the truncating branch is never entered at all, while _RULE_LINE_RE IS
+./src/ask-my-brain/ask_my_brain.py:899:_RULE_LINE_RE = re.compile(
+./src/ask-my-brain/ask_my_brain.py:943:def _classify_once(
+./src/ask-my-brain/ask_my_brain.py:1079:        if _RULE_LINE_RE.match(line):
+
+exec
+/bin/bash -lc "sed -n '250,330p' docs/SECOND_BRAIN_EXECUTION_HANDOFF.md && sed -n '860,1110p' src/ask-my-brain/ask_my_brain.py && sed -n '360,475p' tests/test_retrieval_core_e2e.py && git diff --stat a8008fe4ceecd60b90bcce268cc4a5107684cd2e..a6fcfc08b5404dfb3c22e80f8e2a91dce77f4b7a && git diff --name-only a8008fe4ceecd60b90bcce268cc4a5107684cd2e..a6fcfc08b5404dfb3c22e80f8e2a91dce77f4b7a && git show --no-ext-diff --format=fuller --stat a6fcfc08b5404dfb3c22e80f8e2a91dce77f4b7a" in /tmp/claude-1000/-home-jro-asb-product-work/3a6ea635-0952-4430-b51f-5ad9bf0bc6ac/scratchpad/codex-013
+ succeeded in 0ms:
+
+When a test is used to guide multi-step work, it must expose individually
+named requirements/checkpoints. A single command exit code is not a progress
+measure. Tests may be reorganized for observability only when an equivalence
+proof shows their requirements were not weakened, removed, or made editable
+by the package.
+
+4. Freeze and verification
+
+When tests pass, freeze the candidate SHA. The candidate must be clean,
+descend from the package base, and include only declared allowed paths.
+
+Agent C runs after the freeze and before Codex. Agent C must verify the exact
+SHA in a detached/isolated checkout, run the package tests plus relevant
+regressions, and perform a base-control check where practical. Agent C cannot
+edit the candidate.
+
+5. Independent review
+
+Use Codex only for the explicit high-risk criteria in the Success Definition.
+Ordinary UI composition, rendering, templates, pure functions, and
+test-covered low-risk workflows normally require local tests plus Agent C only.
+When required, Codex runs only after Agent C passes and against the exact
+frozen SHA. A static-only review must be labelled honestly. Codex findings may
+trigger one bounded Claude remediation inside the same package; the repaired
+candidate repeats local validation and Agent C before a final Codex review. A
+repeated architectural finding is a hard stop, not an invitation to create a
+new remediation identity.
+
+Pure low-risk helper modules with deterministic, pre-committed tests may skip
+Codex when the package brief states why. User-visible behavior by itself does
+not require Codex; the specific high-risk criteria do.
+
+Wording findings do not block
+
+Owner decision 2026-09-17, out of SB-ASK-009 through SB-ASK-012. Across those
+four packages, fifteen completed reviews returned eleven FAILs. Two of the
+eleven found a fault in code: a restart backstop broken by SB-ASK-009's first
+candidate, and the quadratic comment pattern Codex found. The other nine were
+on wording alone.
+
+A finding that concerns only non-executable wording does not block a package
+whose behaviour is verified. Non-executable wording means a code comment, a
+docstring no code reads, a comment or check label in a test, a commit message,
+or the prose of a receipt. Agent C and Codex still report these findings and
+label them WORDING. The executor records each one in
+docs/WORDING_CLEANUP_LOG.md, spends no repair cycle on it, and reports the
+package at the merge gate. The log is worked only when the owner selects a
+cleanup package.
+
+Behaviour counts as verified at the frozen SHA when a reviewer verified that
+SHA, or verified a SHA that differs from it in comments only, meaning every
+changed source and test file parses to the same syntax tree.
+
+This does not cover a string the product emits or a test asserts on, a prompt
+or trailer contract, or a receipt's machine facts: SHAs, changed files, test
+commands and exit codes. Those are behaviour or evidence, not wording, and a
+fault in one blocks as before.
+
+6. Merge to product integration
+
+Jamale decides whether to merge the completed candidate into the isolated
+product integration branch. This changes the product target only. It does not
+alter home, activate a service, publish anything, or synchronize to a
+remote.
+
+At this gate, report:
+
+candidate SHA and integration merge SHA;
+
+exact files changed and diff summary;
+
+tests, Agent C result, and Codex result/limitations;
+
+user-visible behavior gained;
+
+remaining known limitations;
+
+rollback path; and
+
+whether the next package can begin independently.
+
+    A closing fence must use the same character as its opener and be at
+    least as long.
+    """
+
+    match = _FENCE_LINE_RE.match(line)
+
+    if not match:
+        return False
+
+    marker = match.group("marker")
+    info = match.group("info")
+
+    if open_marker is None:
+        # A backtick fence's info string may not itself contain a backtick.
+        if (
+            marker[0] == "`"
+            and "`" in info
+        ):
+            return False
+
+        return marker
+
+    if (
+        marker[0] == open_marker[0]
+        and len(marker) >= len(open_marker)
+        and info.strip() == ""
+    ):
+        return None
+
+    return False
+
+# A Markdown thematic break: at most three spaces of indent, then three or
+# more of ONE marker out of '*', '-' and '_', each of which may be followed
+# by spaces or tabs, and nothing else on the line. A mixture of markers is
+# not a break, and neither is a run indented four spaces or by a tab, which
+# is indented code. A run of three or more '=' under the same indent limit
+# is dropped as well: it is a setext heading underline, and unlike a break
+# it may not contain spaces.
+_RULE_LINE_RE = re.compile(
+    r"^ {0,3}"
+    r"(?:(?:\*[ \t]*){3,}|(?:-[ \t]*){3,}|(?:_[ \t]*){3,}|={3,}[ \t]*)"
+    r"$"
+)
+
+_INLINE_COMMENT_RE = re.compile(
+    r"<!--.*?-->"
+)
+
+
+def last_closing_line(
+    lines: list[str],
+    fm_end: int,
+) -> int:
+    """The last line number carrying a comment closing marker, or 0.
+
+    Whether a comment opener ever closes does not depend on fences or on any
+    other classification: once a comment is open every following line is
+    comment text until a '-->' appears, so the opener at line L closes if and
+    only if some line after L carries one. Knowing that before classifying
+    means an opener that cannot close is treated as literal text immediately,
+    with no restart at all.
+
+    Complete comments on the opener's own line are removed before the opener
+    is looked for, so no '-->' can remain after it on that line - which is why
+    only LATER lines matter here.
+    """
+
+    last = 0
+
+    for number, raw_line in enumerate(
+        lines,
+        start=1,
+    ):
+        if number <= fm_end:
+            continue
+
+        if "-->" in raw_line:
+            last = number
+
+    return last
+
+
+def _classify_once(
+    lines: list[str],
+    fm_end: int,
+    literal_openers: set,
+    last_close: int = None,
+) -> tuple:
+    """Classify every line of the note, always starting from the first.
+
+    `literal_openers` holds the line numbers of '<!--' markers already known
+    not to close; those are ordinary text and open nothing.
+
+    An earlier version of this function could resume part way, to avoid
+    rescanning the prefix a restart would otherwise repeat. It was removed.
+    The rescanning was never what made this quadratic - last_closing_line is
+    what made it linear, by deciding openers up front - and over 20,000
+    openers the two measured the same to within run-to-run noise, so the
+    resume was buying nothing. It cost something real, though: it restored
+    the fence marker but not the open-comment state, so a restart landing on
+    a line where a comment had closed mid-line re-read the text before that
+    closing marker as ordinary content. That text was inside a comment. The
+    backstop is only worth having if it is correct, so it starts from the top.
+
+    Returns the classification and the line number of the first opener that
+    reached the end of the note still unclosed (or None).
+    """
+
+    if last_close is None:
+        last_close = last_closing_line(lines, fm_end)
+
+    classified: list[dict] = []
+    fence_marker = None
+    open_at = None
+
+    for number, raw_line in enumerate(
+        lines,
+        start=1,
+    ):
+
+        if number <= fm_end:
+            classified.append(
+                {
+                    "number": number,
+                    "kind": "drop",
+                    "text": "",
+                    "fenced": False,
+                }
+            )
+            continue
+
+        line = raw_line.rstrip()
+
+        # An open comment is resolved BEFORE the fence test. A fence
+        # delimiter inside a comment is comment text, not a delimiter.
+        if open_at is not None:
+            closing = line.find("-->")
+
+            if closing == -1:
+                classified.append(
+                    {
+                        "number": number,
+                        "kind": "drop",
+                        "text": "",
+                        "fenced": False,
+                    }
+                )
+                continue
+
+            open_at = None
+            line = line[closing + 3:]
+
+        else:
+            delimiter = fence_delimiter(
+                line,
+                fence_marker,
+            )
+
+            if delimiter is not False:
+                fence_marker = delimiter
+                classified.append(
+                    {
+                        "number": number,
+                        "kind": "drop",
+                        "text": "",
+                        "fenced": True,
+                    }
+                )
+                continue
+
+        if fence_marker is not None:
+            classified.append(
+                {
+                    "number": number,
+                    "kind": "keep",
+                    "text": line,
+                    "fenced": True,
+                }
+            )
+            continue
+
+        # Complete comments on this line go first, so two of them cannot
+        # merge and text between them survives. The pattern is only shown the
+        # line up to its last closing marker. Every match ends in a closing
+        # marker, so none can reach past that point or begin after it, and
+        # the result is the same as substituting over the whole line. What
+        # changes is the cost: past the last closing marker each opener made
+        # the pattern scan to the end of the line and fail, which was
+        # quadratic in the openers on one line (Codex, on SB-ASK-009).
+        last_closer = line.rfind("-->")
+
+        if last_closer != -1:
+            line = (
+                _INLINE_COMMENT_RE.sub(
+                    " ",
+                    line[: last_closer + 3],
+                )
+                + line[last_closer + 3:]
+            )
+
+        if number not in literal_openers:
+            opening = line.find("<!--")
+
+            # An opener with no closing marker after it can never close, so
+            # it is literal text and there is nothing to discover later.
+            if (
+                opening != -1
+                and number >= last_close
+            ):
+                literal_openers.add(number)
+                opening = -1
+
+            if opening != -1:
+                open_at = number
+                line = line[:opening]
+
+        line = line.rstrip()
+
+        if _RULE_LINE_RE.match(line):
+            classified.append(
+                {
+                    "number": number,
+                    "kind": "drop",
+                    "text": "",
+                    "fenced": False,
+                }
+            )
+            continue
+
+        classified.append(
+            {
+                "number": number,
+                "kind": "keep",
+                "text": line,
+                "fenced": False,
+            }
+        )
+
+    return classified, open_at
+
+
+def classify_markup(
+    lines: list[str],
+    fm_end: int,
+) -> list[dict]:
+    """Classify every line of a note once, before anything is chunked.
+
+    Returns one dict per line, aligned with `lines`, carrying:
+        number   1-based line number
+        kind     'keep' or 'drop'
+        # restored their TEXT but not the STATE: fence tracking had already run with the lines
+        # consumed, so a heading textually inside the fence became the note's TITLE - the highest
+        # weighted index column, printed verbatim to the model - and the fence delimiters reached
+        # the evidence. Deciding before acting is what closes it.
+        giveback = rows_of(database, "SELECT * FROM chunks WHERE path = ? ORDER BY start_line",
+                           "10 Areas/Give Back Fence Note.md")
+        check(len(giveback) == 1,
+              f"[chunking] the Give Back Fence fixture is ONE chunk: the fence was never swallowed, "
+              f"so no heading inside it split anything (got {len(giveback)})")
+        gb_body = giveback[0]["body"]
+        check(giveback[0]["title"] == "Give Back Fence Note",
+              f"[chunking] a heading inside a fence that an unterminated opener appeared to "
+              f"swallow does NOT become the title (got {giveback[0]['title']!r})")
+        check(giveback[0]["heading"] == "",
+              f"[chunking] nor a chunk heading (got {giveback[0]['heading']!r})")
+        check("GIVEBACKHEADING" in gb_body and "GIVEBACKCONTENT" in gb_body,
+              f"[chunking] while both lines survive as fenced content (got {gb_body!r})")
+        check("an unterminated opener that must not swallow" in gb_body,
+              "[chunking] and the unterminated opener is kept as the literal text it is")
+        check("```" not in gb_body,
+              f"[chunking] and the fence delimiters are still dropped, because the fence was "
+              f"classified as a fence (got {gb_body!r})")
+
+        # A thematic break is three or more of ONE marker. Written as a character class the
+        # pattern deleted any mixture of them, so an ordinary line like '-=_*' was destroyed -
+        # a latent error inherited from the base, where the pattern is written with a doubled
+        # backslash and deletes no rule line. Both directions are pinned: mixtures survive, single
+        # repeated markers go.
+        marks = rows_of(database, "SELECT body FROM chunks WHERE path = ?",
+                        "10 Areas/Break Markers Note.md")[0]["body"]
+        for kept in ("MIXEDMARKS-=_*", "\n-=_*\n", "\n*-*-*-\n", "\n--\n"):
+            check(kept in marks,
+                  f"[chunking] {kept!r} is not a thematic break and survives (got {marks!r})")
+        for dropped in ("\n---\n", "\n***\n", "\n___\n", "\n===\n"):
+            check(dropped not in marks,
+                  f"[chunking] {dropped!r} is a run of one marker and is stripped (got {marks!r})")
+
+        # D6, repaired by SB-ASK-013. A break's markers may be separated by spaces or tabs, and a
+        # break may be indented by at most three spaces; a tab or a fourth space makes the line
+        # indented code. A run of '=' is a setext underline and may not contain spaces.
+        for line in ("* * *", "- - -", "_ _ _", "*  *  *", "-\t-\t-", "- - - -", " * * *",
+                     "   ---", "   ===="):
+            kind = amb.classify_markup([line], 0)[0]["kind"]
+            check(kind == "drop", f"[chunking] {line!r} is a thematic break and is dropped (got {kind})")
+        for line in ("    ---", "\t---", " \t---", "    * * *", "    ===", "* - *", "- _ -", "- -",
+                     "* *", "= = =", "---x", "- - - x"):
+            entry = amb.classify_markup([line], 0)[0]
+            check(entry["kind"] == "keep" and entry["text"] == line,
+                  f"[chunking] {line!r} is not a thematic break and is kept whole (got {entry})")
+        # The pattern sees the line after comments are removed, and each removed comment leaves
+        # one space. So a rule after two removed comments begins with four spaces and is kept.
+        # Markdown would keep it too, for its own reason: a line that opens with a comment is an
+        # HTML block, and nothing on it is a thematic break.
+        entry = amb.classify_markup(["<!--a--> <!--b--> ---"], 0)[0]
+        check(entry["kind"] == "keep" and entry["text"] == "    ---",
+              f"[chunking] a rule after two removed comments is kept, four spaces in (got {entry})")
+        # The two witnesses Codex raised, through chunk_note, where whitespace is also tidied.
+        _, spaced = amb.chunk_note(
+            "# T\nVisible prose long enough for indexing here ok.\n\n* * *\n\n"
+            "After prose long enough for indexing here.\n", "n.md", 3500)
+        check("*" not in "\n".join(c["body"] for c in spaced),
+              "[chunking] a break written with spaces between its markers does not reach the body")
+        _, indented = amb.chunk_note(
+            "# T\nVisible prose long enough for indexing here ok.\n\n    ---\n\n"
+            "After prose long enough for indexing here.\n", "n.md", 3500)
+        check("---" in "\n".join(c["body"] for c in indented),
+              "[chunking] a run of markers indented four spaces is content and reaches the body")
+
+        # Whether a comment opener ever closes is decided before classifying, from whether any
+        # later line carries a closing marker. That is what makes the classifier linear instead
+        # of restarting over the whole note per opener.
+        check(amb.last_closing_line(["a", "b <!-- x", "c -->", "d"], 0) == 3,
+              "[chunking] the last closing marker's line is found")
+        check(amb.last_closing_line(["a", "<!-- x", "b"], 0) == 0,
+              "[chunking] and a note with no closing marker reports none")
+        check(amb.last_closing_line(["-->", "a"], 1) == 0,
+              "[chunking] a marker inside frontmatter does not count")
+
+        # Two places compare a line number against fm_end, and only ONE of them is insensitive to
+        # which comparison it uses. In last_closing_line it cannot matter: frontmatter_end only
+        # ever returns a line whose .strip() is exactly '---', and such a line cannot contain a
+        # closing marker. In the classifier it matters, because the two functions disagree about
+        # what whitespace is - frontmatter_end accepts anything str.strip() removes, while the
+        # rule pattern anchors on [ \t]* only. SB-ASK-009's receipt claimed both comparisons were
+        # equivalent by construction; Agent C showed the second is killable, so it is pinned here
+        # instead of asserted. A non-breaking space before the closing marker is the witness.
+        nbsp_fm = "---\ntitle: N\n\u00a0---\nPROSE line long enough to be indexed as evidence.\n"
+        check(amb.frontmatter_end(nbsp_fm.splitlines()) == 3,
+              "[chunking] frontmatter ends on a closing line indented with a non-breaking space")
+        check(amb._RULE_LINE_RE.match("\u00a0---") is None,
+              "[chunking] but the rule pattern does NOT match that same line, which is why the "
+              "classifier's own comparison has to include it rather than rely on the rule branch")
+        _, nbsp_chunks = amb.chunk_note(nbsp_fm, "n.md", 3500)
+        nbsp_body = "\n".join(c["body"] for c in nbsp_chunks)
+        check("---" not in nbsp_body,
+              f"[chunking] so the closing marker is dropped as frontmatter, not kept as content "
+              f"(got {nbsp_body!r})")
+        check(nbsp_chunks[0]["start_line"] == 4,
+              f"[chunking] and the span starts after it (got {nbsp_chunks[0]['start_line']})")
+
+        # Codex, on SB-ASK-009: substituting complete comments over a whole line was quadratic in
+        # the '<!--' openers on that line, because past the last closing marker every opener made
+        # the pattern scan to the end and fail. The classifier now shows the pattern only the line
+        # up to its last closing marker. Three things are pinned. First, that the text produced is
+        # what it was before: each expected value below was taken from the code as it stood before
+        # the change, not written by hand.
+        for raw, expected in (
+            ("keep <!-- gone --> tail <!--<!--", "keep   tail <!--<!--"),
+            ("a <!-- x --> b <!-- y --> c", "a   b   c"),
+            ("<!-- one --><!-- two -->after", "  after"),
+            ("<!--> not a comment --> x", "  x"),
+            ("<!---->empty comment", " empty comment"),
+            ("lead --> stray closer <!-- opener", "lead --> stray closer <!-- opener"),
+        ):
+            got = amb.classify_markup([raw], 0)[0]["text"]
+            check(got == expected,
+ docs/PRODUCT_DECISIONS.md        |  3 ++-
+ docs/WORDING_CLEANUP_LOG.md      |  8 ++++++
+ src/ask-my-brain/ask_my_brain.py | 19 +++++++-------
+ tests/test_retrieval_core_e2e.py | 56 ++++++++++++++++++++++++----------------
+ 4 files changed, 54 insertions(+), 32 deletions(-)
+docs/PRODUCT_DECISIONS.md
+docs/WORDING_CLEANUP_LOG.md
+src/ask-my-brain/ask_my_brain.py
+tests/test_retrieval_core_e2e.py
+commit a6fcfc08b5404dfb3c22e80f8e2a91dce77f4b7a
+Author:     JRO Second Brain Maintainer <ddice502@gmail.com>
+AuthorDate: Thu Sep 17 08:44:21 2026 -0400
+Commit:     JRO Second Brain Maintainer <ddice502@gmail.com>
+CommitDate: Thu Sep 17 08:44:21 2026 -0400
+
+    SB-ASK-013: recognise a thematic break as Markdown defines one (D6)
+    
+    Owner selected PD-002. _RULE_LINE_RE was wrong in both directions, as Codex found
+    reviewing SB-ASK-009: it deleted a marker run under any amount of indent, where
+    four spaces or a tab make the line indented code, and it could not match a break
+    written with spaces between its markers. The first fault reached uep/work with
+    the SB-ASK-012 merge; it was not inherited.
+    
+    The pattern now reads: at most three spaces of indent, then three or more of one
+    marker out of '*', '-' and '_', each optionally followed by spaces or tabs, and
+    nothing else. A run of three or more '=' under the same indent limit is still
+    dropped as a setext underline, and may not contain spaces.
+    
+    Checked three ways before any test was written.
+    
+    Against the rule written without a regex, over every line up to length 7 from the
+    alphabet space, tab, '*', '-', '_', '=', 'x': 960,800 lines, 0 disagreements.
+    
+    As a delta against uep/work over the same lines: 172 lines were dropped and are
+    now kept, every one indented four or more spaces or led by a tab; 1,224 were kept
+    and are now dropped, every one with whitespace between its markers. Nothing else
+    moved.
+    
+    For backtracking, since the pattern nests a quantifier: seven adversarial shapes at
+    8,000 and 32,000 units, worst 5.1x time for 4x input, slowest 2.6ms.
+    
+    No fixture's chunk_note output changes: 26 notes compared, 0 differ.
+    
+    One edge is pinned with its mechanism stated. The pattern sees the line after
+    comments are removed, and each removed comment leaves a space, so a rule after two
+    removed comments starts four spaces in and is now kept where it was dropped.
+    Markdown keeps it too: a line opening with a comment is an HTML block. A rule
+    after ONE removed comment is still dropped, as before; that is unchanged and
+    recorded in the receipt, not repaired here.
+    
+    The two D6 defect pins are replaced by 24 checks of the correct behaviour: nine
+    lines that must drop, twelve that must be kept whole, the edge above, and Codex's
+    two witnesses through chunk_note. Eight mutations of the pattern, including both
+    original faults, are each caught. 273 checks, up from 251.
+    
+    PD-002 is closed. WL-02 and WL-03 in the wording log are resolved as a side
+    effect: both sentences were deleted with the text they described.
+    
+    Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+    Claude-Session: https://claude.ai/code/session_01EKzxYPzQkfNhwA2sWWvUhn
+
+ docs/PRODUCT_DECISIONS.md        |  3 ++-
+ docs/WORDING_CLEANUP_LOG.md      |  8 ++++++
+ src/ask-my-brain/ask_my_brain.py | 19 +++++++-------
+ tests/test_retrieval_core_e2e.py | 56 ++++++++++++++++++++++++----------------
+ 4 files changed, 54 insertions(+), 32 deletions(-)
+
+codex
+The frozen SHA, base SHA, ancestry target, and four-file scope match the receipt. I’m now attacking the classifier at its actual call site; an important distinction is that the regex receives `rstrip()` output, so trailing Unicode whitespace must be tested through `classify_markup`, not against the regex alone.
+exec
+/bin/bash -lc "PYTHONDONTWRITEBYTECODE=1 python3 -B - <<'PY'
+import importlib.util, itertools, random, re, time
+p='src/ask-my-brain/ask_my_brain.py'
+s=importlib.util.spec_from_file_location('amb',p); m=importlib.util.module_from_spec(s); s.loader.exec_module(m)
+
+def show(s):
+ e=m.classify_markup([s],0)[0]
+ print(repr(s), e)
+for x in ['---','   ---','    ---','\\t---',' \\t---','-\\t-\\t-','- -','* - *','---x','= = =','===','==','+++','\\u00a0---','---\\u00a0','---\\v','---\\f','-\\u00a0-\\u00a0-','---\\n']:
+ show(x)
+print('interactions')
+for lines in [
+ ['"'```'"','---','"'```'"'],
+ ['---','title: x','---','    ---'],
+ ['<"'!-- open'"','---','close --> text'],
+ ['# Real','<"'!-- # SECRET --> ---'"','visible prose long enough for indexing here'],
+ ['# Real','<"'!-- SECRET -->'"','---','visible prose long enough for indexing here'],
+]:
+ print(lines, m.classify_markup(lines, m.frontmatter_end(lines)))
+ text='\\n'.join(lines)+'\\n'
+ try:
+  print('chunks',m.chunk_note(text,'n.md',3500))
+ except Exception as e: print(type(e).__name__,e)
+# timing adversarial failed suffix shapes
+for maker in [lambda n:'* '*n+'x',lambda n:'*\\t'*n+'x',lambda n:'='*n+'x',lambda n:' '*3+'-'*n+'x']:
+ vals=[]
+ for n in [20000,80000,320000]:
+  x=maker(n); t=time.perf_counter(); m._RULE_LINE_RE.match(x); vals.append(time.perf_counter()-t)
+ print('timing',vals, 'ratios',[round(vals[i+1]/vals[i],2) for i in range(2)])
+# compact oracle on rstripped call input, ASCII grammar
+markers='*-_'
+def oracle(raw):
+ line=raw.rstrip()
+ i=0
+ while i<len(line) and i<3 and line[i]==' ': i+=1
+ rest=line[i:]
+ if rest.startswith('='):
+  return len(rest)>=3 and set(rest)=={'='}
+ for c in markers:
+  count=0; j=0
+  while j<len(rest):
+   if rest[j]"'!=c:return False
+   count+=1;j+=1
+   while j<len(rest) and rest[j] in '"' \\t':j+=1
+  if count>=3:return True
+ return False
+alpha=' \\t*-_=x'
+bad=[]
+for n in range(7):
+ for tup in itertools.product(alpha,repeat=n):
+  raw=''.join(tup); got=m.classify_markup([raw],0)[0]['kind']=='drop'; exp=oracle(raw)
+  if got"'!=exp: bad.append((raw,got,exp))
+print('"'oracle disagreements',len(bad),bad[:5])
+PY
+
+git merge-base --is-ancestor a8008fe4ceecd60b90bcce268cc4a5107684cd2e a6fcfc08b5404dfb3c22e80f8e2a91dce77f4b7a; echo ancestry_exit="'$?
+git diff --check a8008fe4ceecd60b90bcce268cc4a5107684cd2e..a6fcfc08b5404dfb3c22e80f8e2a91dce77f4b7a' in /tmp/claude-1000/-home-jro-asb-product-work/3a6ea635-0952-4430-b51f-5ad9bf0bc6ac/scratchpad/codex-013
+ exited 2 in 261ms:
+'---' {'number': 1, 'kind': 'drop', 'text': '', 'fenced': False}
+'   ---' {'number': 1, 'kind': 'drop', 'text': '', 'fenced': False}
+'    ---' {'number': 1, 'kind': 'keep', 'text': '    ---', 'fenced': False}
+'\t---' {'number': 1, 'kind': 'keep', 'text': '\t---', 'fenced': False}
+' \t---' {'number': 1, 'kind': 'keep', 'text': ' \t---', 'fenced': False}
+'-\t-\t-' {'number': 1, 'kind': 'drop', 'text': '', 'fenced': False}
+'- -' {'number': 1, 'kind': 'keep', 'text': '- -', 'fenced': False}
+'* - *' {'number': 1, 'kind': 'keep', 'text': '* - *', 'fenced': False}
+'---x' {'number': 1, 'kind': 'keep', 'text': '---x', 'fenced': False}
+'= = =' {'number': 1, 'kind': 'keep', 'text': '= = =', 'fenced': False}
+'===' {'number': 1, 'kind': 'drop', 'text': '', 'fenced': False}
+'==' {'number': 1, 'kind': 'keep', 'text': '==', 'fenced': False}
+'+++' {'number': 1, 'kind': 'keep', 'text': '+++', 'fenced': False}
+'\xa0---' {'number': 1, 'kind': 'keep', 'text': '\xa0---', 'fenced': False}
+'---\xa0' {'number': 1, 'kind': 'drop', 'text': '', 'fenced': False}
+'---\x0b' {'number': 1, 'kind': 'drop', 'text': '', 'fenced': False}
+'---\x0c' {'number': 1, 'kind': 'drop', 'text': '', 'fenced': False}
+'-\xa0-\xa0-' {'number': 1, 'kind': 'keep', 'text': '-\xa0-\xa0-', 'fenced': False}
+'---\n' {'number': 1, 'kind': 'drop', 'text': '', 'fenced': False}
+interactions
+['```', '---', '```'] [{'number': 1, 'kind': 'drop', 'text': '', 'fenced': True}, {'number': 2, 'kind': 'keep', 'text': '---', 'fenced': True}, {'number': 3, 'kind': 'drop', 'text': '', 'fenced': True}]
+chunks ('n', [{'heading': '', 'body': 'n', 'start_line': 1, 'end_line': 1}])
+['---', 'title: x', '---', '    ---'] [{'number': 1, 'kind': 'drop', 'text': '', 'fenced': False}, {'number': 2, 'kind': 'drop', 'text': '', 'fenced': False}, {'number': 3, 'kind': 'drop', 'text': '', 'fenced': False}, {'number': 4, 'kind': 'keep', 'text': '    ---', 'fenced': False}]
+chunks ('n', [{'heading': '', 'body': 'n', 'start_line': 1, 'end_line': 1}])
+['<!-- open', '---', 'close --> text'] [{'number': 1, 'kind': 'keep', 'text': '', 'fenced': False}, {'number': 2, 'kind': 'drop', 'text': '', 'fenced': False}, {'number': 3, 'kind': 'keep', 'text': ' text', 'fenced': False}]
+chunks ('n', [{'heading': '', 'body': 'n', 'start_line': 1, 'end_line': 1}])
+['# Real', '<!-- # SECRET --> ---', 'visible prose long enough for indexing here'] [{'number': 1, 'kind': 'keep', 'text': '# Real', 'fenced': False}, {'number': 2, 'kind': 'drop', 'text': '', 'fenced': False}, {'number': 3, 'kind': 'keep', 'text': 'visible prose long enough for indexing here', 'fenced': False}]
+chunks ('Real', [{'heading': 'Real', 'body': 'visible prose long enough for indexing here', 'start_line': 3, 'end_line': 3}])
+['# Real', '<!-- SECRET -->', '---', 'visible prose long enough for indexing here'] [{'number': 1, 'kind': 'keep', 'text': '# Real', 'fenced': False}, {'number': 2, 'kind': 'keep', 'text': '', 'fenced': False}, {'number': 3, 'kind': 'drop', 'text': '', 'fenced': False}, {'number': 4, 'kind': 'keep', 'text': 'visible prose long enough for indexing here', 'fenced': False}]
+chunks ('Real', [{'heading': 'Real', 'body': 'visible prose long enough for indexing here', 'start_line': 4, 'end_line': 4}])
+timing [0.0014953730278648436, 0.006548115983605385, 0.029867336037568748] ratios [4.38, 4.56]
+timing [0.0008774760062806308, 0.003925401018932462, 0.028677313996013254] ratios [4.47, 7.31]
+timing [0.00031035603024065495, 0.001258397998753935, 0.005361579998861998] ratios [4.05, 4.26]
+timing [0.0004874439910054207, 0.002790706988889724, 0.024163062043953687] ratios [5.73, 8.66]
+oracle disagreements 444 [('---', True, False), ('___', True, False), (' ---', True, False), (' ___', True, False), ('- --', True, False)]
+ancestry_exit=0
+docs/WORDING_CLEANUP_LOG.md:50: new blank line at EOF.
+
+exec
+/bin/bash -lc "sed -n '1,90p' docs/WORDING_CLEANUP_LOG.md && sed -n '52,78p' docs/PRODUCT_DECISIONS.md && git show a8008fe4ceecd60b90bcce268cc4a5107684cd2e:docs/WORDING_CLEANUP_LOG.md | sed -n '1,35p' && PYTHONDONTWRITEBYTECODE=1 python3 -B - <<'PY'
+import importlib.util,itertools,time
+s=importlib.util.spec_from_file_location('amb','src/ask-my-brain/ask_my_brain.py');m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
+def expected(raw):
+ line=raw.rstrip(); i=0
+ while i<len(line) and i<3 and line[i]==' ':i+=1
+ rest=line[i:]
+ if len(rest)>=3 and all(x=='=' for x in rest): return True
+ for c in '*-_':
+  j=count=0
+  while j<len(rest):
+   if rest[j]"'!=c: break
+   count+=1;j+=1
+   while j<len(rest) and rest[j] in '"' \\t':j+=1
+  if j==len(rest) and count>=3:return True
+ return False
+bad=[]; alpha=' \\t*-_=x'
+for n in range(8):
+ for t in itertools.product(alpha,repeat=n):
+  x=''.join(t); got=m.classify_markup([x],0)[0]['kind']=='drop'; exp=expected(x)
+  if got"'!=exp:bad.append((x,got,exp))
+print('"'corrected ASCII oracle disagreements',len(bad),bad[:3])
+for label,maker in [('star-space-fail',lambda n:'* '*n+'x'),('dash-fail',lambda n:'-'*n+'x')]:
+ vals=[]
+ for n in (250000,1000000):
+  x=maker(n); t=time.perf_counter();m._RULE_LINE_RE.match(x);vals.append(time.perf_counter()-t)
+ print(label,vals,'ratio',vals[1]/vals[0])
+PY" in /tmp/claude-1000/-home-jro-asb-product-work/3a6ea635-0952-4430-b51f-5ad9bf0bc6ac/scratchpad/codex-013
+ succeeded in 1972ms:
+corrected ASCII oracle disagreements 0 []
+star-space-fail [0.017807271040510386, 0.08590976399136707] ratio 4.824420530014281
+dash-fail [0.006139159027952701, 0.06688388501061127] ratio 10.894633076953513
+
+exec
+/bin/bash -lc "nl -ba src/ask-my-brain/ask_my_brain.py | sed -n '892,910p;1068,1085p' && nl -ba tests/test_retrieval_core_e2e.py | sed -n '394,435p' && nl -ba PACKAGE_RESULT.json | sed -n '34,115p'" in /tmp/claude-1000/-home-jro-asb-product-work/3a6ea635-0952-4430-b51f-5ad9bf0bc6ac/scratchpad/codex-013
+ succeeded in 0ms:
+   892	# A Markdown thematic break: at most three spaces of indent, then three or
+   893	# more of ONE marker out of '*', '-' and '_', each of which may be followed
+   894	# by spaces or tabs, and nothing else on the line. A mixture of markers is
+   895	# not a break, and neither is a run indented four spaces or by a tab, which
+   896	# is indented code. A run of three or more '=' under the same indent limit
+   897	# is dropped as well: it is a setext heading underline, and unlike a break
+   898	# it may not contain spaces.
+   899	_RULE_LINE_RE = re.compile(
+   900	    r"^ {0,3}"
+   901	    r"(?:(?:\*[ \t]*){3,}|(?:-[ \t]*){3,}|(?:_[ \t]*){3,}|={3,}[ \t]*)"
+   902	    r"$"
+   903	)
+   904	
+   905	_INLINE_COMMENT_RE = re.compile(
+   906	    r"<!--.*?-->"
+   907	)
+   908	
+   909	
+   910	def last_closing_line(
+  1068	                and number >= last_close
+  1069	            ):
+  1070	                literal_openers.add(number)
+  1071	                opening = -1
+  1072	
+  1073	            if opening != -1:
+  1074	                open_at = number
+  1075	                line = line[:opening]
+  1076	
+  1077	        line = line.rstrip()
+  1078	
+  1079	        if _RULE_LINE_RE.match(line):
+  1080	            classified.append(
+  1081	                {
+  1082	                    "number": number,
+  1083	                    "kind": "drop",
+  1084	                    "text": "",
+  1085	                    "fenced": False,
+   394	            check(dropped not in marks,
+   395	                  f"[chunking] {dropped!r} is a run of one marker and is stripped (got {marks!r})")
+   396	
+   397	        # D6, repaired by SB-ASK-013. A break's markers may be separated by spaces or tabs, and a
+   398	        # break may be indented by at most three spaces; a tab or a fourth space makes the line
+   399	        # indented code. A run of '=' is a setext underline and may not contain spaces.
+   400	        for line in ("* * *", "- - -", "_ _ _", "*  *  *", "-\t-\t-", "- - - -", " * * *",
+   401	                     "   ---", "   ===="):
+   402	            kind = amb.classify_markup([line], 0)[0]["kind"]
+   403	            check(kind == "drop", f"[chunking] {line!r} is a thematic break and is dropped (got {kind})")
+   404	        for line in ("    ---", "\t---", " \t---", "    * * *", "    ===", "* - *", "- _ -", "- -",
+   405	                     "* *", "= = =", "---x", "- - - x"):
+   406	            entry = amb.classify_markup([line], 0)[0]
+   407	            check(entry["kind"] == "keep" and entry["text"] == line,
+   408	                  f"[chunking] {line!r} is not a thematic break and is kept whole (got {entry})")
+   409	        # The pattern sees the line after comments are removed, and each removed comment leaves
+   410	        # one space. So a rule after two removed comments begins with four spaces and is kept.
+   411	        # Markdown would keep it too, for its own reason: a line that opens with a comment is an
+   412	        # HTML block, and nothing on it is a thematic break.
+   413	        entry = amb.classify_markup(["<!--a--> <!--b--> ---"], 0)[0]
+   414	        check(entry["kind"] == "keep" and entry["text"] == "    ---",
+   415	              f"[chunking] a rule after two removed comments is kept, four spaces in (got {entry})")
+   416	        # The two witnesses Codex raised, through chunk_note, where whitespace is also tidied.
+   417	        _, spaced = amb.chunk_note(
+   418	            "# T\nVisible prose long enough for indexing here ok.\n\n* * *\n\n"
+   419	            "After prose long enough for indexing here.\n", "n.md", 3500)
+   420	        check("*" not in "\n".join(c["body"] for c in spaced),
+   421	              "[chunking] a break written with spaces between its markers does not reach the body")
+   422	        _, indented = amb.chunk_note(
+   423	            "# T\nVisible prose long enough for indexing here ok.\n\n    ---\n\n"
+   424	            "After prose long enough for indexing here.\n", "n.md", 3500)
+   425	        check("---" in "\n".join(c["body"] for c in indented),
+   426	              "[chunking] a run of markers indented four spaces is content and reaches the body")
+   427	
+   428	        # Whether a comment opener ever closes is decided before classifying, from whether any
+   429	        # later line carries a closing marker. That is what makes the classifier linear instead
+   430	        # of restarting over the whole note per opener.
+   431	        check(amb.last_closing_line(["a", "b <!-- x", "c -->", "d"], 0) == 3,
+   432	              "[chunking] the last closing marker's line is found")
+   433	        check(amb.last_closing_line(["a", "<!-- x", "b"], 0) == 0,
+   434	              "[chunking] and a note with no closing marker reports none")
+   435	        check(amb.last_closing_line(["-->", "a"], 1) == 0,
+    34	      "last_line": "PASS weak_evidence: 24 checks"
+    35	    },
+    36	    {
+    37	      "command": "python3 -B tests/test_search_row_adapter.py",
+    38	      "exit_code": 0,
+    39	      "last_line": "PASS search_row_adapter: 32 checks"
+    40	    },
+    41	    {
+    42	      "command": "python3 -B src/ask-my-brain/ask_my_brain.py --help",
+    43	      "exit_code": 0
+    44	    }
+    45	  ],
+    46	  "src_change": "_RULE_LINE_RE and the comment above it. No other product code.",
+    47	  "verification_before_tests": {
+    48	    "oracle": "960,800 lines up to length 7 over ' \\t*-_=x': pattern vs the rule written without a regex, 0 disagreements",
+    49	    "delta_vs_uep_work": {
+    50	      "dropped_now_kept": 172,
+    51	      "all_indented_4plus_or_tab_led": true,
+    52	      "kept_now_dropped": 1224,
+    53	      "all_have_whitespace_between_markers": true,
+    54	      "counted_over": "the 686,286 already-rstripped lines among the 960,800, which is how the pattern sees a line. Over all 960,800 raw lines the counts are 412 and 2,304 (Agent C). Both qualitative claims hold either way."
+    55	    },
+    56	    "backtracking": "7 shapes at N=8,000 and 32,000; worst ratio 5.1x for 4x input; slowest 2.566ms",
+    57	    "fixture_effect": "26 fixture notes, chunk_note output changed: 0"
+    58	  },
+    59	  "pinned_edge": {
+    60	    "what": "a rule is now kept when removed comments plus literal spaces leave four or more leading spaces. '<!--a--> <!--b--> ---' is the pinned case; '<!--a--><!--b--> ---' leaves two and is still dropped.",
+    61	    "measured": {
+    62	      "<!--a--> ---": {
+    63	        "old": "drop",
+    64	        "new": "drop",
+    65	        "new_text": ""
+    66	      },
+    67	      "<!--a--><!--b--> ---": {
+    68	        "old": "drop",
+    69	        "new": "drop",
+    70	        "new_text": ""
+    71	      },
+    72	      "<!--a--> <!--b--> ---": {
+    73	        "old": "drop",
+    74	        "new": "keep",
+    75	        "new_text": "    ---"
+    76	      },
+    77	      "<!--a--> <!--b--> <!--c--> ---": {
+    78	        "old": "drop",
+    79	        "new": "keep",
+    80	        "new_text": "      ---"
+    81	      }
+    82	    }
+    83	  },
+    84	  "known_limitation_unchanged": "a rule after removed inline comment(s) that leave 0-3 leading spaces is still dropped, as at uep/work ('<!--a--> ---'). By the HTML-block reasoning it should be kept. Not repaired here. Siblings of the same mechanism, markers only, found by Agent C: '<!--a-->   ---' and '-->    ---' are now kept; '-<!--a-->-<!--b-->-', '- <!--a--> - <!--b--> -' and '<!--a--> * * *' were kept and are now dropped.",
+    85	  "mutation_check": {
+    86	    "caught": 8,
+    87	    "survived": 0,
+    88	    "mutations": [
+    89	      "indent limit removed",
+    90	      "indent limit four",
+    91	      "no whitespace between markers",
+    92	      "two dashes enough",
+    93	      "'=' run may contain spaces",
+    94	      "'=' not a marker",
+    95	      "any mixture of markers",
+    96	      "trailing text allowed"
+    97	    ]
+    98	  },
+    99	  "docs": [
+   100	    "PD-002 closed",
+   101	    "WL-02 and WL-03 resolved by deletion of the text they described"
+   102	  ],
+   103	  "still_open": [
+   104	    "PD-003 heading-pattern quadratic",
+   105	    "D2",
+   106	    "D3/D5",
+   107	    "build_index has no file-size cap",
+   108	    "WL-01, WL-04..WL-15"
+   109	  ],
+   110	  "derived_line_citations": {
+   111	    "pattern": {
+   112	      "file": "src/ask-my-brain/ask_my_brain.py",
+   113	      "anchor": "r\"^ {0,3}\"",
+   114	      "line": 900
+   115	    },
+
+codex
+Verdict: **FAIL**
+
+## BLOCKING findings
+
+1. Trailing non-ASCII whitespace is incorrectly discarded before rule classification.
+
+- Location: [ask_my_brain.py:1077](/tmp/claude-1000/-home-jro-asb-product-work/3a6ea635-0952-4430-b51f-5ad9bf0bc6ac/scratchpad/codex-013/src/ask-my-brain/ask_my_brain.py:1077), immediately before `_RULE_LINE_RE` is applied at line 1079.
+- Exact code: `line = line.rstrip()`
+- Witness: `"---\u00a0"` (three dashes followed by NBSP).
+- Observed: `classify_markup(["---\u00a0"], 0)` returns `kind == "drop"` and empty text.
+- Expected: keep the complete line. Thematic breaks permit trailing spaces or tabs, not NBSP. The same failure occurs with trailing vertical-tab and form-feed characters.
+- Why this blocks: D6 is not repaired for the requested non-ASCII-whitespace boundary at the actual call site. Although `_RULE_LINE_RE` itself rejects NBSP, unrestricted `rstrip()` converts the invalid input into `"---"` before matching. The package claims Markdown-defined behavior “in both directions.”
+- Verification: direct import and invocation of the frozen candidate at `a6fcfc08b5404dfb3c22e80f8e2a91dce77f4b7a`. Leading NBSP and NBSP between markers were correctly kept; only the trailing position exposed this false positive.
+- Test gap: the 24 replacement checks at [test_retrieval_core_e2e.py:397](/tmp/claude-1000/-home-jro-asb-product-work/3a6ea635-0952-4430-b51f-5ad9bf0bc6ac/scratchpad/codex-013/tests/test_retrieval_core_e2e.py:397) contain no trailing non-ASCII-whitespace witness.
+
+## WORDING findings
+
+None independent of the behavioral blocker above.
+
+## What I checked
+
+- Confirmed detached HEAD is exactly `a6fcfc08b5404dfb3c22e80f8e2a91dce77f4b7a`.
+- Confirmed base `a8008fe4ceecd60b90bcce268cc4a5107684cd2e` is an ancestor.
+- Read the complete package diff, receipt, and amended wording gate.
+- Confirmed the four changed files and that product-code scope is limited to `_RULE_LINE_RE` and its comment.
+- Verified the principal D6 directions: spaced markers drop; four-space/tab-indented runs survive.
+- Exercised 3/4-space indentation, tab indentation and separators, two markers, mixtures, trailing text, `= = =`, `==`, `+++`, NBSP positions, and newline input.
+- Ran an independent exhaustive ASCII oracle through length 7: zero disagreements.
+- Found no catastrophic-backtracking construction. Alternatives have distinct initial markers, and marker/whitespace repetitions have a forced partition. Large failing inputs scaled consistently with linear behavior despite noisy timing ratios.
+- Checked fences, frontmatter, open comments, setext handling, titles, and commented-out heading/body text. No commented-out text leaked.
+- The pinned `<!--a--> <!--b--> ---` edge is acceptable within the stated pipeline and scope. The unchanged one-comment limitation is disclosed.
+- Agent C’s three minor unpinned cases are non-blocking individually: `_ _`, `==`/`+++`, and NBSP between markers all behaved correctly in direct calls.
+- Receipt SHAs, changed files, anchors, ancestry, scope, and reported command metadata are internally consistent.
+- I did not run the main suite because it may create its temporary database outside this read-only workspace, as anticipated by the review instructions. I used direct Python calls without bytecode writes instead.
+tokens used
+38,564
+Verdict: **FAIL**
+
+## BLOCKING findings
+
+1. Trailing non-ASCII whitespace is incorrectly discarded before rule classification.
+
+- Location: [ask_my_brain.py:1077](/tmp/claude-1000/-home-jro-asb-product-work/3a6ea635-0952-4430-b51f-5ad9bf0bc6ac/scratchpad/codex-013/src/ask-my-brain/ask_my_brain.py:1077), immediately before `_RULE_LINE_RE` is applied at line 1079.
+- Exact code: `line = line.rstrip()`
+- Witness: `"---\u00a0"` (three dashes followed by NBSP).
+- Observed: `classify_markup(["---\u00a0"], 0)` returns `kind == "drop"` and empty text.
+- Expected: keep the complete line. Thematic breaks permit trailing spaces or tabs, not NBSP. The same failure occurs with trailing vertical-tab and form-feed characters.
+- Why this blocks: D6 is not repaired for the requested non-ASCII-whitespace boundary at the actual call site. Although `_RULE_LINE_RE` itself rejects NBSP, unrestricted `rstrip()` converts the invalid input into `"---"` before matching. The package claims Markdown-defined behavior “in both directions.”
+- Verification: direct import and invocation of the frozen candidate at `a6fcfc08b5404dfb3c22e80f8e2a91dce77f4b7a`. Leading NBSP and NBSP between markers were correctly kept; only the trailing position exposed this false positive.
+- Test gap: the 24 replacement checks at [test_retrieval_core_e2e.py:397](/tmp/claude-1000/-home-jro-asb-product-work/3a6ea635-0952-4430-b51f-5ad9bf0bc6ac/scratchpad/codex-013/tests/test_retrieval_core_e2e.py:397) contain no trailing non-ASCII-whitespace witness.
+
+## WORDING findings
+
+None independent of the behavioral blocker above.
+
+## What I checked
+
+- Confirmed detached HEAD is exactly `a6fcfc08b5404dfb3c22e80f8e2a91dce77f4b7a`.
+- Confirmed base `a8008fe4ceecd60b90bcce268cc4a5107684cd2e` is an ancestor.
+- Read the complete package diff, receipt, and amended wording gate.
+- Confirmed the four changed files and that product-code scope is limited to `_RULE_LINE_RE` and its comment.
+- Verified the principal D6 directions: spaced markers drop; four-space/tab-indented runs survive.
+- Exercised 3/4-space indentation, tab indentation and separators, two markers, mixtures, trailing text, `= = =`, `==`, `+++`, NBSP positions, and newline input.
+- Ran an independent exhaustive ASCII oracle through length 7: zero disagreements.
+- Found no catastrophic-backtracking construction. Alternatives have distinct initial markers, and marker/whitespace repetitions have a forced partition. Large failing inputs scaled consistently with linear behavior despite noisy timing ratios.
+- Checked fences, frontmatter, open comments, setext handling, titles, and commented-out heading/body text. No commented-out text leaked.
+- The pinned `<!--a--> <!--b--> ---` edge is acceptable within the stated pipeline and scope. The unchanged one-comment limitation is disclosed.
+- Agent C’s three minor unpinned cases are non-blocking individually: `_ _`, `==`/`+++`, and NBSP between markers all behaved correctly in direct calls.
+- Receipt SHAs, changed files, anchors, ancestry, scope, and reported command metadata are internally consistent.
+- I did not run the main suite because it may create its temporary database outside this read-only workspace, as anticipated by the review instructions. I used direct Python calls without bytecode writes instead.
