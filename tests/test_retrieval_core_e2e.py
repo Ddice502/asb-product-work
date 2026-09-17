@@ -540,9 +540,12 @@ def main() -> int:
         check("ENCLOSEDLINE" in fc_body,
               "[chunking] while that line's own prose is kept")
         # An opener on a line that is otherwise a horizontal rule must keep its text. It needs its
-        # own note because the two branches that could destroy it are both bypassed, and only this
-        # shape shows that: last_closing_line returns 0 for the note, so the opener is literal from
-        # the outset, the line is never truncated, and _RULE_LINE_RE is never applied to it.
+        # own note because neither of the two branches that could destroy it fires, and each for a
+        # different reason: last_closing_line returns 0 for the note, so the opener is literal from
+        # the outset and the truncating branch is never entered at all, while _RULE_LINE_RE IS
+        # applied to the line - it is applied to every non-fenced line - and simply does not match,
+        # because the line still reads '*** <!-- RULEOPENER ...' rather than the bare '***' that
+        # truncating would have left. Verified with a spy on the pattern: one call, no match.
         rule_opener = rows_of(database, "SELECT body FROM chunks WHERE path = ?",
                               "10 Areas/Rule Opener Note.md")[0]["body"]
         check("RULEOPENER" in rule_opener,
@@ -926,11 +929,18 @@ def main() -> int:
     # longer has - a give-back removed by SB-ASK-008, a resume removed by SB-ASK-009 - and one of  # staleness-guard
     # them was a check label PRINTED ON EVERY PASSING RUN. Each time the named instances were
     # corrected and the unnamed ones survived. Remembering is what failed, so this checks instead.
-    # A line may discuss a dead mechanism in the past tense by carrying the marker below.
-    dead_mechanisms = (                                         # staleness-guard
+    #
+    # What it does NOT do, so that passing is not mistaken for coverage: it reads two files, this
+    # one and fixtures/README.md, and matches a fixed list of substrings. It does not scan src/,
+    # where the mechanism prose actually lives, nor the other four suites, nor the fixture notes
+    # themselves. It has no notion of tense - it fails on any unmarked hit - so a stale statement
+    # that avoids this vocabulary passes, and the marker below can exempt a line that is not
+    # historical at all. It catches the words these four cycles actually went stale in, and a
+    # rename of the Give Back Fence fixture will need the name list below updated with it.
+    dead_mechanisms = (
         "give-back", "given back", "give back", "gives back",   # staleness-guard: SB-ASK-008
         "resumed part way", "resume from", "the resume",        # staleness-guard: SB-ASK-009
-    )                                                           # staleness-guard
+    )
     fixture_names = ("Give Back Fence Note.md", "Give Back Fence")
     stale = []
     for doc in (Path(__file__), ROOT / "fixtures" / "README.md"):
@@ -945,8 +955,8 @@ def main() -> int:
                 if token in lowered:
                     stale.append(f"{doc.name}:{number} {token!r}")
     check(stale == [],
-          f"[doc-hygiene] no comment, check label or fixture note describes a mechanism the "
-          f"product no longer has (got {stale})")
+          f"[doc-hygiene] no unmarked line of this suite or fixtures/README.md uses the vocabulary "
+          f"of a deleted mechanism (got {stale})")
 
     check(snapshot_fixtures() == before,
           "[containment] every fixture file is byte-for-byte and mtime unchanged")
