@@ -468,9 +468,9 @@ def main() -> int:
               f"[chunking] and otherwise the pattern sees the line only up to its last closing "
               f"marker (got lengths {[len(x) for x in seen_one_closer]})")
 
-        # Third, the property itself, with a margin wide enough that a loaded machine cannot fail
-        # it and the old behaviour cannot pass it: where it was measured, this took 12.0 seconds
-        # before the change and less than a millisecond after it.
+        # Third, the property itself. Where it was measured this took 12.0 seconds before the
+        # change and less than a millisecond after it, so the bound sits about 60,000 times above
+        # the new cost and at about a sixth of the old one.
         started = time.monotonic()
         amb.classify_markup(["<!--" * 32000], 0)
         elapsed = time.monotonic() - started
@@ -969,7 +969,11 @@ def main() -> int:
         # D6 (MEDIUM, Codex on SB-ASK-009): _RULE_LINE_RE approximates a Markdown thematic break
         # and is wrong in both directions. A break's markers may be separated by spaces, which
         # the pattern cannot match, and a break may be indented by at most three spaces, where
-        # the pattern accepts any amount. Both behaviours are older than this line of packages.
+        # the pattern accepts any amount. Neither is a fault uep/work has: its rule pattern is
+        # written with a doubled backslash, matches nothing, and deletes no rule line at all. So
+        # the first witness reads the same there only because nothing is stripped, and the second
+        # is a deletion this line of packages introduced at SB-ASK-006, when the pattern was made
+        # to work.
         _, spaced = amb.chunk_note(
             "# T\nVisible prose long enough for indexing here ok.\n\n* * *\n\n"
             "After prose long enough for indexing here.\n", "n.md", 3500)
