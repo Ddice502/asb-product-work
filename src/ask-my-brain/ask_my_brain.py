@@ -1058,6 +1058,8 @@ def _classify_once(
                 + line[last_closer + 3:]
             )
 
+        truncated = False
+
         if number not in literal_openers:
             opening = line.find("<!--")
 
@@ -1073,16 +1075,24 @@ def _classify_once(
             if opening != -1:
                 open_at = number
                 line = line[:opening]
+                truncated = True
+
+        # A break may end only in spaces or tabs, and rstrip() removes a
+        # non-breaking space and the like as well. So the rule pattern is
+        # shown the line as it visibly ends: what is left after comments are
+        # removed, followed by the whitespace the rstrip() at the top of the
+        # loop took off - unless the line was cut at an opener, in which case
+        # that whitespace was inside the comment. Only then is the text tidied.
+        visible = line
+
+        if not truncated:
+            visible += raw_line[len(raw_line.rstrip()):]
+
+        is_rule = _RULE_LINE_RE.match(visible) is not None
 
         line = line.rstrip()
 
-        # A break may end only in spaces or tabs. The rstrip() at the top of
-        # this loop also removed a non-breaking space and the like, so a line
-        # that ended in one of those is text however its remainder reads.
-        if (
-            raw_line.rstrip(" \t") == raw_line.rstrip()
-            and _RULE_LINE_RE.match(line)
-        ):
+        if is_rule:
             classified.append(
                 {
                     "number": number,

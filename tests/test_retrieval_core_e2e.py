@@ -418,6 +418,23 @@ def main() -> int:
             kind = amb.classify_markup([line], 0)[0]["kind"]
             check(kind == "drop",
                   f"[chunking] while {line!r} ends only in spaces or tabs and is dropped (got {kind})")
+        # The same holds when a comment shares the line, which is where the first repair of this
+        # went wrong: it judged the line as written, but what matters is how the line visibly
+        # ends once comments are gone (Agent C, on SB-ASK-013). Whitespace inside an unclosed
+        # comment is not visible; whitespace before it, or after a complete one, is.
+        for lines, want in (
+            (["--- <!-- c -->"], "drop"),
+            (["---\u00a0<!-- c -->"], "keep"),
+            (["* * *\u00a0<!-- c -->"], "keep"),
+            (["--- <!-- c -->\u00a0"], "keep"),
+            (["* * *\u00a0<!-- unclosed", "c -->"], "keep"),
+            (["--- <!-- unclosed\u00a0", "c -->"], "drop"),
+            (["---<!--\u3000", "c -->"], "drop"),
+        ):
+            kind = amb.classify_markup(lines, 0)[0]["kind"]
+            check(kind == want,
+                  f"[chunking] beside a comment, {lines[0]!r} is judged by how it visibly ends: "
+                  f"{want} (got {kind})")
         # The pattern sees the line after comments are removed, and each removed comment leaves
         # one space. So a rule after two removed comments begins with four spaces and is kept.
         # Markdown would keep it too, for its own reason: a line that opens with a comment is an
