@@ -20,7 +20,7 @@ Prose between the fence and the rule, also long enough to be indexed here.
 Prose after the rule, which must survive and must end the span.
 
 ````
-QUADSECRET <!-- QUADMARKER --> is not inside a recognised fence.
+QUADSECRET <!-- QUADMARKER --> sits inside a four-backtick fence.
 ````
 
 Final prose line so the span still ends on real text here.

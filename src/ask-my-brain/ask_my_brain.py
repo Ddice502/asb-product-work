@@ -826,9 +826,68 @@ def provenance_json(
     )
 
 
+# A fenced-code delimiter, as Markdown actually defines one: at most three
+# spaces of indent (four makes it an indented code block), a run of at least
+# three backticks or tildes, and an optional info string.
 _FENCE_LINE_RE = re.compile(
-    r"^[ \t]*```[^`]*$"
+    r"^ {0,3}(?P<marker>`{3,}|~{3,})(?P<info>.*)$"
 )
+
+
+def fence_delimiter(
+    line: str,
+    open_marker,
+):
+    """Is this line a fence delimiter, and does it open or close?
+
+    Returns the marker that is now open ('```', '~~~~', ...), or None when
+    no fence is open, or False when the line is not a delimiter at all and
+    should be treated as ordinary content.
+
+    Treating every run of three backticks as a toggle was wrong in three
+    separate ways, all of which put text where it should not be:
+
+    - a closing fence may not carry an info string, so inside a fence the
+      line '```not-a-closer' is CONTENT. Toggling on it ended the fence
+      early, which both destroyed the real fenced content that followed and
+      let a heading inside the fence become the note's title.
+    - a fence may be four or more backticks, or tildes. Not recognising
+      those meant an author's literal fenced example lost its comments and
+      rules.
+    - a fence may be indented at most three spaces. Accepting deeper
+      indentation meant an indented code block was read as a fence, which
+      protected commented-out text and carried it into the evidence.
+
+    A closing fence must use the same character as its opener and be at
+    least as long.
+    """
+
+    match = _FENCE_LINE_RE.match(line)
+
+    if not match:
+        return False
+
+    marker = match.group("marker")
+    info = match.group("info")
+
+    if open_marker is None:
+        # A backtick fence's info string may not itself contain a backtick.
+        if (
+            marker[0] == "`"
+            and "`" in info
+        ):
+            return False
+
+        return marker
+
+    if (
+        marker[0] == open_marker[0]
+        and len(marker) >= len(open_marker)
+        and info.strip() == ""
+    ):
+        return None
+
+    return False
 
 _RULE_LINE_RE = re.compile(
     r"^[ \t]*[-=_*]{3,}[ \t]*$"
@@ -865,7 +924,11 @@ def classify_markup(
     """
 
     classified: list[dict] = []
-    inside_fence = False
+
+    # The marker that opened the fence we are inside, or None outside a fence.
+    # It has to be remembered, not just a flag: a closing fence must match its
+    # opener's character and be at least as long.
+    fence_marker = None
     inside_comment = False
 
     # Every line a still-open comment has claimed, with the text it had before
@@ -919,22 +982,28 @@ def classify_markup(
             pending = []
             line = line[closing + 3:]
 
-        elif _FENCE_LINE_RE.match(line):
-            # A fence delimiter is dropped, and it toggles the fence. Inside a
+        else:
+            # A fence delimiter is dropped and updates the fence. Inside a
             # fence nothing is stripped: a note documenting markup legitimately
             # contains comments and rules there.
-            inside_fence = not inside_fence
-            classified.append(
-                {
-                    "number": number,
-                    "kind": "drop",
-                    "text": "",
-                    "fenced": True,
-                }
+            delimiter = fence_delimiter(
+                line,
+                fence_marker,
             )
-            continue
 
-        if inside_fence:
+            if delimiter is not False:
+                fence_marker = delimiter
+                classified.append(
+                    {
+                        "number": number,
+                        "kind": "drop",
+                        "text": "",
+                        "fenced": True,
+                    }
+                )
+                continue
+
+        if fence_marker is not None:
             classified.append(
                 {
                     "number": number,

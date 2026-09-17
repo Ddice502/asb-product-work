@@ -147,7 +147,7 @@ def main() -> int:
     # ------------------------------------------------------------------ [fixture-vault]
     check(VAULT.is_dir(), "[fixture-vault] fixtures/vault exists")
     notes = sorted(p.relative_to(VAULT).as_posix() for p in VAULT.rglob("*.md"))
-    check(len(notes) == 19, f"[fixture-vault] the vault holds its 19 notes (got {len(notes)})")
+    check(len(notes) == 22, f"[fixture-vault] the vault holds its 22 notes (got {len(notes)})")
     check(OUTSIDE_NOTE.is_file(),
           "[fixture-vault] the deliberate out-of-vault note is present and scanned below too")
     corpus = "\n".join(p.read_text(encoding="utf-8") for p in
@@ -170,8 +170,8 @@ def main() -> int:
         # -------------------------------------------------------------- [index-build]
         receipt = build(config)
         check("BUILD_STATUS=PASS" in receipt, f"[index-build] the build reports PASS\n{receipt}")
-        check("NOTES_INDEXED=17" in receipt, f"[index-build] 17 notes indexed\n{receipt}")
-        check("CHUNKS_INDEXED=30" in receipt, f"[index-build] 30 chunks indexed\n{receipt}")
+        check("NOTES_INDEXED=20" in receipt, f"[index-build] 20 notes indexed\n{receipt}")
+        check("CHUNKS_INDEXED=33" in receipt, f"[index-build] 33 chunks indexed\n{receipt}")
         check("FILES_SKIPPED=2" in receipt, f"[index-build] 2 files skipped\n{receipt}")
         check(database.is_file(), "[index-build] the database file exists at the configured path")
         check(oct(database.stat().st_mode & 0o777) == "0o640",
@@ -183,7 +183,7 @@ def main() -> int:
         check(metadata["schema_version"] == "1.0.0", "[index-build] the schema version is recorded")
         check(metadata["retrieval"] == "sqlite_fts5_bm25", "[index-build] the retrieval mode is recorded")
         check(metadata["vault_root"] == str(VAULT), "[index-build] the indexed vault root is recorded")
-        check(metadata["notes_indexed"] == "17" and metadata["chunks_indexed"] == "30",
+        check(metadata["notes_indexed"] == "20" and metadata["chunks_indexed"] == "33",
               "[index-build] the receipt and the metadata table agree")
         integrity = rows_of(database, "PRAGMA integrity_check")
         check(list(integrity[0].values())[0] == "ok", "[index-build] SQLite reports the index sound")
@@ -211,7 +211,7 @@ def main() -> int:
               "[exclusion] an excluded prefix contributes no chunk")
         check(not any(".obsidian" in p for p in paths),
               "[exclusion] an excluded path part contributes no chunk")
-        check(len(paths) == 17, f"[exclusion] exactly the 17 permitted notes are indexed (got {len(paths)})")
+        check(len(paths) == 20, f"[exclusion] exactly the 20 permitted notes are indexed (got {len(paths)})")
 
         # -------------------------------------------------------------- [chunking]
         greenhouse = rows_of(
@@ -321,6 +321,49 @@ def main() -> int:
               f"level-two heading above it (got {[c['title'] for c in precedence]})")
         check(precedence[0]["heading"] == "Level Two Comes First And Is Not The Title",
               "[chunking] while the level-two heading is still a chunk HEADING, just not the title")
+
+        # A fence delimiter is not just "three backticks". Treating it as a toggle failed three
+        # ways at once, each putting text where it should not be: a closing fence carries no info
+        # string, so inside a fence '```NOTACLOSER...' is CONTENT and toggling on it ended the
+        # fence early - destroying the real fenced content and letting a fenced heading become the
+        # title; a fence may be four or more backticks, or tildes; and a fence is indented at most
+        # three spaces, so four spaces is an indented code block and NOT a fence.
+        shapes = rows_of(database, "SELECT * FROM chunks WHERE path = ? ORDER BY start_line",
+                         "10 Areas/Fence Shapes Note.md")
+        check(len(shapes) == 1, f"[chunking] the fence-shapes note is one chunk (got {len(shapes)})")
+        shapes_body = shapes[0]["body"]
+        check(shapes[0]["title"] == "Fence Shapes Note",
+              f"[chunking] a heading inside a fence that a false closer would have ended does not "
+              f"become the title (got {shapes[0]['title']!r})")
+        check("INFENCEHEADING" in shapes_body and "NOTACLOSER" in shapes_body,
+              f"[chunking] a three-backtick line WITH an info string is fenced content, not a "
+              f"closing delimiter (got {shapes_body!r})")
+        check("INFENCEMARKER" in shapes_body,
+              "[chunking] so the comment after it is still inside the fence and survives")
+        check("TILDEMARKER" in shapes_body,
+              f"[chunking] a tilde fence is a fence, so its comment survives (got {shapes_body!r})")
+        check("INDENTEDMARKER" not in shapes_body,
+              f"[chunking] while four spaces before backticks is an indented code block and NOT a "
+              f"fence, so the comment there is stripped like any other (got {shapes_body!r})")
+
+        # A closing fence must use the SAME character as its opener and be at least as long,
+        # and a backtick fence's info string may not itself contain a backtick. Each of those
+        # three rules, relaxed, lets a fence end early - which strips content that was inside it.
+        closer = rows_of(database, "SELECT body FROM chunks WHERE path = ? ORDER BY start_line",
+                         "10 Areas/Fence Closer Note.md")
+        closer_body = "\n".join(c["body"] for c in closer)
+        check("SHORTCLOSERMARKER" in closer_body,
+              f"[chunking] a three-backtick line cannot close a four-backtick fence, so the "
+              f"comment after it is still inside and survives (got {closer_body!r})")
+        check("WRONGCHARMARKER" in closer_body,
+              f"[chunking] and a backtick line cannot close a tilde fence (got {closer_body!r})")
+        info_note = rows_of(database, "SELECT body FROM chunks WHERE path = ?",
+                            "10 Areas/Backtick Info Note.md")[0]["body"]
+        check("BTICKINFOMARKER" not in info_note,
+              f"[chunking] a backtick line whose info string contains a backtick opens no fence, "
+              f"so a comment after it is stripped like any other (got {info_note!r})")
+        check("info`with`ticks" in info_note,
+              "[chunking] while that line itself is ordinary text and is kept")
 
         # D1, repaired by SB-ASK-006. Outside a fenced block, comments and rules are stripped.
         comment_body = rows_of(database, "SELECT body FROM chunks WHERE path = ?",
@@ -437,14 +480,17 @@ def main() -> int:
               f"(got {body_lines!r})")
         for phrase in ("Prose before the fence", "Prose between the fence", "Prose after the rule"):
             check(phrase in fenced_body, f"[chunking] {phrase!r} survives")
-        # Four or more backticks are NOT recognised as a fence. That is a declared limitation, so
-        # it is pinned in both directions: the line is plain text, and a comment on it is stripped
-        # exactly as it would be anywhere else outside a fence.
+        # A fence may be four or more backticks, and the declared limitation that said otherwise
+        # was itself a defect: an author's literal fenced example lost its comments. Repaired by
+        # SB-ASK-007 repair 2, so the pin that declared the limitation is replaced by its contract.
         check("QUADSECRET" in fenced_body,
-              f"[chunking] a four-backtick line is not a fence, so its content is ordinary text "
+              f"[chunking] a four-backtick block is a fence and its content is kept "
               f"(got {fenced_body!r})")
-        check("QUADMARKER" not in fenced_body,
-              "[chunking] and a comment on that line is stripped, not protected")
+        check("QUADMARKER" in fenced_body,
+              f"[chunking] including a comment inside it, which is literal example text "
+              f"(got {fenced_body!r})")
+        check("````" not in fenced_body.split("\n"),
+              "[chunking] while the four-backtick delimiters themselves are dropped")
 
         # D1 and D4 are coupled: once markup is really stripped, a span must not end on a line
         # that is no longer in the body. The rule and the comment are the last two markup lines
@@ -594,9 +640,9 @@ def main() -> int:
         # The 0.35 top-candidate gate, isolated. This question's best candidate scores ~0.33 -
         # above the 0.30 row floor, below the 0.35 top gate - so it is the top gate alone that
         # returns nothing. Both its terms are in the index and retrieve on their own.
-        check(len(amb.search(config, "inventory", 5)) >= 1,
-              "[search] 'inventory' on its own retrieves")
-        check(amb.search(config, "inventory dirigible", 20) == [],
+        check(len(amb.search(config, "saw", 5)) >= 1,
+              "[search] 'saw' on its own retrieves")
+        check(amb.search(config, "saw frame dirigible", 20) == [],
               "[search] a question whose best candidate scores between the 0.30 floor and the "
               "0.35 top gate is refused by the top gate alone")
         check(amb.search(config, "workshop dirigible", 20) == [],
