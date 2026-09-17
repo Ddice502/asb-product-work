@@ -12,7 +12,7 @@ database, no model, and no vault of the owner's anywhere in the picture. Every n
 place and date in it was made up for this fixture.
 
 Each note exists to exercise one named retrieval behaviour, and the tests name the note they depend
-on. Notes are deliberately small so a failure points at one behaviour. The vault holds 22 notes:
+on. Notes are deliberately small so a failure points at one behaviour. The vault holds 23 notes:
 
 | note | exercises |
 | --- | --- |
@@ -30,6 +30,7 @@ on. Notes are deliberately small so a failure points at one behaviour. The vault
 | `10 Areas/Hidden Title Only.md` | a note whose ONLY heading is inside a comment. The title falls back to the filename stem, and the no-signal fallback chunk therefore carries the filename rather than the comment |
 | `10 Areas/Rule Opener Note.md` | an unterminated comment opener on a line that is otherwise a horizontal rule, with nothing else open. The rule branch returns early, so this is the only way to reach that give-back path |
 | `10 Areas/Fence Shapes Note.md` | the three ways a fence delimiter is not simply "three backticks": a three-backtick line carrying an info string is content, not a closer; four-plus backticks and tildes are fences; four spaces of indent makes an indented code block, not a fence |
+| `10 Areas/Give Back Fence Note.md` | an unterminated comment opener followed by a fence containing a heading, and deliberately no real heading of its own. The fence must not have been swallowed: the fenced heading must not become the title, and the delimiters must still be dropped |
 | `10 Areas/Fence Closer Note.md` | a four-backtick fence that a three-backtick line must not close, and a tilde fence that a backtick line must not close. Relaxing either rule ends the fence early and strips what was inside it |
 | `10 Areas/Backtick Info Note.md` | a backtick line whose info string contains a backtick, which opens no fence |
 | `10 Areas/Fenced Markup Note.md` | a fenced block containing a heading-like line, an HTML comment and a rule, all of which must survive verbatim, beside a comment and a rule OUTSIDE the fence which must be stripped. The heading-like line must not split the chunk |
@@ -39,7 +40,7 @@ on. Notes are deliberately small so a failure points at one behaviour. The vault
 | `90 Archive/Old Greenhouse Notes.md` | lives under an excluded prefix and must never be indexed |
 | `.obsidian/workspace.md` | lives under an excluded path part and must never be indexed |
 
-Indexing this vault yields 20 notes and 33 chunks, with 2 files skipped.
+Indexing this vault yields 21 notes and 34 chunks, with 2 files skipped.
 `tests/test_retrieval_core_e2e.py` asserts those numbers, so adding or editing a note here means
 updating them: a fixture change cannot pass unnoticed.
 

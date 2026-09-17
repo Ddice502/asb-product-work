@@ -898,46 +898,24 @@ _INLINE_COMMENT_RE = re.compile(
 )
 
 
-def classify_markup(
+def _classify_once(
     lines: list[str],
     fm_end: int,
-) -> list[dict]:
-    """Classify every line of a note once, before anything is chunked.
+    literal_openers: set,
+) -> tuple[list[dict], int]:
+    """One pass of the classifier.
 
-    Three earlier attempts at this repair were each destructive, and each in
-    the same way: a regex written to remove a marker LINE was allowed to span
-    lines and swallowed the content between two markers. The structural answer
-    is that no markup transformation may ever see more than one line. Every
-    decision here is line-local, so no pattern CAN span lines, whatever it is
-    written as.
+    `literal_openers` holds the line numbers of '<!--' markers already known
+    not to close; those are ordinary text and open nothing.
 
-    It is also what the chunker needs. Chunk boundaries used to be chosen
-    before anything knew where the fences were, so a '# ...' line inside a
-    shell or YAML fence split the chunk, and the rest of that fence lost its
-    protection. Classifying first means the boundary decisions can see markup.
-
-    Returns one dict per line, aligned with `lines`, carrying:
-        number   1-based line number
-        kind     'keep' or 'drop'
-        text     the line's content after markup removal ('' when dropped)
-        fenced   True if the line sits inside a fenced block
+    Returns the classification and the line number of the first opener that
+    reached the end of the note still unclosed, or None if every comment
+    that opened also closed.
     """
 
     classified: list[dict] = []
-
-    # The marker that opened the fence we are inside, or None outside a fence.
-    # It has to be remembered, not just a flag: a closing fence must match its
-    # opener's character and be at least as long.
     fence_marker = None
-    inside_comment = False
-
-    # Every line a still-open comment has claimed, with the text it had before
-    # the comment claimed it. A comment may only remove text it actually
-    # encloses, so if the closing marker never arrives these are all given
-    # back. Without this an unterminated '<!--' - in prose, in inline code, in
-    # a tilde or four-backtick fence, in an indented code block - silently
-    # deletes the rest of the note's evidence.
-    pending: list[tuple[int, str]] = []
+    open_at = None
 
     for number, raw_line in enumerate(
         lines,
@@ -955,13 +933,10 @@ def classify_markup(
             continue
 
         line = raw_line.rstrip()
-        original = line
 
-        # An open comment is resolved BEFORE the fence test. A fence delimiter
-        # inside a comment is comment text, not a delimiter: toggling the fence
-        # there loses the comment's own closing marker, which either leaks the
-        # commented-out text into the evidence or swallows the rest of the note.
-        if inside_comment:
+        # An open comment is resolved BEFORE the fence test. A fence
+        # delimiter inside a comment is comment text, not a delimiter.
+        if open_at is not None:
             closing = line.find("-->")
 
             if closing == -1:
@@ -973,19 +948,12 @@ def classify_markup(
                         "fenced": False,
                     }
                 )
-                pending.append(
-                    (len(classified) - 1, original)
-                )
                 continue
 
-            inside_comment = False
-            pending = []
+            open_at = None
             line = line[closing + 3:]
 
         else:
-            # A fence delimiter is dropped and updates the fence. Inside a
-            # fence nothing is stripped: a note documenting markup legitimately
-            # contains comments and rules there.
             delimiter = fence_delimiter(
                 line,
                 fence_marker,
@@ -1014,26 +982,19 @@ def classify_markup(
             )
             continue
 
-        # Outside a fence, an HTML comment is pipeline metadata rather than
-        # evidence. Complete comments on this line go first, so two of them on
-        # one line cannot merge and text between them survives.
+        # Complete comments on this line go first, so two of them cannot
+        # merge and text between them survives.
         line = _INLINE_COMMENT_RE.sub(
             " ",
             line,
         )
 
-        # What this line becomes if the comment it opens never closes: its own
-        # text with any COMPLETE comment already removed. Giving back the raw
-        # line instead would resurrect a comment that genuinely did close, so
-        # a single line reading '<!--metadata--> <!--' would put the metadata
-        # back into the evidence. Only the surviving opener is literal text.
-        restorable = line
+        if number not in literal_openers:
+            opening = line.find("<!--")
 
-        opening = line.find("<!--")
-
-        if opening != -1:
-            inside_comment = True
-            line = line[:opening]
+            if opening != -1:
+                open_at = number
+                line = line[:opening]
 
         line = line.rstrip()
 
@@ -1046,15 +1007,6 @@ def classify_markup(
                     "fenced": False,
                 }
             )
-
-            # Enrolled here too: the rule branch returns early, and a line
-            # whose pre-comment text is a rule still has an opener to give
-            # back if that comment never closes.
-            if opening != -1:
-                pending.append(
-                    (len(classified) - 1, restorable)
-                )
-
             continue
 
         classified.append(
@@ -1066,18 +1018,63 @@ def classify_markup(
             }
         )
 
-        if opening != -1:
-            pending.append(
-                (len(classified) - 1, restorable)
-            )
+    return classified, open_at
 
-    # The comment never closed, so it enclosed nothing. Give every line it
-    # claimed back, with the text it had before.
-    for index, original in pending:
-        classified[index]["kind"] = "keep"
-        classified[index]["text"] = original
 
-    return classified
+def classify_markup(
+    lines: list[str],
+    fm_end: int,
+) -> list[dict]:
+    """Classify every line of a note once, before anything is chunked.
+
+    Returns one dict per line, aligned with `lines`, carrying:
+        number   1-based line number
+        kind     'keep' or 'drop'
+        text     the line's content after markup removal ('' when dropped)
+        fenced   True if the line sits inside a fenced block
+
+    Every markup decision here is line-local, so no pattern CAN span lines,
+    whatever it is written as. That is what closed the first three attempts
+    at this defect, each of which let a marker pattern run past its own line
+    and delete the content between two markers.
+
+    A comment may only remove text it actually encloses. An earlier version
+    discovered that after the fact and handed the swallowed lines back. That
+    restored their TEXT but not the STATE the wrong decision had produced:
+    fence tracking had already run with those lines consumed, so a heading
+    textually inside a fence could become the note's title and the fence
+    delimiters reached the evidence.
+
+    So the decision is made before it is acted on. The pass runs, and if a
+    comment opener turns out never to close, that opener is recorded as
+    ordinary text and the whole pass is run again with it. Each restart
+    settles one opener, so this terminates, and the classification that is
+    finally returned was computed with the right answer from the first line
+    - fence state included. There is nothing left to undo.
+    """
+
+    literal_openers: set = set()
+
+    while True:
+        classified, unterminated = _classify_once(
+            lines,
+            fm_end,
+            literal_openers,
+        )
+
+        if unterminated is None:
+            return classified
+
+        if unterminated in literal_openers:
+            # The pass reported an opener already known to be literal, so the
+            # restart is not making progress. That cannot happen while this
+            # function is correct, and the loop terminates without it because
+            # each restart settles one opener. The guard is here so that a
+            # future mistake in the pass produces a wrong classification
+            # rather than a hang: indexing a note must always finish.
+            return classified
+
+        literal_openers.add(unterminated)
 
 
 def chunk_note(

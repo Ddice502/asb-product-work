@@ -147,7 +147,7 @@ def main() -> int:
     # ------------------------------------------------------------------ [fixture-vault]
     check(VAULT.is_dir(), "[fixture-vault] fixtures/vault exists")
     notes = sorted(p.relative_to(VAULT).as_posix() for p in VAULT.rglob("*.md"))
-    check(len(notes) == 22, f"[fixture-vault] the vault holds its 22 notes (got {len(notes)})")
+    check(len(notes) == 23, f"[fixture-vault] the vault holds its 23 notes (got {len(notes)})")
     check(OUTSIDE_NOTE.is_file(),
           "[fixture-vault] the deliberate out-of-vault note is present and scanned below too")
     corpus = "\n".join(p.read_text(encoding="utf-8") for p in
@@ -170,8 +170,8 @@ def main() -> int:
         # -------------------------------------------------------------- [index-build]
         receipt = build(config)
         check("BUILD_STATUS=PASS" in receipt, f"[index-build] the build reports PASS\n{receipt}")
-        check("NOTES_INDEXED=20" in receipt, f"[index-build] 20 notes indexed\n{receipt}")
-        check("CHUNKS_INDEXED=33" in receipt, f"[index-build] 33 chunks indexed\n{receipt}")
+        check("NOTES_INDEXED=21" in receipt, f"[index-build] 21 notes indexed\n{receipt}")
+        check("CHUNKS_INDEXED=34" in receipt, f"[index-build] 34 chunks indexed\n{receipt}")
         check("FILES_SKIPPED=2" in receipt, f"[index-build] 2 files skipped\n{receipt}")
         check(database.is_file(), "[index-build] the database file exists at the configured path")
         check(oct(database.stat().st_mode & 0o777) == "0o640",
@@ -183,7 +183,7 @@ def main() -> int:
         check(metadata["schema_version"] == "1.0.0", "[index-build] the schema version is recorded")
         check(metadata["retrieval"] == "sqlite_fts5_bm25", "[index-build] the retrieval mode is recorded")
         check(metadata["vault_root"] == str(VAULT), "[index-build] the indexed vault root is recorded")
-        check(metadata["notes_indexed"] == "20" and metadata["chunks_indexed"] == "33",
+        check(metadata["notes_indexed"] == "21" and metadata["chunks_indexed"] == "34",
               "[index-build] the receipt and the metadata table agree")
         integrity = rows_of(database, "PRAGMA integrity_check")
         check(list(integrity[0].values())[0] == "ok", "[index-build] SQLite reports the index sound")
@@ -211,7 +211,7 @@ def main() -> int:
               "[exclusion] an excluded prefix contributes no chunk")
         check(not any(".obsidian" in p for p in paths),
               "[exclusion] an excluded path part contributes no chunk")
-        check(len(paths) == 20, f"[exclusion] exactly the 20 permitted notes are indexed (got {len(paths)})")
+        check(len(paths) == 21, f"[exclusion] exactly the 21 permitted notes are indexed (got {len(paths)})")
 
         # -------------------------------------------------------------- [chunking]
         greenhouse = rows_of(
@@ -345,6 +345,31 @@ def main() -> int:
         check("INDENTEDMARKER" not in shapes_body,
               f"[chunking] while four spaces before backticks is an indented code block and NOT a "
               f"fence, so the comment there is stripped like any other (got {shapes_body!r})")
+
+        # An unterminated comment opener must not have swallowed the fence that follows it.
+        # The previous design discovered that after the fact and handed the lines back, which
+        # restored their TEXT but not the STATE: fence tracking had already run with the lines
+        # consumed, so a heading textually inside the fence became the note's TITLE - the highest
+        # weighted index column, printed verbatim to the model - and the fence delimiters reached
+        # the evidence. Deciding before acting is what closes it.
+        giveback = rows_of(database, "SELECT * FROM chunks WHERE path = ? ORDER BY start_line",
+                           "10 Areas/Give Back Fence Note.md")
+        check(len(giveback) == 1,
+              f"[chunking] the give-back-fence note is ONE chunk: the fence was never swallowed, "
+              f"so no heading inside it split anything (got {len(giveback)})")
+        gb_body = giveback[0]["body"]
+        check(giveback[0]["title"] == "Give Back Fence Note",
+              f"[chunking] a heading inside a fence that an unterminated opener appeared to "
+              f"swallow does NOT become the title (got {giveback[0]['title']!r})")
+        check(giveback[0]["heading"] == "",
+              f"[chunking] nor a chunk heading (got {giveback[0]['heading']!r})")
+        check("GIVEBACKHEADING" in gb_body and "GIVEBACKCONTENT" in gb_body,
+              f"[chunking] while both lines survive as fenced content (got {gb_body!r})")
+        check("an unterminated opener that must not swallow" in gb_body,
+              "[chunking] and the unterminated opener is kept as the literal text it is")
+        check("```" not in gb_body,
+              f"[chunking] and the fence delimiters are still dropped, because the fence was "
+              f"classified as a fence (got {gb_body!r})")
 
         # A closing fence must use the SAME character as its opener and be at least as long,
         # and a backtick fence's info string may not itself contain a backtick. Each of those
