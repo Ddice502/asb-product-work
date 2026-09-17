@@ -147,7 +147,7 @@ def main() -> int:
     # ------------------------------------------------------------------ [fixture-vault]
     check(VAULT.is_dir(), "[fixture-vault] fixtures/vault exists")
     notes = sorted(p.relative_to(VAULT).as_posix() for p in VAULT.rglob("*.md"))
-    check(len(notes) == 25, f"[fixture-vault] the vault holds its 25 notes (got {len(notes)})")
+    check(len(notes) == 26, f"[fixture-vault] the vault holds its 26 notes (got {len(notes)})")
     check(OUTSIDE_NOTE.is_file(),
           "[fixture-vault] the deliberate out-of-vault note is present and scanned below too")
     corpus = "\n".join(p.read_text(encoding="utf-8") for p in
@@ -170,8 +170,8 @@ def main() -> int:
         # -------------------------------------------------------------- [index-build]
         receipt = build(config)
         check("BUILD_STATUS=PASS" in receipt, f"[index-build] the build reports PASS\n{receipt}")
-        check("NOTES_INDEXED=23" in receipt, f"[index-build] 23 notes indexed\n{receipt}")
-        check("CHUNKS_INDEXED=36" in receipt, f"[index-build] 36 chunks indexed\n{receipt}")
+        check("NOTES_INDEXED=24" in receipt, f"[index-build] 24 notes indexed\n{receipt}")
+        check("CHUNKS_INDEXED=37" in receipt, f"[index-build] 37 chunks indexed\n{receipt}")
         check("FILES_SKIPPED=2" in receipt, f"[index-build] 2 files skipped\n{receipt}")
         check(database.is_file(), "[index-build] the database file exists at the configured path")
         check(oct(database.stat().st_mode & 0o777) == "0o640",
@@ -183,7 +183,7 @@ def main() -> int:
         check(metadata["schema_version"] == "1.0.0", "[index-build] the schema version is recorded")
         check(metadata["retrieval"] == "sqlite_fts5_bm25", "[index-build] the retrieval mode is recorded")
         check(metadata["vault_root"] == str(VAULT), "[index-build] the indexed vault root is recorded")
-        check(metadata["notes_indexed"] == "23" and metadata["chunks_indexed"] == "36",
+        check(metadata["notes_indexed"] == "24" and metadata["chunks_indexed"] == "37",
               "[index-build] the receipt and the metadata table agree")
         integrity = rows_of(database, "PRAGMA integrity_check")
         check(list(integrity[0].values())[0] == "ok", "[index-build] SQLite reports the index sound")
@@ -211,7 +211,7 @@ def main() -> int:
               "[exclusion] an excluded prefix contributes no chunk")
         check(not any(".obsidian" in p for p in paths),
               "[exclusion] an excluded path part contributes no chunk")
-        check(len(paths) == 23, f"[exclusion] exactly the 23 permitted notes are indexed (got {len(paths)})")
+        check(len(paths) == 24, f"[exclusion] exactly the 24 permitted notes are indexed (got {len(paths)})")
 
         # -------------------------------------------------------------- [chunking]
         greenhouse = rows_of(
@@ -371,9 +371,34 @@ def main() -> int:
               f"[chunking] and the fence delimiters are still dropped, because the fence was "
               f"classified as a fence (got {gb_body!r})")
 
-        # The restart bound must be len(lines) + 1, not len(lines): a note whose every line is
-        # an unterminated opener needs one pass per line plus a final settling pass. One short and
-        # the last line is returned still truncated at its marker, silently.
+        # A thematic break is three or more of ONE marker. Written as a character class the
+        # pattern deleted any mixture of them, so an ordinary line like '-=_*' was destroyed -
+        # a latent error inherited from the base, where the pattern never fired because it was
+        # inert. Both directions are pinned: mixtures survive, single repeated markers go.
+        marks = rows_of(database, "SELECT body FROM chunks WHERE path = ?",
+                        "10 Areas/Break Markers Note.md")[0]["body"]
+        for kept in ("MIXEDMARKS-=_*", "\n-=_*\n", "\n*-*-*-\n", "\n--\n"):
+            check(kept in marks,
+                  f"[chunking] {kept!r} is not a thematic break and survives (got {marks!r})")
+        for dropped in ("\n---\n", "\n***\n", "\n___\n", "\n===\n"):
+            check(dropped not in marks,
+                  f"[chunking] {dropped!r} is a run of one marker and is stripped (got {marks!r})")
+
+        # Whether a comment opener ever closes is decided before classifying, from whether any
+        # later line carries a closing marker. That is what makes the classifier linear instead
+        # of restarting over the whole note per opener.
+        check(amb.last_closing_line(["a", "b <!-- x", "c -->", "d"], 0) == 3,
+              "[chunking] the last closing marker's line is found")
+        check(amb.last_closing_line(["a", "<!-- x", "b"], 0) == 0,
+              "[chunking] and a note with no closing marker reports none")
+        check(amb.last_closing_line(["-->", "a"], 1) == 0,
+              "[chunking] a marker inside frontmatter does not count")
+
+        # A note whose every line is an unterminated opener. Since openers are now decided up
+        # front this settles in a single pass, so these checks no longer pin the restart bound -
+        # they pin that every such opener is literal text and keeps its marker. The bound and the
+        # resume are unreachable in correct code and cannot be pinned at the output level; both
+        # are declared as backstops in the receipt rather than claimed as tested.
         bound = rows_of(database, "SELECT * FROM chunks WHERE path = ? ORDER BY start_line",
                         "10 Areas/Bound Exactness Note.md")
         bound_body = "\n".join(c["body"] for c in bound)

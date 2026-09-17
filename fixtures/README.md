@@ -12,7 +12,7 @@ database, no model, and no vault of the owner's anywhere in the picture. Every n
 place and date in it was made up for this fixture.
 
 Each note exists to exercise one named retrieval behaviour, and the tests name the note they depend
-on. Notes are deliberately small so a failure points at one behaviour. The vault holds 25 notes:
+on. Notes are deliberately small so a failure points at one behaviour. The vault holds 26 notes:
 
 | note | exercises |
 | --- | --- |
@@ -30,7 +30,8 @@ on. Notes are deliberately small so a failure points at one behaviour. The vault
 | `10 Areas/Hidden Title Only.md` | a note whose ONLY heading is inside a comment. The title falls back to the filename stem, and the no-signal fallback chunk therefore carries the filename rather than the comment |
 | `10 Areas/Rule Opener Note.md` | an unterminated comment opener on a line that is otherwise a horizontal rule, with nothing else open. The rule branch returns early, so this is the only way to reach that give-back path |
 | `10 Areas/Fence Shapes Note.md` | the three ways a fence delimiter is not simply "three backticks": a three-backtick line carrying an info string is content, not a closer; four-plus backticks and tildes are fences; four spaces of indent makes an indented code block, not a fence |
-| `10 Areas/Bound Exactness Note.md` | every line an unterminated opener, so it needs one restart per line plus a final settling pass. Pins that the restart bound is `len(lines) + 1` and not one short |
+| `10 Areas/Break Markers Note.md` | mixtures of break characters, which are not thematic breaks and must survive, beside runs of a single marker, which are stripped |
+| `10 Areas/Bound Exactness Note.md` | every line an unterminated opener. Pins that each is treated as literal text and keeps its marker. Since SB-ASK-009 decides openers up front this settles in one pass, so it no longer exercises the restart bound |
 | `10 Areas/Multi Opener Note.md` | three unterminated openers followed by a fence, so the classifier restarts more than once. Settling one opener must not disturb the others, and the fence must still be recognised afterwards |
 | `10 Areas/Give Back Fence Note.md` | an unterminated comment opener followed by a fence containing a heading, and deliberately no real heading of its own. The fence must not have been swallowed: the fenced heading must not become the title, and the delimiters must still be dropped |
 | `10 Areas/Fence Closer Note.md` | a four-backtick fence that a three-backtick line must not close, and a tilde fence that a backtick line must not close. Relaxing either rule ends the fence early and strips what was inside it |
@@ -42,7 +43,7 @@ on. Notes are deliberately small so a failure points at one behaviour. The vault
 | `90 Archive/Old Greenhouse Notes.md` | lives under an excluded prefix and must never be indexed |
 | `.obsidian/workspace.md` | lives under an excluded path part and must never be indexed |
 
-Indexing this vault yields 23 notes and 36 chunks, with 2 files skipped.
+Indexing this vault yields 24 notes and 37 chunks, with 2 files skipped.
 `tests/test_retrieval_core_e2e.py` asserts those numbers, so adding or editing a note here means
 updating them: a fixture change cannot pass unnoticed.
 
