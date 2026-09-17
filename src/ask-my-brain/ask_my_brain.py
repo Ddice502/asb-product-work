@@ -1039,11 +1039,23 @@ def _classify_once(
             continue
 
         # Complete comments on this line go first, so two of them cannot
-        # merge and text between them survives.
-        line = _INLINE_COMMENT_RE.sub(
-            " ",
-            line,
-        )
+        # merge and text between them survives. The pattern is only shown the
+        # line up to its last closing marker. Every match ends in a closing
+        # marker, so none can reach past that point or begin after it, and
+        # the result is the same as substituting over the whole line. What
+        # changes is the cost: past the last closing marker each opener made
+        # the pattern scan to the end of the line and fail, which was
+        # quadratic in the openers on one line (Codex, on SB-ASK-009).
+        last_closer = line.rfind("-->")
+
+        if last_closer != -1:
+            line = (
+                _INLINE_COMMENT_RE.sub(
+                    " ",
+                    line[: last_closer + 3],
+                )
+                + line[last_closer + 3:]
+            )
 
         if number not in literal_openers:
             opening = line.find("<!--")

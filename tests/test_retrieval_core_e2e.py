@@ -48,6 +48,9 @@ re-deriving matched terms by string comparison; D3 cannot be fixed by editing qu
 because deterministic_evidence_strength returns HIGH for any all_terms match however few or generic
 the terms are, so every change to the term set moves strength as a side effect. Do not read those
 two pins as requirements.
+
+D6 (thematic breaks are recognised by an approximation that is wrong in both directions) was found
+by Codex reviewing SB-ASK-009, is older than that package, and is pinned OPEN beside them.
 """
 from __future__ import annotations
 
@@ -59,6 +62,7 @@ import os
 import sqlite3
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -419,6 +423,60 @@ def main() -> int:
               f"(got {nbsp_body!r})")
         check(nbsp_chunks[0]["start_line"] == 4,
               f"[chunking] and the span starts after it (got {nbsp_chunks[0]['start_line']})")
+
+        # Codex, on SB-ASK-009: substituting complete comments over a whole line was quadratic in
+        # the '<!--' openers on that line, because past the last closing marker every opener made
+        # the pattern scan to the end and fail. The classifier now shows the pattern only the line
+        # up to its last closing marker. Three things are pinned. First, that the text produced is
+        # what it was before: each expected value below was taken from the code as it stood before
+        # the change, not written by hand.
+        for raw, expected in (
+            ("keep <!-- gone --> tail <!--<!--", "keep   tail <!--<!--"),
+            ("a <!-- x --> b <!-- y --> c", "a   b   c"),
+            ("<!-- one --><!-- two -->after", "  after"),
+            ("<!--> not a comment --> x", "  x"),
+            ("<!---->empty comment", " empty comment"),
+            ("lead --> stray closer <!-- opener", "lead --> stray closer <!-- opener"),
+        ):
+            got = amb.classify_markup([raw], 0)[0]["text"]
+            check(got == expected,
+                  f"[chunking] complete comments on {raw!r} are removed exactly as before "
+                  f"(got {got!r})")
+
+        # Second, what the pattern is shown, which is deterministic where a clock is not.
+        class _PatternSpy:
+            def __init__(self, real):
+                self.real, self.seen = real, []
+            def sub(self, repl, string):
+                self.seen.append(string)
+                return self.real.sub(repl, string)
+        real_pattern = amb._INLINE_COMMENT_RE
+        spy = _PatternSpy(real_pattern)
+        amb._INLINE_COMMENT_RE = spy
+        try:
+            amb.classify_markup(["<!--" * 5000], 0)
+            seen_no_closer = list(spy.seen)
+            spy.seen.clear()
+            amb.classify_markup(["<!-- a --> kept " + "<!--" * 5000], 0)
+            seen_one_closer = list(spy.seen)
+        finally:
+            amb._INLINE_COMMENT_RE = real_pattern
+        check(seen_no_closer == [],
+              f"[chunking] a line with no closing marker is never shown to the comment pattern "
+              f"(got {[len(x) for x in seen_no_closer]} characters)")
+        check(seen_one_closer == ["<!-- a -->"],
+              f"[chunking] and otherwise the pattern sees the line only up to its last closing "
+              f"marker (got lengths {[len(x) for x in seen_one_closer]})")
+
+        # Third, the property itself, with a margin wide enough that a loaded machine cannot fail
+        # it and the old behaviour cannot pass it: where it was measured, this took 12.0 seconds
+        # before the change and less than a millisecond after it.
+        started = time.monotonic()
+        amb.classify_markup(["<!--" * 32000], 0)
+        elapsed = time.monotonic() - started
+        check(elapsed < 2.0,
+              f"[chunking] 32,000 unclosed openers on one line classify in under two seconds "
+              f"(took {elapsed:.3f}s)")
 
         # A note whose every line is an unterminated opener. Since openers are now decided up
         # front this settles in a single pass, so these checks no longer pin the restart bound -
@@ -907,6 +965,23 @@ def main() -> int:
         check(stopword_rows and amb.deterministic_evidence_strength(stopword_rows) == "HIGH",
               "[defect-pins] DEFECT D3 PINNED (not a requirement): a contentless question yields "
               "HIGH-strength evidence and would be answered by the model")
+
+        # D6 (MEDIUM, Codex on SB-ASK-009): _RULE_LINE_RE approximates a Markdown thematic break
+        # and is wrong in both directions. A break's markers may be separated by spaces, which
+        # the pattern cannot match, and a break may be indented by at most three spaces, where
+        # the pattern accepts any amount. Both behaviours are older than this line of packages.
+        _, spaced = amb.chunk_note(
+            "# T\nVisible prose long enough for indexing here ok.\n\n* * *\n\n"
+            "After prose long enough for indexing here.\n", "n.md", 3500)
+        check("* * *" in "\n".join(c["body"] for c in spaced),
+              "[defect-pins] DEFECT D6 PINNED (not a requirement): a thematic break written with "
+              "spaces between its markers is kept as content")
+        _, indented = amb.chunk_note(
+            "# T\nVisible prose long enough for indexing here ok.\n\n    ---\n\n"
+            "After prose long enough for indexing here.\n", "n.md", 3500)
+        check("---" not in "\n".join(c["body"] for c in indented),
+              "[defect-pins] DEFECT D6 PINNED (not a requirement): a run of markers indented four "
+              "spaces, which is not a thematic break, is deleted as one")
 
         # -------------------------------------------------------------- [containment]
         check(len(CONNECTED) >= 2,
