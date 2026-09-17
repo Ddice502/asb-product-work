@@ -943,9 +943,6 @@ def _classify_once(
     lines: list[str],
     fm_end: int,
     literal_openers: set,
-    resume_from: int = 0,
-    classified: list = None,
-    resume_fence=None,
     last_close: int = None,
 ) -> tuple:
     """One pass of the classifier, optionally resumed part way.
@@ -953,17 +950,16 @@ def _classify_once(
     `literal_openers` holds the line numbers of '<!--' markers already known
     not to close; those are ordinary text and open nothing.
 
-    `resume_from` is a 0-based index to start at, `classified` the list being
-    built (truncated to that point and appended to IN PLACE, never copied) and
-    `resume_fence` the open fence marker as it stood there. Resuming is sound
-    because state flows strictly forward and `literal_openers` only ever
-    affects the line it names and those after it, so every line before the
-    resume point is classified identically on every pass.
-
-    Without this the restart rescanned the whole note each time, which made
-    the classifier quadratic in note length and handed note content control
-    over how long an index rebuild takes. Copying the prefix on each restart
-    would have kept it quadratic for the same reason, so it is reused.
+    Each call classifies the whole note from its first line. An earlier
+    version resumed part way to avoid rescanning, which is what a restart
+    costs - but the restart is not what made this quadratic, and once
+    last_closing_line decides openers up front the restart does not fire at
+    all. Measured, resuming saved nothing (0.0428s against 0.0422s over
+    20,000 openers) and it carried a real cost: the resume restored the fence
+    marker but not the open-comment state, so a restart landing on a line
+    where a comment had closed mid-line re-read the text before that closing
+    marker as ordinary content. That text was inside a comment. The backstop
+    is only worth having if it is correct, so it starts from the top.
 
     Returns the classification, the line number of the first opener that
     reached the end of the note still unclosed (or None), and the point to
@@ -973,24 +969,14 @@ def _classify_once(
     if last_close is None:
         last_close = last_closing_line(lines, fm_end)
 
-    if classified is None:
-        classified = []
-
-    del classified[resume_from:]
-
-    fence_marker = resume_fence
+    classified: list[dict] = []
+    fence_marker = None
     open_at = None
-    resume = None
 
-    # Indexed rather than sliced: lines[resume_from:] copies the remainder of
-    # the note on every restart, which is the same quadratic this resume
-    # exists to remove.
-    for number in range(
-        resume_from + 1,
-        len(lines) + 1,
+    for number, raw_line in enumerate(
+        lines,
+        start=1,
     ):
-        raw_line = lines[number - 1]
-        fence_before = fence_marker
 
         if number <= fm_end:
             classified.append(
@@ -1074,10 +1060,6 @@ def _classify_once(
 
             if opening != -1:
                 open_at = number
-                resume = (
-                    number - 1,
-                    fence_before,
-                )
                 line = line[:opening]
 
         line = line.rstrip()
@@ -1102,7 +1084,7 @@ def _classify_once(
             }
         )
 
-    return classified, open_at, resume
+    return classified, open_at
 
 
 def classify_markup(
@@ -1139,8 +1121,6 @@ def classify_markup(
 
     literal_openers: set = set()
     classified: list[dict] = []
-    resume_from = 0
-    resume_fence = None
     last_close = last_closing_line(lines, fm_end)
 
     # With last_closing_line deciding openers up front, a pass should never
@@ -1158,13 +1138,10 @@ def classify_markup(
     # openers still span forever. Indexing a note must always finish, so the
     # loop cannot depend on the body being right.
     for _ in range(len(lines) + 1):
-        classified, unterminated, resume = _classify_once(
+        classified, unterminated = _classify_once(
             lines,
             fm_end,
             literal_openers,
-            resume_from,
-            classified,
-            resume_fence,
             last_close,
         )
 
@@ -1172,10 +1149,6 @@ def classify_markup(
             break
 
         literal_openers.add(unterminated)
-
-        # Restart at the opener that did not close, not at line 1. Everything
-        # before it was classified from the same state and cannot change.
-        resume_from, resume_fence = resume
 
     return classified
 

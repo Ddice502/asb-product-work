@@ -405,11 +405,12 @@ def main() -> int:
         for token in ("BOUNDONE", "BOUNDTWO", "BOUNDTHREE", "BOUNDFOUR"):
             check(token in bound_body, f"[chunking] {token}'s line survives")
         check("BOUNDFOUR line carrying an opener <!--" in bound_body,
-              f"[chunking] and the LAST line keeps its literal marker, so the bound was large "
-              f"enough to settle every opener (got {bound_body!r})")
+              f"[chunking] and the LAST line keeps its literal marker, like every other "
+              f"(got {bound_body!r})")
 
-        # Several unterminated openers, so the classifier restarts more than once. One opener
-        # settling must not disturb the ones before it, and the fence after them must still be
+        # Several unterminated openers followed by a fence. Since SB-ASK-009 decides openers up
+        # front this settles in one pass, so it no longer exercises a restart either; what it
+        # pins is that every opener is literal text and that the fence after them is still
         # recognised - the whole point of settling before acting.
         multi = rows_of(database, "SELECT * FROM chunks WHERE path = ? ORDER BY start_line",
                         "10 Areas/Multi Opener Note.md")
