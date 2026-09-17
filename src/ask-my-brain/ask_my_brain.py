@@ -889,16 +889,17 @@ def fence_delimiter(
 
     return False
 
-# A thematic break is three or more of ONE marker, not any mixture of them.
-# Written as a character class, this deleted lines like '-=_*' that are not
-# breaks at all - a latent error inherited from the base, where the pattern
-# is written with a doubled backslash and deletes no rule line. '=' is kept
-# as a marker so that a setext underline is still removed, which is the
-# behaviour this line has always been declared to have.
+# A Markdown thematic break: at most three spaces of indent, then three or
+# more of ONE marker out of '*', '-' and '_', each of which may be followed
+# by spaces or tabs, and nothing else on the line. A mixture of markers is
+# not a break, and neither is a run indented four spaces or by a tab, which
+# is indented code. A run of three or more '=' under the same indent limit
+# is dropped as well: it is a setext heading underline, and unlike a break
+# it may not contain spaces.
 _RULE_LINE_RE = re.compile(
-    r"^[ \t]*"
-    r"(?:\*{3,}|-{3,}|_{3,}|={3,})"
-    r"[ \t]*$"
+    r"^ {0,3}"
+    r"(?:(?:\*[ \t]*){3,}|(?:-[ \t]*){3,}|(?:_[ \t]*){3,}|={3,}[ \t]*)"
+    r"$"
 )
 
 _INLINE_COMMENT_RE = re.compile(
