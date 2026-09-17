@@ -25,9 +25,9 @@ Checkpoints, each independently observable:
     [ask-e2e]              ask() over the real index with only the model stubbed
     [defect-pins]          today's DEFECTIVE behaviour, pinned so a fix cannot pass unnoticed
     [containment]          no network, no writes to fixtures, database confined to the temp dir
-    [doc-hygiene]          no unmarked line of this suite or fixtures/README.md uses the
-                           vocabulary of a deleted mechanism. NOT full coverage - see the
-                           checkpoint itself for what it does not scan
+    [doc-hygiene]          no unmarked line of this suite or fixtures/README.md carries the
+                           vocabulary of a deleted mechanism outside a fixture's own name. NOT
+                           full coverage - see the checkpoint itself for what it does not scan
 
 READ THIS BEFORE TRUSTING [defect-pins]. Every assertion in that one checkpoint states what the
 retrieval core does TODAY and is WRONG. None of them is a requirement, and none may be cited as
@@ -940,19 +940,16 @@ def main() -> int:
     # where the mechanism prose actually lives, nor the other four suites, nor the fixture notes
     # themselves. It has no notion of tense - it fails on any unmarked hit - so a stale statement
     # that avoids this vocabulary passes, and the marker below can exempt a line that is not
-    # historical at all. It catches the words these four cycles actually went stale in, and a
-    # rename of the Give Back Fence fixture will need the name list below updated with it.
+    # historical at all. It catches the words these four cycles actually went stale in.
     dead_mechanisms = (
         "give-back", "given back", "give back", "gives back",   # staleness-guard: SB-ASK-008
         "resumed part way", "resume from", "the resume",        # staleness-guard: SB-ASK-009
     )
     # These name a fixture that still exists, so they are subtracted before matching. That is a
     # real exemption and not a subtlety worth hiding: an unmarked line may carry this vocabulary
-    # when it is naming the file. It also means the guard only forces a rename to be reflected
-    # here when the NEW name still carries dead vocabulary - 'Gives Back Fence Note' would fail  # staleness-guard
-    # until this list is updated, 'Handback Fence Note' would not. Both verified. The line above
-    # needs the marker for no reason but this: naming that hypothetical trips the guard. That is
-    # the documented false positive happening to the sentence that documents it.
+    # when it is naming the file, which is why the check below says "outside a fixture's own name".
+    # It also means a rename only has to be reflected here when the new name still carries dead
+    # vocabulary; one that does not, does not. Both directions verified.
     fixture_names = ("Give Back Fence Note.md", "Give Back Fence")
     stale = []
     for doc in (Path(__file__), ROOT / "fixtures" / "README.md"):
@@ -967,8 +964,8 @@ def main() -> int:
                 if token in lowered:
                     stale.append(f"{doc.name}:{number} {token!r}")
     check(stale == [],
-          f"[doc-hygiene] no unmarked line of this suite or fixtures/README.md uses the vocabulary "
-          f"of a deleted mechanism (got {stale})")
+          f"[doc-hygiene] no unmarked line of this suite or fixtures/README.md carries the "
+          f"vocabulary of a deleted mechanism outside a fixture's own name (got {stale})")
 
     check(snapshot_fixtures() == before,
           "[containment] every fixture file is byte-for-byte and mtime unchanged")
