@@ -147,7 +147,7 @@ def main() -> int:
     # ------------------------------------------------------------------ [fixture-vault]
     check(VAULT.is_dir(), "[fixture-vault] fixtures/vault exists")
     notes = sorted(p.relative_to(VAULT).as_posix() for p in VAULT.rglob("*.md"))
-    check(len(notes) == 23, f"[fixture-vault] the vault holds its 23 notes (got {len(notes)})")
+    check(len(notes) == 24, f"[fixture-vault] the vault holds its 24 notes (got {len(notes)})")
     check(OUTSIDE_NOTE.is_file(),
           "[fixture-vault] the deliberate out-of-vault note is present and scanned below too")
     corpus = "\n".join(p.read_text(encoding="utf-8") for p in
@@ -170,8 +170,8 @@ def main() -> int:
         # -------------------------------------------------------------- [index-build]
         receipt = build(config)
         check("BUILD_STATUS=PASS" in receipt, f"[index-build] the build reports PASS\n{receipt}")
-        check("NOTES_INDEXED=21" in receipt, f"[index-build] 21 notes indexed\n{receipt}")
-        check("CHUNKS_INDEXED=34" in receipt, f"[index-build] 34 chunks indexed\n{receipt}")
+        check("NOTES_INDEXED=22" in receipt, f"[index-build] 22 notes indexed\n{receipt}")
+        check("CHUNKS_INDEXED=35" in receipt, f"[index-build] 35 chunks indexed\n{receipt}")
         check("FILES_SKIPPED=2" in receipt, f"[index-build] 2 files skipped\n{receipt}")
         check(database.is_file(), "[index-build] the database file exists at the configured path")
         check(oct(database.stat().st_mode & 0o777) == "0o640",
@@ -183,7 +183,7 @@ def main() -> int:
         check(metadata["schema_version"] == "1.0.0", "[index-build] the schema version is recorded")
         check(metadata["retrieval"] == "sqlite_fts5_bm25", "[index-build] the retrieval mode is recorded")
         check(metadata["vault_root"] == str(VAULT), "[index-build] the indexed vault root is recorded")
-        check(metadata["notes_indexed"] == "21" and metadata["chunks_indexed"] == "34",
+        check(metadata["notes_indexed"] == "22" and metadata["chunks_indexed"] == "35",
               "[index-build] the receipt and the metadata table agree")
         integrity = rows_of(database, "PRAGMA integrity_check")
         check(list(integrity[0].values())[0] == "ok", "[index-build] SQLite reports the index sound")
@@ -211,7 +211,7 @@ def main() -> int:
               "[exclusion] an excluded prefix contributes no chunk")
         check(not any(".obsidian" in p for p in paths),
               "[exclusion] an excluded path part contributes no chunk")
-        check(len(paths) == 21, f"[exclusion] exactly the 21 permitted notes are indexed (got {len(paths)})")
+        check(len(paths) == 22, f"[exclusion] exactly the 22 permitted notes are indexed (got {len(paths)})")
 
         # -------------------------------------------------------------- [chunking]
         greenhouse = rows_of(
@@ -370,6 +370,26 @@ def main() -> int:
         check("```" not in gb_body,
               f"[chunking] and the fence delimiters are still dropped, because the fence was "
               f"classified as a fence (got {gb_body!r})")
+
+        # Several unterminated openers, so the classifier restarts more than once. One opener
+        # settling must not disturb the ones before it, and the fence after them must still be
+        # recognised - the whole point of settling before acting.
+        multi = rows_of(database, "SELECT * FROM chunks WHERE path = ? ORDER BY start_line",
+                        "10 Areas/Multi Opener Note.md")
+        check(len(multi) == 1, f"[chunking] the multi-opener note is one chunk (got {len(multi)})")
+        multi_body = multi[0]["body"]
+        for token in ("MULTIONE", "MULTITWO", "MULTITHREE"):
+            check(token in multi_body,
+                  f"[chunking] {token}'s line survives with its literal marker: settling one "
+                  f"opener does not disturb the others (got {multi_body!r})")
+        check(multi[0]["title"] == "Multi Opener Note",
+              f"[chunking] and the heading inside the fence below them is still not the title "
+              f"(got {multi[0]['title']!r})")
+        check("MULTIFENCEDHEADING" in multi_body and "MULTIFENCEDCONTENT" in multi_body,
+              "[chunking] while both fenced lines survive as fenced content")
+        check("```" not in multi_body,
+              f"[chunking] and the delimiters are dropped, so the fence was classified as a "
+              f"fence after every opener had settled (got {multi_body!r})")
 
         # A closing fence must use the SAME character as its opener and be at least as long,
         # and a backtick fence's info string may not itself contain a backtick. Each of those

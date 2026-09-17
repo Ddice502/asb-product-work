@@ -1054,8 +1054,17 @@ def classify_markup(
     """
 
     literal_openers: set = set()
+    classified: list[dict] = []
 
-    while True:
+    # Bounded, not merely convergent. Each restart settles one opener and a
+    # note has at most len(lines) of them, so the bound is never reached while
+    # this function is correct. It is written as a bound rather than a
+    # progress check because a progress check only catches the shape of
+    # non-progress it tests for: an earlier version guarded against the same
+    # opener being re-reported, and a change that simply stopped recording
+    # openers still span forever. Indexing a note must always finish, so the
+    # loop cannot depend on the body being right.
+    for _ in range(len(lines) + 1):
         classified, unterminated = _classify_once(
             lines,
             fm_end,
@@ -1063,18 +1072,11 @@ def classify_markup(
         )
 
         if unterminated is None:
-            return classified
-
-        if unterminated in literal_openers:
-            # The pass reported an opener already known to be literal, so the
-            # restart is not making progress. That cannot happen while this
-            # function is correct, and the loop terminates without it because
-            # each restart settles one opener. The guard is here so that a
-            # future mistake in the pass produces a wrong classification
-            # rather than a hang: indexing a note must always finish.
-            return classified
+            break
 
         literal_openers.add(unterminated)
+
+    return classified
 
 
 def chunk_note(
