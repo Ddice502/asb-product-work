@@ -945,25 +945,24 @@ def _classify_once(
     literal_openers: set,
     last_close: int = None,
 ) -> tuple:
-    """One pass of the classifier, optionally resumed part way.
+    """Classify every line of the note, always starting from the first.
 
     `literal_openers` holds the line numbers of '<!--' markers already known
     not to close; those are ordinary text and open nothing.
 
-    Each call classifies the whole note from its first line. An earlier
-    version resumed part way to avoid rescanning, which is what a restart
-    costs - but the restart is not what made this quadratic, and once
-    last_closing_line decides openers up front the restart does not fire at
-    all. Measured, resuming saved nothing (0.0428s against 0.0422s over
-    20,000 openers) and it carried a real cost: the resume restored the fence
-    marker but not the open-comment state, so a restart landing on a line
-    where a comment had closed mid-line re-read the text before that closing
-    marker as ordinary content. That text was inside a comment. The backstop
-    is only worth having if it is correct, so it starts from the top.
+    An earlier version of this function could resume part way, to avoid
+    rescanning the prefix a restart would otherwise repeat. It was removed.
+    The rescanning was never what made this quadratic - last_closing_line is
+    what made it linear, by deciding openers up front - and over 20,000
+    openers the two measured the same to within run-to-run noise, so the
+    resume was buying nothing. It cost something real, though: it restored
+    the fence marker but not the open-comment state, so a restart landing on
+    a line where a comment had closed mid-line re-read the text before that
+    closing marker as ordinary content. That text was inside a comment. The
+    backstop is only worth having if it is correct, so it starts from the top.
 
-    Returns the classification, the line number of the first opener that
-    reached the end of the note still unclosed (or None), and the point to
-    resume from if there was one.
+    Returns the classification and the line number of the first opener that
+    reached the end of the note still unclosed (or None).
     """
 
     if last_close is None:

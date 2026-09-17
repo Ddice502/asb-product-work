@@ -396,9 +396,9 @@ def main() -> int:
 
         # A note whose every line is an unterminated opener. Since openers are now decided up
         # front this settles in a single pass, so these checks no longer pin the restart bound -
-        # they pin that every such opener is literal text and keeps its marker. The bound and the
-        # resume are unreachable in correct code and cannot be pinned at the output level; both
-        # are declared as backstops in the receipt rather than claimed as tested.
+        # they pin that every such opener is literal text and keeps its marker. The bound itself
+        # is unreachable in correct code and cannot be pinned at the output level, so it is
+        # declared as a backstop in the receipt rather than claimed as tested.
         bound = rows_of(database, "SELECT * FROM chunks WHERE path = ? ORDER BY start_line",
                         "10 Areas/Bound Exactness Note.md")
         bound_body = "\n".join(c["body"] for c in bound)
