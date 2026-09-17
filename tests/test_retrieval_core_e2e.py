@@ -25,6 +25,7 @@ Checkpoints, each independently observable:
     [ask-e2e]              ask() over the real index with only the model stubbed
     [defect-pins]          today's DEFECTIVE behaviour, pinned so a fix cannot pass unnoticed
     [containment]          no network, no writes to fixtures, database confined to the temp dir
+    [doc-hygiene]          no comment or label describes a mechanism the product no longer has
 
 READ THIS BEFORE TRUSTING [defect-pins]. Every assertion in that one checkpoint states what the
 retrieval core does TODAY and is WRONG. None of them is a requirement, and none may be cited as
@@ -355,7 +356,7 @@ def main() -> int:
         giveback = rows_of(database, "SELECT * FROM chunks WHERE path = ? ORDER BY start_line",
                            "10 Areas/Give Back Fence Note.md")
         check(len(giveback) == 1,
-              f"[chunking] the give-back-fence note is ONE chunk: the fence was never swallowed, "
+              f"[chunking] the Give Back Fence fixture is ONE chunk: the fence was never swallowed, "
               f"so no heading inside it split anything (got {len(giveback)})")
         gb_body = giveback[0]["body"]
         check(giveback[0]["title"] == "Give Back Fence Note",
@@ -393,6 +394,28 @@ def main() -> int:
               "[chunking] and a note with no closing marker reports none")
         check(amb.last_closing_line(["-->", "a"], 1) == 0,
               "[chunking] a marker inside frontmatter does not count")
+
+        # Two places compare a line number against fm_end, and only ONE of them is insensitive to
+        # which comparison it uses. In last_closing_line it cannot matter: frontmatter_end only
+        # ever returns a line whose .strip() is exactly '---', and such a line cannot contain a
+        # closing marker. In the classifier it matters, because the two functions disagree about
+        # what whitespace is - frontmatter_end accepts anything str.strip() removes, while the
+        # rule pattern anchors on [ \t]* only. SB-ASK-009's receipt claimed both comparisons were
+        # equivalent by construction; Agent C showed the second is killable, so it is pinned here
+        # instead of asserted. A non-breaking space before the closing marker is the witness.
+        nbsp_fm = "---\ntitle: N\n\u00a0---\nPROSE line long enough to be indexed as evidence.\n"
+        check(amb.frontmatter_end(nbsp_fm.splitlines()) == 3,
+              "[chunking] frontmatter ends on a closing line indented with a non-breaking space")
+        check(amb._RULE_LINE_RE.match("\u00a0---") is None,
+              "[chunking] but the rule pattern does NOT match that same line, which is why the "
+              "classifier's own comparison has to include it rather than rely on the rule branch")
+        _, nbsp_chunks = amb.chunk_note(nbsp_fm, "n.md", 3500)
+        nbsp_body = "\n".join(c["body"] for c in nbsp_chunks)
+        check("---" not in nbsp_body,
+              f"[chunking] so the closing marker is dropped as frontmatter, not kept as content "
+              f"(got {nbsp_body!r})")
+        check(nbsp_chunks[0]["start_line"] == 4,
+              f"[chunking] and the span starts after it (got {nbsp_chunks[0]['start_line']})")
 
         # A note whose every line is an unterminated opener. Since openers are now decided up
         # front this settles in a single pass, so these checks no longer pin the restart bound -
@@ -507,21 +530,23 @@ def main() -> int:
               f"(got {fc_body!r})")
         check("an opener <!-- that never closes" in fc_body,
               "[chunking] and its line is kept, the marker treated as the literal text it is")
-        # The give-back must restore the line as it was AFTER complete comments were removed.
-        # Restoring the raw line resurrects a comment that genuinely closed, so one line reading
-        # '<!--metadata--> <!--' would put the metadata back into the evidence.
+        # A complete comment sharing a line with a surviving opener must stay removed. Nothing
+        # restores it: _INLINE_COMMENT_RE strips complete comments from the line BEFORE the opener
+        # is looked for, in the one classifying pass, so '<!--metadata--> <!--' has already lost
+        # its metadata by the time the trailing opener is considered.
         check("ENCLOSEDSECRET" not in fc_body,
               f"[chunking] a COMPLETE comment sharing a line with a surviving opener stays removed "
               f"(got {fc_body!r})")
         check("ENCLOSEDLINE" in fc_body,
               "[chunking] while that line's own prose is kept")
-        # An opener whose line begins with a rule must still be given back, not destroyed. It
-        # needs its own note: the rule branch returns early, so this path is only reached when no
-        # other comment is already open.
+        # An opener on a line that is otherwise a horizontal rule must keep its text. It needs its
+        # own note because the two branches that could destroy it are both bypassed, and only this
+        # shape shows that: last_closing_line returns 0 for the note, so the opener is literal from
+        # the outset, the line is never truncated, and _RULE_LINE_RE is never applied to it.
         rule_opener = rows_of(database, "SELECT body FROM chunks WHERE path = ?",
                               "10 Areas/Rule Opener Note.md")[0]["body"]
         check("RULEOPENER" in rule_opener,
-              f"[chunking] an unterminated opener on a rule line is given back too "
+              f"[chunking] an unterminated opener on a rule line keeps its text "
               f"(got {rule_opener!r})")
         check("Closing prose" in rule_opener,
               "[chunking] and the prose after it survives")
@@ -895,6 +920,33 @@ def main() -> int:
         check(amb.sqlite3.connect is REAL_SQLITE_CONNECT,
               "[containment] the suite leaves sqlite3.connect as it found it, compared against a "
               "reference captured before the spy existed")
+
+    # ------------------------------------------------------------------ [doc-hygiene]
+    # Four cycles running, this suite and the fixture README described mechanisms the product no
+    # longer has - a give-back removed by SB-ASK-008, a resume removed by SB-ASK-009 - and one of  # staleness-guard
+    # them was a check label PRINTED ON EVERY PASSING RUN. Each time the named instances were
+    # corrected and the unnamed ones survived. Remembering is what failed, so this checks instead.
+    # A line may discuss a dead mechanism in the past tense by carrying the marker below.
+    dead_mechanisms = (                                         # staleness-guard
+        "give-back", "given back", "give back", "gives back",   # staleness-guard: SB-ASK-008
+        "resumed part way", "resume from", "the resume",        # staleness-guard: SB-ASK-009
+    )                                                           # staleness-guard
+    fixture_names = ("Give Back Fence Note.md", "Give Back Fence")
+    stale = []
+    for doc in (Path(__file__), ROOT / "fixtures" / "README.md"):
+        for number, raw in enumerate(doc.read_text(encoding="utf-8").splitlines(), start=1):
+            if "staleness-guard" in raw:
+                continue
+            probe = raw
+            for name in fixture_names:
+                probe = probe.replace(name, "")
+            lowered = probe.lower()
+            for token in dead_mechanisms:
+                if token in lowered:
+                    stale.append(f"{doc.name}:{number} {token!r}")
+    check(stale == [],
+          f"[doc-hygiene] no comment, check label or fixture note describes a mechanism the "
+          f"product no longer has (got {stale})")
 
     check(snapshot_fixtures() == before,
           "[containment] every fixture file is byte-for-byte and mtime unchanged")
