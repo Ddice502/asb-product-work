@@ -25,6 +25,10 @@ Checkpoints, each independently observable:
     [ask-e2e]              ask() over the real index with only the model stubbed
     [defect-pins]          today's DEFECTIVE behaviour, pinned so a fix cannot pass unnoticed
     [containment]          no network, no writes to fixtures, database confined to the temp dir
+    [doc-hygiene]          no unmarked line of this suite or fixtures/README.md carries the
+                           vocabulary of a deleted mechanism, once the two fixture-name strings
+                           are subtracted from it. NOT full coverage - see the checkpoint itself
+                           for what it does not scan
 
 READ THIS BEFORE TRUSTING [defect-pins]. Every assertion in that one checkpoint states what the
 retrieval core does TODAY and is WRONG. None of them is a requirement, and none may be cited as
@@ -33,18 +37,20 @@ unpinned defect can be fixed or worsened silently. When a defect is repaired, it
 failure is the signal to delete the pin, not to revert the fix. Every other checkpoint in this file
 asserts behaviour that is correct and must stay correct.
 
-One of those four is now repaired, by SB-ASK-005, and its pin has been replaced by assertions of
-the CORRECT behaviour:
+Two of those four are now repaired and their pins replaced by assertions of the CORRECT behaviour:
 
-    D4  a chunk span covers its text, not the blank lines around it  -> [chunking]
+    D4  a chunk span covers its text, not the blank lines around it   -> [chunking]  (SB-ASK-005)
+    D1  markup is stripped outside fenced blocks and only there       -> [chunking]  (SB-ASK-006)
 
-D1 (HTML comments are never stripped from indexed evidence), D2 (accented content is indexed but
-unreachable through search) and D3 (a question made only of stopwords is answered at HIGH) all
-remain OPEN and remain pinned. Two packages have now tried and been withdrawn: D1 needs fence-aware
-chunking, D2 needs the reranker to stop re-deriving matched terms by string comparison, and D3
-cannot be fixed by editing query_terms at all, because deterministic_evidence_strength returns HIGH
-for any all_terms match however few or generic the terms are, so every change to the term set moves
-strength as a side effect. Do not read those three pins as requirements.
+D2 (accented content is indexed but unreachable through search) and D3 (a question made only of
+stopwords is answered at HIGH) remain OPEN and remain pinned. D2 needs the reranker to stop
+re-deriving matched terms by string comparison; D3 cannot be fixed by editing query_terms at all,
+because deterministic_evidence_strength returns HIGH for any all_terms match however few or generic
+the terms are, so every change to the term set moves strength as a side effect. Do not read those
+two pins as requirements.
+
+D6 (thematic breaks are recognised by an approximation that is wrong in both directions) was found
+by Codex reviewing SB-ASK-009, is older than that package, and is pinned OPEN beside them.
 """
 from __future__ import annotations
 
@@ -56,6 +62,7 @@ import os
 import sqlite3
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -148,7 +155,7 @@ def main() -> int:
     # ------------------------------------------------------------------ [fixture-vault]
     check(VAULT.is_dir(), "[fixture-vault] fixtures/vault exists")
     notes = sorted(p.relative_to(VAULT).as_posix() for p in VAULT.rglob("*.md"))
-    check(len(notes) == 13, f"[fixture-vault] the vault holds its 13 notes (got {len(notes)})")
+    check(len(notes) == 26, f"[fixture-vault] the vault holds its 26 notes (got {len(notes)})")
     check(OUTSIDE_NOTE.is_file(),
           "[fixture-vault] the deliberate out-of-vault note is present and scanned below too")
     corpus = "\n".join(p.read_text(encoding="utf-8") for p in
@@ -171,8 +178,8 @@ def main() -> int:
         # -------------------------------------------------------------- [index-build]
         receipt = build(config)
         check("BUILD_STATUS=PASS" in receipt, f"[index-build] the build reports PASS\n{receipt}")
-        check("NOTES_INDEXED=11" in receipt, f"[index-build] 11 notes indexed\n{receipt}")
-        check("CHUNKS_INDEXED=21" in receipt, f"[index-build] 21 chunks indexed\n{receipt}")
+        check("NOTES_INDEXED=24" in receipt, f"[index-build] 24 notes indexed\n{receipt}")
+        check("CHUNKS_INDEXED=37" in receipt, f"[index-build] 37 chunks indexed\n{receipt}")
         check("FILES_SKIPPED=2" in receipt, f"[index-build] 2 files skipped\n{receipt}")
         check(database.is_file(), "[index-build] the database file exists at the configured path")
         check(oct(database.stat().st_mode & 0o777) == "0o640",
@@ -184,7 +191,7 @@ def main() -> int:
         check(metadata["schema_version"] == "1.0.0", "[index-build] the schema version is recorded")
         check(metadata["retrieval"] == "sqlite_fts5_bm25", "[index-build] the retrieval mode is recorded")
         check(metadata["vault_root"] == str(VAULT), "[index-build] the indexed vault root is recorded")
-        check(metadata["notes_indexed"] == "11" and metadata["chunks_indexed"] == "21",
+        check(metadata["notes_indexed"] == "24" and metadata["chunks_indexed"] == "37",
               "[index-build] the receipt and the metadata table agree")
         integrity = rows_of(database, "PRAGMA integrity_check")
         check(list(integrity[0].values())[0] == "ok", "[index-build] SQLite reports the index sound")
@@ -212,7 +219,7 @@ def main() -> int:
               "[exclusion] an excluded prefix contributes no chunk")
         check(not any(".obsidian" in p for p in paths),
               "[exclusion] an excluded path part contributes no chunk")
-        check(len(paths) == 11, f"[exclusion] exactly the 11 permitted notes are indexed (got {len(paths)})")
+        check(len(paths) == 24, f"[exclusion] exactly the 24 permitted notes are indexed (got {len(paths)})")
 
         # -------------------------------------------------------------- [chunking]
         greenhouse = rows_of(
@@ -276,6 +283,412 @@ def main() -> int:
         maximum = int(config.get("max_chunk_chars", 3500))
         check(all(len(c["body"]) <= maximum for c in long_line),
               f"[chunking] no chunk exceeds the configured maximum of {maximum}")
+
+        # The TITLE is the last leg of D1, repaired by SB-ASK-007. It is not an inert field:
+        # chunks_fts indexes it at the highest bm25 column weight, it feeds the coverage
+        # reranker's haystack, it is printed as "Title:" in the evidence block handed to the
+        # answer model, and for a note with no other content it becomes the chunk body. Deriving
+        # it from the raw lines let a heading inside a comment or a fence become the title.
+        titled = rows_of(database, "SELECT * FROM chunks WHERE path = ? ORDER BY start_line",
+                         "10 Areas/Commented Title Note.md")
+        check(titled, "[chunking] the commented-title note is indexed")
+        check(all(c["title"] == "Commented Title Note" for c in titled),
+              f"[chunking] the title is the note's first REAL heading, not one inside a comment "
+              f"or a fence (got {[c['title'] for c in titled]})")
+        all_titles = [r["title"] for r in rows_of(database, "SELECT DISTINCT title FROM chunks")]
+        check(not any("HIDDENTITLE" in x or "FENCEDTITLE" in x for x in all_titles),
+              f"[chunking] no commented or fenced heading becomes any note's title (got {all_titles})")
+        hidden = rows_of(database, "SELECT count(*) AS n FROM chunks_fts WHERE chunks_fts MATCH ?",
+                         "HIDDENTITLE")
+        check(hidden[0]["n"] == 0,
+              "[chunking] and a commented heading is not reachable through the index at all")
+
+        # A note whose ONLY heading is commented out falls back to its filename, and the
+        # no-signal fallback chunk therefore carries the filename rather than the comment.
+        only = rows_of(database, "SELECT * FROM chunks WHERE path = ?", "10 Areas/Hidden Title Only.md")
+        check(len(only) == 1 and only[0]["title"] == "Hidden Title Only",
+              f"[chunking] a note whose only heading is commented falls back to its filename stem "
+              f"(got {[(c['title'], c['body']) for c in only]})")
+        check("HIDDENONLYTITLE" not in only[0]["body"],
+              f"[chunking] so the fallback chunk body carries the filename, not the comment "
+              f"(got {only[0]['body']!r})")
+        orphan = rows_of(database, "SELECT count(*) AS n FROM chunks_fts WHERE chunks_fts MATCH ?",
+                         "HIDDENONLYTITLE")
+        check(orphan[0]["n"] == 0,
+              "[chunking] and that comment is unreachable through the index too")
+
+        # note_title's contract, which this package rewrote: the FIRST heading wins, and only
+        # level one counts. Neither was pinned by any fixture, so either could have been altered
+        # silently in the very function being changed.
+        precedence = rows_of(database, "SELECT * FROM chunks WHERE path = ? ORDER BY start_line",
+                             "10 Areas/Title Precedence Note.md")
+        check(len(precedence) == 3,
+              f"[chunking] the title-precedence note yields its three chunks (got {len(precedence)})")
+        check(all(c["title"] == "First Level One Heading Wins" for c in precedence),
+              f"[chunking] the title is the FIRST level-one heading, not the second and not the "
+              f"level-two heading above it (got {[c['title'] for c in precedence]})")
+        check(precedence[0]["heading"] == "Level Two Comes First And Is Not The Title",
+              "[chunking] while the level-two heading is still a chunk HEADING, just not the title")
+
+        # A fence delimiter is not just "three backticks". Treating it as a toggle failed three
+        # ways at once, each putting text where it should not be: a closing fence carries no info
+        # string, so inside a fence '```NOTACLOSER...' is CONTENT and toggling on it ended the
+        # fence early - destroying the real fenced content and letting a fenced heading become the
+        # title; a fence may be four or more backticks, or tildes; and a fence is indented at most
+        # three spaces, so four spaces is an indented code block and NOT a fence.
+        shapes = rows_of(database, "SELECT * FROM chunks WHERE path = ? ORDER BY start_line",
+                         "10 Areas/Fence Shapes Note.md")
+        check(len(shapes) == 1, f"[chunking] the fence-shapes note is one chunk (got {len(shapes)})")
+        shapes_body = shapes[0]["body"]
+        check(shapes[0]["title"] == "Fence Shapes Note",
+              f"[chunking] a heading inside a fence that a false closer would have ended does not "
+              f"become the title (got {shapes[0]['title']!r})")
+        check("INFENCEHEADING" in shapes_body and "NOTACLOSER" in shapes_body,
+              f"[chunking] a three-backtick line WITH an info string is fenced content, not a "
+              f"closing delimiter (got {shapes_body!r})")
+        check("INFENCEMARKER" in shapes_body,
+              "[chunking] so the comment after it is still inside the fence and survives")
+        check("TILDEMARKER" in shapes_body,
+              f"[chunking] a tilde fence is a fence, so its comment survives (got {shapes_body!r})")
+        check("INDENTEDMARKER" not in shapes_body,
+              f"[chunking] while four spaces before backticks is an indented code block and NOT a "
+              f"fence, so the comment there is stripped like any other (got {shapes_body!r})")
+
+        # An unterminated comment opener must not have swallowed the fence that follows it.
+        # The previous design discovered that after the fact and handed the lines back, which
+        # restored their TEXT but not the STATE: fence tracking had already run with the lines
+        # consumed, so a heading textually inside the fence became the note's TITLE - the highest
+        # weighted index column, printed verbatim to the model - and the fence delimiters reached
+        # the evidence. Deciding before acting is what closes it.
+        giveback = rows_of(database, "SELECT * FROM chunks WHERE path = ? ORDER BY start_line",
+                           "10 Areas/Give Back Fence Note.md")
+        check(len(giveback) == 1,
+              f"[chunking] the Give Back Fence fixture is ONE chunk: the fence was never swallowed, "
+              f"so no heading inside it split anything (got {len(giveback)})")
+        gb_body = giveback[0]["body"]
+        check(giveback[0]["title"] == "Give Back Fence Note",
+              f"[chunking] a heading inside a fence that an unterminated opener appeared to "
+              f"swallow does NOT become the title (got {giveback[0]['title']!r})")
+        check(giveback[0]["heading"] == "",
+              f"[chunking] nor a chunk heading (got {giveback[0]['heading']!r})")
+        check("GIVEBACKHEADING" in gb_body and "GIVEBACKCONTENT" in gb_body,
+              f"[chunking] while both lines survive as fenced content (got {gb_body!r})")
+        check("an unterminated opener that must not swallow" in gb_body,
+              "[chunking] and the unterminated opener is kept as the literal text it is")
+        check("```" not in gb_body,
+              f"[chunking] and the fence delimiters are still dropped, because the fence was "
+              f"classified as a fence (got {gb_body!r})")
+
+        # A thematic break is three or more of ONE marker. Written as a character class the
+        # pattern deleted any mixture of them, so an ordinary line like '-=_*' was destroyed -
+        # a latent error inherited from the base, where the pattern is written with a doubled
+        # backslash and deletes no rule line. Both directions are pinned: mixtures survive, single
+        # repeated markers go.
+        marks = rows_of(database, "SELECT body FROM chunks WHERE path = ?",
+                        "10 Areas/Break Markers Note.md")[0]["body"]
+        for kept in ("MIXEDMARKS-=_*", "\n-=_*\n", "\n*-*-*-\n", "\n--\n"):
+            check(kept in marks,
+                  f"[chunking] {kept!r} is not a thematic break and survives (got {marks!r})")
+        for dropped in ("\n---\n", "\n***\n", "\n___\n", "\n===\n"):
+            check(dropped not in marks,
+                  f"[chunking] {dropped!r} is a run of one marker and is stripped (got {marks!r})")
+
+        # Whether a comment opener ever closes is decided before classifying, from whether any
+        # later line carries a closing marker. That is what makes the classifier linear instead
+        # of restarting over the whole note per opener.
+        check(amb.last_closing_line(["a", "b <!-- x", "c -->", "d"], 0) == 3,
+              "[chunking] the last closing marker's line is found")
+        check(amb.last_closing_line(["a", "<!-- x", "b"], 0) == 0,
+              "[chunking] and a note with no closing marker reports none")
+        check(amb.last_closing_line(["-->", "a"], 1) == 0,
+              "[chunking] a marker inside frontmatter does not count")
+
+        # Two places compare a line number against fm_end, and only ONE of them is insensitive to
+        # which comparison it uses. In last_closing_line it cannot matter: frontmatter_end only
+        # ever returns a line whose .strip() is exactly '---', and such a line cannot contain a
+        # closing marker. In the classifier it matters, because the two functions disagree about
+        # what whitespace is - frontmatter_end accepts anything str.strip() removes, while the
+        # rule pattern anchors on [ \t]* only. SB-ASK-009's receipt claimed both comparisons were
+        # equivalent by construction; Agent C showed the second is killable, so it is pinned here
+        # instead of asserted. A non-breaking space before the closing marker is the witness.
+        nbsp_fm = "---\ntitle: N\n\u00a0---\nPROSE line long enough to be indexed as evidence.\n"
+        check(amb.frontmatter_end(nbsp_fm.splitlines()) == 3,
+              "[chunking] frontmatter ends on a closing line indented with a non-breaking space")
+        check(amb._RULE_LINE_RE.match("\u00a0---") is None,
+              "[chunking] but the rule pattern does NOT match that same line, which is why the "
+              "classifier's own comparison has to include it rather than rely on the rule branch")
+        _, nbsp_chunks = amb.chunk_note(nbsp_fm, "n.md", 3500)
+        nbsp_body = "\n".join(c["body"] for c in nbsp_chunks)
+        check("---" not in nbsp_body,
+              f"[chunking] so the closing marker is dropped as frontmatter, not kept as content "
+              f"(got {nbsp_body!r})")
+        check(nbsp_chunks[0]["start_line"] == 4,
+              f"[chunking] and the span starts after it (got {nbsp_chunks[0]['start_line']})")
+
+        # Codex, on SB-ASK-009: substituting complete comments over a whole line was quadratic in
+        # the '<!--' openers on that line, because past the last closing marker every opener made
+        # the pattern scan to the end and fail. The classifier now shows the pattern only the line
+        # up to its last closing marker. Three things are pinned. First, that the text produced is
+        # what it was before: each expected value below was taken from the code as it stood before
+        # the change, not written by hand.
+        for raw, expected in (
+            ("keep <!-- gone --> tail <!--<!--", "keep   tail <!--<!--"),
+            ("a <!-- x --> b <!-- y --> c", "a   b   c"),
+            ("<!-- one --><!-- two -->after", "  after"),
+            ("<!--> not a comment --> x", "  x"),
+            ("<!---->empty comment", " empty comment"),
+            ("lead --> stray closer <!-- opener", "lead --> stray closer <!-- opener"),
+        ):
+            got = amb.classify_markup([raw], 0)[0]["text"]
+            check(got == expected,
+                  f"[chunking] complete comments on {raw!r} are removed exactly as before "
+                  f"(got {got!r})")
+
+        # Second, what the pattern is shown, which is deterministic where a clock is not.
+        class _PatternSpy:
+            def __init__(self, real):
+                self.real, self.seen = real, []
+            def sub(self, repl, string):
+                self.seen.append(string)
+                return self.real.sub(repl, string)
+        real_pattern = amb._INLINE_COMMENT_RE
+        spy = _PatternSpy(real_pattern)
+        amb._INLINE_COMMENT_RE = spy
+        try:
+            amb.classify_markup(["<!--" * 5000], 0)
+            seen_no_closer = list(spy.seen)
+            spy.seen.clear()
+            amb.classify_markup(["<!-- a --> kept " + "<!--" * 5000], 0)
+            seen_one_closer = list(spy.seen)
+        finally:
+            amb._INLINE_COMMENT_RE = real_pattern
+        check(seen_no_closer == [],
+              f"[chunking] a line with no closing marker is never shown to the comment pattern "
+              f"(got {[len(x) for x in seen_no_closer]} characters)")
+        check(seen_one_closer == ["<!-- a -->"],
+              f"[chunking] and otherwise the pattern sees the line only up to its last closing "
+              f"marker (got lengths {[len(x) for x in seen_one_closer]})")
+
+        # Third, the property itself. Where it was measured this took 12.0 seconds before the
+        # change and less than a millisecond after it, so the bound sits about 60,000 times above
+        # the new cost and at about a sixth of the old one.
+        started = time.monotonic()
+        amb.classify_markup(["<!--" * 32000], 0)
+        elapsed = time.monotonic() - started
+        check(elapsed < 2.0,
+              f"[chunking] 32,000 unclosed openers on one line classify in under two seconds "
+              f"(took {elapsed:.3f}s)")
+
+        # A note whose every line is an unterminated opener. Since openers are now decided up
+        # front this settles in a single pass, so these checks no longer pin the restart bound -
+        # they pin that every such opener is literal text and keeps its marker. The bound itself
+        # is unreachable in correct code and cannot be pinned at the output level, so it is
+        # declared as a backstop in the receipt rather than claimed as tested.
+        bound = rows_of(database, "SELECT * FROM chunks WHERE path = ? ORDER BY start_line",
+                        "10 Areas/Bound Exactness Note.md")
+        bound_body = "\n".join(c["body"] for c in bound)
+        for token in ("BOUNDONE", "BOUNDTWO", "BOUNDTHREE", "BOUNDFOUR"):
+            check(token in bound_body, f"[chunking] {token}'s line survives")
+        check("BOUNDFOUR line carrying an opener <!--" in bound_body,
+              f"[chunking] and the LAST line keeps its literal marker, like every other "
+              f"(got {bound_body!r})")
+
+        # Several unterminated openers followed by a fence. Since SB-ASK-009 decides openers up
+        # front this settles in one pass, so it no longer exercises a restart either; what it
+        # pins is that every opener is literal text and that the fence after them is still
+        # recognised - the whole point of settling before acting.
+        multi = rows_of(database, "SELECT * FROM chunks WHERE path = ? ORDER BY start_line",
+                        "10 Areas/Multi Opener Note.md")
+        check(len(multi) == 1, f"[chunking] the multi-opener note is one chunk (got {len(multi)})")
+        multi_body = multi[0]["body"]
+        for token in ("MULTIONE", "MULTITWO", "MULTITHREE"):
+            check(token in multi_body,
+                  f"[chunking] {token}'s line survives with its literal marker: settling one "
+                  f"opener does not disturb the others (got {multi_body!r})")
+        check(multi[0]["title"] == "Multi Opener Note",
+              f"[chunking] and the heading inside the fence below them is still not the title "
+              f"(got {multi[0]['title']!r})")
+        check("MULTIFENCEDHEADING" in multi_body and "MULTIFENCEDCONTENT" in multi_body,
+              "[chunking] while both fenced lines survive as fenced content")
+        check("```" not in multi_body,
+              f"[chunking] and the delimiters are dropped, so the fence was classified as a "
+              f"fence after every opener had settled (got {multi_body!r})")
+
+        # A closing fence must use the SAME character as its opener and be at least as long,
+        # and a backtick fence's info string may not itself contain a backtick. Each of those
+        # three rules, relaxed, lets a fence end early - which strips content that was inside it.
+        closer = rows_of(database, "SELECT body FROM chunks WHERE path = ? ORDER BY start_line",
+                         "10 Areas/Fence Closer Note.md")
+        closer_body = "\n".join(c["body"] for c in closer)
+        check("SHORTCLOSERMARKER" in closer_body,
+              f"[chunking] a three-backtick line cannot close a four-backtick fence, so the "
+              f"comment after it is still inside and survives (got {closer_body!r})")
+        check("WRONGCHARMARKER" in closer_body,
+              f"[chunking] and a backtick line cannot close a tilde fence (got {closer_body!r})")
+        info_note = rows_of(database, "SELECT body FROM chunks WHERE path = ?",
+                            "10 Areas/Backtick Info Note.md")[0]["body"]
+        check("BTICKINFOMARKER" not in info_note,
+              f"[chunking] a backtick line whose info string contains a backtick opens no fence, "
+              f"so a comment after it is stripped like any other (got {info_note!r})")
+        check("info`with`ticks" in info_note,
+              "[chunking] while that line itself is ordinary text and is kept")
+
+        # D1, repaired by SB-ASK-006. Outside a fenced block, comments and rules are stripped.
+        comment_body = rows_of(database, "SELECT body FROM chunks WHERE path = ?",
+                               "10 Areas/Comment Marker Note.md")[0]["body"]
+        check("<!--" not in comment_body and "pipeline marker" not in comment_body,
+              f"[chunking] an HTML comment is stripped from indexed evidence (got {comment_body!r})")
+        check("The first real sentence" in comment_body and "The second real sentence" in comment_body,
+              "[chunking] while the sentences either side of it are kept")
+        # Two comments on ONE line: a greedy stripper matches from the first '<!--' to the last
+        # '-->' and eats the text between them.
+        check("BRIDGE_TEXT" in comment_body,
+              f"[chunking] text between two comments on one line is kept: the stripper is not "
+              f"greedy (got {comment_body!r})")
+        check("Alpha BRIDGE_TEXT omega" in comment_body,
+              "[chunking] and the text either side of them on that line is kept too")
+        # A comment that opens on one line and closes several lines later.
+        check("runs across several lines" not in comment_body,
+              "[chunking] a comment spanning several lines is removed in full")
+        check("The third real sentence" in comment_body,
+              "[chunking] and the sentence after it survives")
+        check("\n\n\n" not in comment_body,
+              f"[chunking] a run of blank lines is collapsed to one (got {comment_body!r})")
+        check("The fourth real sentence" in comment_body,
+              "[chunking] and the sentence after that run survives")
+        # A comment is replaced by a SPACE, not by nothing, or the words either side fuse.
+        check("FUSEDLEFT FUSEDRIGHT" in comment_body,
+              f"[chunking] a comment between two words leaves them separated (got {comment_body!r})")
+        # Text after a closing marker on the SAME line is evidence and must be kept.
+        check("TAILAFTERCLOSE" in comment_body,
+              "[chunking] text following a closing marker on its own line is kept")
+        check("TAILNOSPACE" in comment_body,
+              f"[chunking] including the character IMMEDIATELY after the marker, with no space to "
+              f"hide an off-by-one in how far the closer is consumed (got {comment_body!r})")
+        check(">TAILNOSPACE" not in comment_body,
+              f"[chunking] and the marker is consumed in full, leaving no fragment of it behind "
+              f"(got {comment_body!r})")
+        # The rule pattern needs three or more marks; two dashes are ordinary text.
+        check("\n--\n" in comment_body,
+              f"[chunking] a two-character dash line is NOT a rule and survives (got {comment_body!r})")
+
+        # A comment must never consume text it does not enclose. The fence test has to be
+        # resolved AFTER an open comment, or a delimiter inside the comment steals its closing
+        # marker: either the commented-out text leaks into the evidence, or the rest of the note
+        # is swallowed. Both happened in the first candidate of this package.
+        fence_comment = rows_of(database, "SELECT * FROM chunks WHERE path = ? ORDER BY start_line",
+                                "10 Areas/Comment Fence Note.md")
+        check(len(fence_comment) == 1,
+              f"[chunking] the comment-fence note is one chunk (got {len(fence_comment)})")
+        fc_body = fence_comment[0]["body"]
+        check("SECRETMARKER" not in fc_body,
+              f"[chunking] a comment containing a fence delimiter is still removed in full, so its "
+              f"text never reaches the model (got {fc_body!r})")
+        check("Prose after the comment" in fc_body,
+              "[chunking] and the prose after that comment survives")
+        # An UNTERMINATED marker encloses nothing, so it may remove nothing.
+        check("ORPHAN_TAIL" in fc_body,
+              f"[chunking] an unterminated marker does not swallow the rest of the note "
+              f"(got {fc_body!r})")
+        check("an opener <!-- that never closes" in fc_body,
+              "[chunking] and its line is kept, the marker treated as the literal text it is")
+        # A complete comment sharing a line with a surviving opener must stay removed. Nothing
+        # restores it: _INLINE_COMMENT_RE strips complete comments from the line BEFORE the opener
+        # is looked for, in the one classifying pass, so '<!--metadata--> <!--' has already lost
+        # its metadata by the time the trailing opener is considered.
+        check("ENCLOSEDSECRET" not in fc_body,
+              f"[chunking] a COMPLETE comment sharing a line with a surviving opener stays removed "
+              f"(got {fc_body!r})")
+        check("ENCLOSEDLINE" in fc_body,
+              "[chunking] while that line's own prose is kept")
+        # An opener on a line that is otherwise a horizontal rule must keep its text. It needs its
+        # own note because neither of the two branches that could destroy it fires, and each for a
+        # different reason: last_closing_line returns 0 for the note, so the opener is literal from
+        # the outset and the truncating branch is never entered at all, while _RULE_LINE_RE IS
+        # applied to this line and simply does not match it, because the line still reads
+        # '*** <!-- RULEOPENER ...' rather than the bare '***' that truncating would have left.
+        # No claim is made here about which OTHER lines the pattern reaches - two earlier branches
+        # continue past it while recording fenced=False, so "every non-fenced line" would be false,
+        # and the argument does not need it. Verified with a spy on the pattern: it is called once
+        # on this line, and does not match.
+        rule_opener = rows_of(database, "SELECT body FROM chunks WHERE path = ?",
+                              "10 Areas/Rule Opener Note.md")[0]["body"]
+        check("RULEOPENER" in rule_opener,
+              f"[chunking] an unterminated opener on a rule line keeps its text "
+              f"(got {rule_opener!r})")
+        check("Closing prose" in rule_opener,
+              "[chunking] and the prose after it survives")
+        # An odd number of fence delimiters inside a comment must not leave the fence latched on,
+        # or everything after it stops being stripped.
+        check("LATCHSECRET" not in fc_body,
+              f"[chunking] an odd fence delimiter inside a comment does not latch the fence on, so "
+              f"later comments are still stripped (got {fc_body!r})")
+        check("LATCHPROSE" in fc_body,
+              "[chunking] and the prose around that later comment is kept")
+        # Two openers on one line: the leftmost opens, so everything from it is enclosed.
+        check("FIRSTSECRET" not in fc_body and "SECONDSECRET" not in fc_body,
+              f"[chunking] with two openers on one line the leftmost opens the comment, so neither "
+              f"is left behind (got {fc_body!r})")
+        check("KEEPTWO" in fc_body,
+              "[chunking] while the text before them is kept")
+        # A comment closes at the FIRST '-->', not the last: a later '-->' on the same line is
+        # ordinary text, and closing at it would delete everything between the two.
+        check("FIRSTTAIL" in fc_body and "SECONDTAIL" in fc_body,
+              f"[chunking] a comment closes at the first marker, so text between that marker and "
+              f"a later one on the same line survives (got {fc_body!r})")
+        check(fc_body.count("-->") == 1,
+              f"[chunking] exactly one '-->' survives - the one that is ordinary text after the "
+              f"comment closed. The marker the comment consumed is gone (got {fc_body!r})")
+
+        # Inside a fenced block nothing is stripped: a note documenting markup legitimately
+        # contains a comment or a rule there. Three earlier attempts at D1 deleted exactly this.
+        fenced = rows_of(database, "SELECT * FROM chunks WHERE path = ? ORDER BY start_line",
+                         "10 Areas/Fenced Markup Note.md")
+        check(len(fenced) == 1,
+              f"[chunking] the fenced-markup note is ONE chunk: a '#' line inside a fence is a shell "
+              f"comment, not a heading, and must not split it (got {len(fenced)})")
+        check(fenced[0]["heading"] == "Fenced Markup Note",
+              f"[chunking] and the chunk keeps the note's real heading (got {fenced[0]['heading']!r})")
+        fenced_body = fenced[0]["body"]
+        check("# rotate the credential before the deploy" in fenced_body,
+              f"[chunking] a heading-like line inside a fence survives verbatim (got {fenced_body!r})")
+        check("<!-- the rule above is part of the printed banner -->" in fenced_body,
+              "[chunking] an HTML comment inside a fence survives verbatim")
+        check("\n---\n" in fenced_body,
+              "[chunking] a rule inside a fence survives verbatim")
+        check(fenced_body.count("---") == 1,
+              f"[chunking] while the rule OUTSIDE the fence is stripped (got {fenced_body!r})")
+        check("a pipeline marker outside the fence" not in fenced_body,
+              "[chunking] and so is the comment outside the fence")
+        body_lines = fenced_body.split("\n")
+        check("```" not in body_lines and "```bash" not in body_lines,
+              f"[chunking] no line of the body is a fence delimiter: they are dropped "
+              f"(got {body_lines!r})")
+        for phrase in ("Prose before the fence", "Prose between the fence", "Prose after the rule"):
+            check(phrase in fenced_body, f"[chunking] {phrase!r} survives")
+        # A fence may be four or more backticks, and the declared limitation that said otherwise
+        # was itself a defect: an author's literal fenced example lost its comments. Repaired by
+        # SB-ASK-007 repair 2, so the pin that declared the limitation is replaced by its contract.
+        check("QUADSECRET" in fenced_body,
+              f"[chunking] a four-backtick block is a fence and its content is kept "
+              f"(got {fenced_body!r})")
+        check("QUADMARKER" in fenced_body,
+              f"[chunking] including a comment inside it, which is literal example text "
+              f"(got {fenced_body!r})")
+        check("````" not in fenced_body.split("\n"),
+              "[chunking] while the four-backtick delimiters themselves are dropped")
+
+        # D1 and D4 are coupled: once markup is really stripped, a span must not end on a line
+        # that is no longer in the body. The rule and the comment are the last two markup lines
+        # before the closing prose, so a span that ignored them would end on one of them.
+        source = (VAULT / "10 Areas/Fenced Markup Note.md").read_text(encoding="utf-8").splitlines()
+        span_end = source[fenced[0]["end_line"] - 1]
+        check(span_end.strip() and span_end.strip() in fenced_body,
+              f"[chunking] the span ends on a line that is still IN the body after stripping "
+              f"(line {fenced[0]['end_line']}: {span_end!r})")
+        span_start = source[fenced[0]["start_line"] - 1]
+        check(span_start.strip() and span_start.strip() in fenced_body,
+              f"[chunking] and starts on one too (line {fenced[0]['start_line']}: {span_start!r})")
 
         empty = rows_of(database, "SELECT * FROM chunks WHERE path = ?", "10 Areas/Empty Signal Note.md")
         check(len(empty) == 1 and empty[0]["body"] == "Empty Signal Note",
@@ -413,9 +826,9 @@ def main() -> int:
         # The 0.35 top-candidate gate, isolated. This question's best candidate scores ~0.33 -
         # above the 0.30 row floor, below the 0.35 top gate - so it is the top gate alone that
         # returns nothing. Both its terms are in the index and retrieve on their own.
-        check(len(amb.search(config, "inventory", 5)) >= 1,
-              "[search] 'inventory' on its own retrieves")
-        check(amb.search(config, "inventory dirigible", 20) == [],
+        check(len(amb.search(config, "saw", 5)) >= 1,
+              "[search] 'saw' on its own retrieves")
+        check(amb.search(config, "saw frame dirigible", 20) == [],
               "[search] a question whose best candidate scores between the 0.30 floor and the "
               "0.35 top gate is refused by the top gate alone")
         check(amb.search(config, "workshop dirigible", 20) == [],
@@ -531,18 +944,6 @@ def main() -> int:
         # Everything in this block asserts DEFECTIVE behaviour. See the module docstring.
         # Repairing any of these defects will fail its pin; delete the pin, keep the repair.
 
-        # D1 (HIGH): chunk_note's cleanup patterns are written with doubled backslashes, so
-        # r"<!--[\\s\\S]*?-->" is a class of {backslash, s, S} rather than "any character".
-        # HTML comments therefore survive into indexed evidence and are shown to the model.
-        comment_body = rows_of(database, "SELECT body FROM chunks WHERE path = ?",
-                               "10 Areas/Comment Marker Note.md")[0]["body"]
-        check("<!--" in comment_body,
-              "[defect-pins] DEFECT D1 PINNED (not a requirement): an HTML comment is still indexed "
-              "as retrievable evidence; when the stripper is fixed this check must fail and be deleted")
-        check("pipeline marker" in comment_body,
-              "[defect-pins] DEFECT D1 PINNED (not a requirement): the comment's text, which is "
-              "pipeline metadata and not human evidence, reaches the model")
-
         # D2 (HIGH): FTS5 indexes accented content correctly, but query_terms (r"[A-Za-z0-9]+")
         # and the coverage reranker (r"[^a-z0-9]+") both strip non-ASCII, so the term never
         # matches the body token and the chunk is discarded after retrieval.
@@ -566,6 +967,26 @@ def main() -> int:
               "[defect-pins] DEFECT D3 PINNED (not a requirement): a contentless question yields "
               "HIGH-strength evidence and would be answered by the model")
 
+        # D6 (MEDIUM, Codex on SB-ASK-009): _RULE_LINE_RE approximates a Markdown thematic break
+        # and is wrong in both directions. A break's markers may be separated by spaces, which
+        # the pattern cannot match, and a break may be indented by at most three spaces, where
+        # the pattern accepts any amount. Neither is a fault uep/work has: its rule pattern is
+        # written with a doubled backslash and deletes no rule line at all. So the first witness
+        # reads the same there only because no rule line is stripped, and the second is a deletion
+        # this line of packages introduced at SB-ASK-006, when the pattern was made to work.
+        _, spaced = amb.chunk_note(
+            "# T\nVisible prose long enough for indexing here ok.\n\n* * *\n\n"
+            "After prose long enough for indexing here.\n", "n.md", 3500)
+        check("* * *" in "\n".join(c["body"] for c in spaced),
+              "[defect-pins] DEFECT D6 PINNED (not a requirement): a thematic break written with "
+              "spaces between its markers is kept as content")
+        _, indented = amb.chunk_note(
+            "# T\nVisible prose long enough for indexing here ok.\n\n    ---\n\n"
+            "After prose long enough for indexing here.\n", "n.md", 3500)
+        check("---" not in "\n".join(c["body"] for c in indented),
+              "[defect-pins] DEFECT D6 PINNED (not a requirement): a run of markers indented four "
+              "spaces, which is not a thematic break, is deleted as one")
+
         # -------------------------------------------------------------- [containment]
         check(len(CONNECTED) >= 2,
               f"[containment] the code under test opened databases and we observed them (got {CONNECTED})")
@@ -587,6 +1008,51 @@ def main() -> int:
         check(amb.sqlite3.connect is REAL_SQLITE_CONNECT,
               "[containment] the suite leaves sqlite3.connect as it found it, compared against a "
               "reference captured before the spy existed")
+
+    # ------------------------------------------------------------------ [doc-hygiene]
+    # Four cycles running, this suite and the fixture README described mechanisms the product no
+    # longer has - a give-back removed by SB-ASK-008, a resume removed by SB-ASK-009 - and one of  # staleness-guard
+    # them was a check label PRINTED ON EVERY PASSING RUN. Each time the named instances were
+    # corrected and the unnamed ones survived. Remembering is what failed, so this checks instead.
+    #
+    # What it does NOT do, so that passing is not mistaken for coverage: it reads two files, this
+    # one and fixtures/README.md, and matches a fixed list of substrings. It does not scan src/,
+    # where the mechanism prose actually lives, nor the other four suites, nor the fixture notes
+    # themselves. It has no notion of tense - it fails on any unmarked hit - so a stale statement
+    # that avoids this vocabulary passes, and the marker below can exempt a line that is not
+    # historical at all. It catches the words these four cycles actually went stale in.
+    dead_mechanisms = (
+        "give-back", "given back", "give back", "gives back",   # staleness-guard: SB-ASK-008
+        "resumed part way", "resume from", "the resume",        # staleness-guard: SB-ASK-009
+    )
+    # These name a fixture that still exists, and are subtracted from each line before matching.
+    # The subtraction is a plain case-sensitive str.replace of these two literal strings, not a
+    # judgement about whether the words are naming the file, and it is neither case-insensitive nor
+    # bounded to whole words. So it exempts a line that is not naming the fixture at all -
+    # 'NotGive Back Fencepost' passes - and does not exempt one that is, when the case differs:
+    # the fixture's own name lowercased is flagged. Both verified. The check below is worded as the
+    # subtraction it performs rather than as the intent behind it, because four attempts to word it
+    # as the intent were each wrong in a different way.
+    #
+    # A rename only has to be reflected here when the new name still carries dead vocabulary; one
+    # that does not, does not. Both directions verified.
+    fixture_names = ("Give Back Fence Note.md", "Give Back Fence")
+    stale = []
+    for doc in (Path(__file__), ROOT / "fixtures" / "README.md"):
+        for number, raw in enumerate(doc.read_text(encoding="utf-8").splitlines(), start=1):
+            if "staleness-guard" in raw:
+                continue
+            probe = raw
+            for name in fixture_names:
+                probe = probe.replace(name, "")
+            lowered = probe.lower()
+            for token in dead_mechanisms:
+                if token in lowered:
+                    stale.append(f"{doc.name}:{number} {token!r}")
+    check(stale == [],
+          f"[doc-hygiene] no unmarked line of this suite or fixtures/README.md carries the "
+          f"vocabulary of a deleted mechanism, once the two fixture-name strings are subtracted "
+          f"from it (got {stale})")
 
     check(snapshot_fixtures() == before,
           "[containment] every fixture file is byte-for-byte and mtime unchanged")

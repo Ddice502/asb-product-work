@@ -574,21 +574,34 @@ def excluded(
 
 
 def note_title(
-    lines: list[str],
+    classified: list[dict],
     fallback: str,
-    frontmatter_end: int,
 ) -> str:
+    """The note's title: its first level-1 heading that is real evidence.
 
-    for index, line in enumerate(
-        lines,
-        start=1,
-    ):
-        if index <= frontmatter_end:
+    Derived from CLASSIFIED lines, not the raw ones. A '# ' line inside an
+    HTML comment, or inside a fenced block, is not a heading. Reading the
+    title off the raw lines put commented-out text into chunks.title, and
+    the title is not an inert field: it is indexed in chunks_fts at the
+    highest bm25 column weight, it feeds the coverage reranker's haystack,
+    it is printed as 'Title:' in the evidence block handed to the answer
+    model, and for a note with no other indexable content it becomes the
+    chunk body. That was the last open leg of defect D1.
+
+    Frontmatter needs no special case here: classify_markup has already
+    dropped those lines.
+    """
+
+    for entry in classified:
+        if (
+            entry["kind"] != "keep"
+            or entry["fenced"]
+        ):
             continue
 
         match = re.match(
             r"^#\s+(.+?)\s*$",
-            line,
+            entry["text"],
         )
 
         if match:
@@ -813,6 +826,344 @@ def provenance_json(
     )
 
 
+# A fenced-code delimiter, as Markdown actually defines one: at most three
+# spaces of indent (four makes it an indented code block), a run of at least
+# three backticks or tildes, and an optional info string.
+_FENCE_LINE_RE = re.compile(
+    r"^ {0,3}(?P<marker>`{3,}|~{3,})(?P<info>.*)$"
+)
+
+
+def fence_delimiter(
+    line: str,
+    open_marker,
+):
+    """Is this line a fence delimiter, and does it open or close?
+
+    Returns the marker that is now open ('```', '~~~~', ...), or None when
+    no fence is open, or False when the line is not a delimiter at all and
+    should be treated as ordinary content.
+
+    Treating every run of three backticks as a toggle was wrong in three
+    separate ways, all of which put text where it should not be:
+
+    - a closing fence may not carry an info string, so inside a fence the
+      line '```not-a-closer' is CONTENT. Toggling on it ended the fence
+      early, which both destroyed the real fenced content that followed and
+      let a heading inside the fence become the note's title.
+    - a fence may be four or more backticks, or tildes. Not recognising
+      those meant an author's literal fenced example lost its comments and
+      rules.
+    - a fence may be indented at most three spaces. Accepting deeper
+      indentation meant an indented code block was read as a fence, which
+      protected commented-out text and carried it into the evidence.
+
+    A closing fence must use the same character as its opener and be at
+    least as long.
+    """
+
+    match = _FENCE_LINE_RE.match(line)
+
+    if not match:
+        return False
+
+    marker = match.group("marker")
+    info = match.group("info")
+
+    if open_marker is None:
+        # A backtick fence's info string may not itself contain a backtick.
+        if (
+            marker[0] == "`"
+            and "`" in info
+        ):
+            return False
+
+        return marker
+
+    if (
+        marker[0] == open_marker[0]
+        and len(marker) >= len(open_marker)
+        and info.strip() == ""
+    ):
+        return None
+
+    return False
+
+# A thematic break is three or more of ONE marker, not any mixture of them.
+# Written as a character class, this deleted lines like '-=_*' that are not
+# breaks at all - a latent error inherited from the base, where the pattern
+# is written with a doubled backslash and deletes no rule line. '=' is kept
+# as a marker so that a setext underline is still removed, which is the
+# behaviour this line has always been declared to have.
+_RULE_LINE_RE = re.compile(
+    r"^[ \t]*"
+    r"(?:\*{3,}|-{3,}|_{3,}|={3,})"
+    r"[ \t]*$"
+)
+
+_INLINE_COMMENT_RE = re.compile(
+    r"<!--.*?-->"
+)
+
+
+def last_closing_line(
+    lines: list[str],
+    fm_end: int,
+) -> int:
+    """The last line number carrying a comment closing marker, or 0.
+
+    Whether a comment opener ever closes does not depend on fences or on any
+    other classification: once a comment is open every following line is
+    comment text until a '-->' appears, so the opener at line L closes if and
+    only if some line after L carries one. Knowing that before classifying
+    means an opener that cannot close is treated as literal text immediately,
+    with no restart at all.
+
+    Complete comments on the opener's own line are removed before the opener
+    is looked for, so no '-->' can remain after it on that line - which is why
+    only LATER lines matter here.
+    """
+
+    last = 0
+
+    for number, raw_line in enumerate(
+        lines,
+        start=1,
+    ):
+        if number <= fm_end:
+            continue
+
+        if "-->" in raw_line:
+            last = number
+
+    return last
+
+
+def _classify_once(
+    lines: list[str],
+    fm_end: int,
+    literal_openers: set,
+    last_close: int = None,
+) -> tuple:
+    """Classify every line of the note, always starting from the first.
+
+    `literal_openers` holds the line numbers of '<!--' markers already known
+    not to close; those are ordinary text and open nothing.
+
+    An earlier version of this function could resume part way, to avoid
+    rescanning the prefix a restart would otherwise repeat. It was removed.
+    The rescanning was never what made this quadratic - last_closing_line is
+    what made it linear, by deciding openers up front - and over 20,000
+    openers the two measured the same to within run-to-run noise, so the
+    resume was buying nothing. It cost something real, though: it restored
+    the fence marker but not the open-comment state, so a restart landing on
+    a line where a comment had closed mid-line re-read the text before that
+    closing marker as ordinary content. That text was inside a comment. The
+    backstop is only worth having if it is correct, so it starts from the top.
+
+    Returns the classification and the line number of the first opener that
+    reached the end of the note still unclosed (or None).
+    """
+
+    if last_close is None:
+        last_close = last_closing_line(lines, fm_end)
+
+    classified: list[dict] = []
+    fence_marker = None
+    open_at = None
+
+    for number, raw_line in enumerate(
+        lines,
+        start=1,
+    ):
+
+        if number <= fm_end:
+            classified.append(
+                {
+                    "number": number,
+                    "kind": "drop",
+                    "text": "",
+                    "fenced": False,
+                }
+            )
+            continue
+
+        line = raw_line.rstrip()
+
+        # An open comment is resolved BEFORE the fence test. A fence
+        # delimiter inside a comment is comment text, not a delimiter.
+        if open_at is not None:
+            closing = line.find("-->")
+
+            if closing == -1:
+                classified.append(
+                    {
+                        "number": number,
+                        "kind": "drop",
+                        "text": "",
+                        "fenced": False,
+                    }
+                )
+                continue
+
+            open_at = None
+            line = line[closing + 3:]
+
+        else:
+            delimiter = fence_delimiter(
+                line,
+                fence_marker,
+            )
+
+            if delimiter is not False:
+                fence_marker = delimiter
+                classified.append(
+                    {
+                        "number": number,
+                        "kind": "drop",
+                        "text": "",
+                        "fenced": True,
+                    }
+                )
+                continue
+
+        if fence_marker is not None:
+            classified.append(
+                {
+                    "number": number,
+                    "kind": "keep",
+                    "text": line,
+                    "fenced": True,
+                }
+            )
+            continue
+
+        # Complete comments on this line go first, so two of them cannot
+        # merge and text between them survives. The pattern is only shown the
+        # line up to its last closing marker. Every match ends in a closing
+        # marker, so none can reach past that point or begin after it, and
+        # the result is the same as substituting over the whole line. What
+        # changes is the cost: past the last closing marker each opener made
+        # the pattern scan to the end of the line and fail, which was
+        # quadratic in the openers on one line (Codex, on SB-ASK-009).
+        last_closer = line.rfind("-->")
+
+        if last_closer != -1:
+            line = (
+                _INLINE_COMMENT_RE.sub(
+                    " ",
+                    line[: last_closer + 3],
+                )
+                + line[last_closer + 3:]
+            )
+
+        if number not in literal_openers:
+            opening = line.find("<!--")
+
+            # An opener with no closing marker after it can never close, so
+            # it is literal text and there is nothing to discover later.
+            if (
+                opening != -1
+                and number >= last_close
+            ):
+                literal_openers.add(number)
+                opening = -1
+
+            if opening != -1:
+                open_at = number
+                line = line[:opening]
+
+        line = line.rstrip()
+
+        if _RULE_LINE_RE.match(line):
+            classified.append(
+                {
+                    "number": number,
+                    "kind": "drop",
+                    "text": "",
+                    "fenced": False,
+                }
+            )
+            continue
+
+        classified.append(
+            {
+                "number": number,
+                "kind": "keep",
+                "text": line,
+                "fenced": False,
+            }
+        )
+
+    return classified, open_at
+
+
+def classify_markup(
+    lines: list[str],
+    fm_end: int,
+) -> list[dict]:
+    """Classify every line of a note once, before anything is chunked.
+
+    Returns one dict per line, aligned with `lines`, carrying:
+        number   1-based line number
+        kind     'keep' or 'drop'
+        text     the line's content after markup removal ('' when dropped)
+        fenced   True if the line sits inside a fenced block
+
+    Every markup decision here is line-local, so no pattern CAN span lines,
+    whatever it is written as. That is what closed the first three attempts
+    at this defect, each of which let a marker pattern run past its own line
+    and delete the content between two markers.
+
+    A comment may only remove text it actually encloses. An earlier version
+    discovered that after the fact and handed the swallowed lines back. That
+    restored their TEXT but not the STATE the wrong decision had produced:
+    fence tracking had already run with those lines consumed, so a heading
+    textually inside a fence could become the note's title and the fence
+    delimiters reached the evidence.
+
+    So the decision is made before it is acted on. The pass runs, and if a
+    comment opener turns out never to close, that opener is recorded as
+    ordinary text and the whole pass is run again with it. Each restart
+    settles one opener, so this terminates, and the classification that is
+    finally returned was computed with the right answer from the first line
+    - fence state included. There is nothing left to undo.
+    """
+
+    literal_openers: set = set()
+    classified: list[dict] = []
+    last_close = last_closing_line(lines, fm_end)
+
+    # With last_closing_line deciding openers up front, a pass should never
+    # report an unterminated opener and this loop should run exactly once.
+    # It is kept as a correctness backstop: if that decision were ever wrong
+    # in the direction of opening a comment that does not close, the restart
+    # still settles it rather than letting the comment swallow the note.
+    #
+    # Bounded, not merely convergent. Each restart settles one opener and a
+    # note has at most len(lines) of them, so the bound is never reached while
+    # this function is correct. It is written as a bound rather than a
+    # progress check because a progress check only catches the shape of
+    # non-progress it tests for: an earlier version guarded against the same
+    # opener being re-reported, and a change that simply stopped recording
+    # openers still span forever. Indexing a note must always finish, so the
+    # loop cannot depend on the body being right.
+    for _ in range(len(lines) + 1):
+        classified, unterminated = _classify_once(
+            lines,
+            fm_end,
+            literal_openers,
+            last_close,
+        )
+
+        if unterminated is None:
+            break
+
+        literal_openers.add(unterminated)
+
+    return classified
+
+
 def chunk_note(
     text: str,
     relative_path: str,
@@ -823,10 +1174,16 @@ def chunk_note(
 
     fm_end = frontmatter_end(lines)
 
-    title = note_title(
+    # Classify once, then read the title off the classification. Both the
+    # title and the chunk boundaries have to see markup before they decide.
+    classified = classify_markup(
         lines,
-        Path(relative_path).stem,
         fm_end,
+    )
+
+    title = note_title(
+        classified,
+        Path(relative_path).stem,
     )
 
     chunks: list[dict] = []
@@ -845,31 +1202,14 @@ def chunk_note(
         nonlocal end_line
         nonlocal current_chars
 
+        # Comments, rules and fence markers were already removed line by line
+        # by classify_markup, so nothing here can span lines. What is left is
+        # whitespace tidying. Both patterns were previously written with
+        # doubled backslashes, which made them match a literal backslash and
+        # never fire (defect D1).
         body = "\n".join(
             buffer
         ).strip()
-
-        # HTML comments are pipeline metadata / structural markers,
-        # not useful retrieval evidence.
-        body = re.sub(
-            r"<!--[\\s\\S]*?-->",
-            " ",
-            body,
-        )
-
-        # Remove standalone Markdown separators and fence markers
-        # while retaining actual fenced content.
-        body = re.sub(
-            r"(?m)^\\s*```[^`]*$",
-            " ",
-            body,
-        )
-
-        body = re.sub(
-            r"(?m)^\\s*[-=_*]{3,}\\s*$",
-            " ",
-            body,
-        )
 
         body = re.sub(
             r"[ \t]+",
@@ -878,8 +1218,8 @@ def chunk_note(
         )
 
         body = re.sub(
-            r"\\n{3,}",
-            "\\n\\n",
+            r"\n{3,}",
+            "\n\n",
             body,
         ).strip()
 
@@ -914,16 +1254,24 @@ def chunk_note(
         end_line = None
         current_chars = 0
 
-    for line_number, raw_line in enumerate(
-        lines,
-        start=1,
-    ):
-        if line_number <= fm_end:
+    for entry in classified:
+        line_number = entry["number"]
+
+        if entry["kind"] == "drop":
             continue
 
-        heading_match = re.match(
-            r"^(#{1,6})\s+(.+?)\s*$",
-            raw_line,
+        line = entry["text"]
+
+        # A '#' line inside a fenced block is a shell, YAML or Python comment,
+        # not a heading. Splitting the chunk there used to strand the rest of
+        # the fence outside its own fence state.
+        heading_match = (
+            None
+            if entry["fenced"]
+            else re.match(
+                r"^(#{1,6})\s+(.+?)\s*$",
+                line,
+            )
         )
 
         if heading_match:
@@ -936,8 +1284,6 @@ def chunk_note(
             )
 
             continue
-
-        line = raw_line.rstrip()
 
         if len(line) > max_chars:
             flush()
