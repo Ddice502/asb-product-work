@@ -52,3 +52,42 @@ not an edit inside another one.
 this item sits next to, in particular that `(chunk N)` is the row's
 `start_line` rather than a chunk ordinal, and that the start-end line range is
 no longer printed.
+
+---
+
+## PD-002 — Indented marker runs are deleted as thematic breaks (D6)
+
+**Status:** open, deferred, non-blocking.
+**Raised:** 2026-09-17, by Codex reviewing SB-ASK-009; provenance corrected by
+Agent C reviewing SB-ASK-012.
+**Blocks:** nothing. Pinned as defect D6 in `tests/test_retrieval_core_e2e.py`.
+
+`_RULE_LINE_RE` accepts any amount of leading whitespace, so a run of markers
+indented four or more spaces, which Markdown treats as indented code and not a
+thematic break, is deleted from the indexed body. It also cannot match a break
+written with spaces between its markers, such as `* * *`, which is kept.
+
+The deletion is not inherited. At `4573b55` the rule pattern was written with
+doubled backslashes and deleted no rule line; the deletion became live at
+`44e7588` (SB-ASK-006), and arrived on `uep/work` with the SB-ASK-012 merge.
+
+The repair for the deletion is one token, `^[ \t]*` to `^ {0,3}`. Either repair
+fails its D6 pin, which is the signal to replace the pin with an assertion of
+the correct behaviour.
+
+## PD-003 — Heading patterns are quadratic in an interior whitespace run
+
+**Status:** open, deferred, non-blocking.
+**Raised:** 2026-09-17, by Agent C reviewing SB-ASK-012.
+**Blocks:** nothing. Not pinned.
+
+`^(#{1,6})\s+(.+?)\s*$` in `chunk_note` and `^#\s+(.+?)\s*$` in `note_title`
+backtrack quadratically through a run of spaces or tabs inside a heading line.
+`# x`, 32,000 spaces, `y` takes 4.9 seconds. The patterns are identical at
+`4573b55` and in every commit back to the import, so this was not introduced
+by the SB-ASK-006 to SB-ASK-012 line.
+
+`build_index` has no file-size cap, so one such line in one note is enough to
+slow an index build. SB-ASK-012 closed the same exposure for unclosed comment
+openers; this one remains.
+

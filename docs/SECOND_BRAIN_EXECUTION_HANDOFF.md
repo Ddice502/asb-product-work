@@ -280,6 +280,32 @@ Pure low-risk helper modules with deterministic, pre-committed tests may skip
 Codex when the package brief states why. User-visible behavior by itself does
 not require Codex; the specific high-risk criteria do.
 
+Wording findings do not block
+
+Owner decision 2026-09-17, out of SB-ASK-009 through SB-ASK-012. Across those
+four packages, fifteen completed reviews returned eleven FAILs. Two of the
+eleven found a fault in code: a restart backstop broken by SB-ASK-009's first
+candidate, and the quadratic comment pattern Codex found. The other nine were
+on wording alone.
+
+A finding that concerns only non-executable wording does not block a package
+whose behaviour is verified. Non-executable wording means a code comment, a
+docstring no code reads, a comment or check label in a test, a commit message,
+or the prose of a receipt. Agent C and Codex still report these findings and
+label them WORDING. The executor records each one in
+docs/WORDING_CLEANUP_LOG.md, spends no repair cycle on it, and reports the
+package at the merge gate. The log is worked only when the owner selects a
+cleanup package.
+
+Behaviour counts as verified at the frozen SHA when a reviewer verified that
+SHA, or verified a SHA that differs from it in comments only, meaning every
+changed source and test file parses to the same syntax tree.
+
+This does not cover a string the product emits or a test asserts on, a prompt
+or trailer contract, or a receipt's machine facts: SHAs, changed files, test
+commands and exit codes. Those are behaviour or evidence, not wording, and a
+fault in one blocks as before.
+
 6. Merge to product integration
 
 Jamale decides whether to merge the completed candidate into the isolated
